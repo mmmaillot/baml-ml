@@ -54,5 +54,12 @@ jobs:
           set -euo pipefail
           "$BAML_CLI" --version
           "$BAML_CLI" check
-          "$BAML_CLI" test --list
-          "$BAML_CLI" test --max-concurrency 1 --test-timeout 5m
+          "$BAML_CLI" test --list 2>&1 | tee discovered-tests.log
+          for name in example_iris_clean example_iris_missing example_diabetes_clean example_diabetes_missing; do
+            grep -F "root::$name" discovered-tests.log
+          done
+          "$BAML_CLI" test --max-concurrency 1 --test-timeout 5m 2>&1 | tee test-results.log
+          for name in example_iris_clean example_iris_missing example_diabetes_clean example_diabetes_missing; do
+            grep -F "PASS root::$name " test-results.log
+          done
+          grep -F "29 passed, 0 failed, 29 total" test-results.log
