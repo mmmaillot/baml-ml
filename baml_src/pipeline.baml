@@ -147,32 +147,49 @@ function EmptyClassificationPipeline() -> ClassificationPipeline {
   ClassificationPipeline { imputer: EmptyImputer(), scaler: EmptyScaler(), model: EmptyLogRegModel() }
 }
 
-// Fit every step sequentially on the training data only: impute, then scale
-// the imputed matrix, then fit the classifier on the scaled matrix. The
-// classifier hyperparameters (c, max_iter, tol) are passed through to
-// LogRegFit (beta has no default parameter values).
+// Fail fast on an invalid label vector or invalid hyperparameters (same checks
+// as LogRegFit) before any imputation or scaling work runs.
 function ClassificationPipelineFit(x: float[][], y: int[], c: float, max_iter: int, tol: float) -> ClassificationPipelineFitResult {
-  let f1 = ImputerFit(x);
-  let err = f1.error;
+  let d0 = CheckMatrix(x);
+  let err = d0.error;
+  if (err == "" && y.length() != d0.rows) {
+    err = "classification_pipeline_fit: y length differs from row count of x";
+  }
+  if (err == "" && (!IsFinite(c) || c <= 0.0)) {
+    err = "classification_pipeline_fit: c must be finite and positive";
+  }
+  if (err == "" && (!IsFinite(tol) || tol <= 0.0)) {
+    err = "classification_pipeline_fit: tol must be finite and positive";
+  }
+  if (err == "" && max_iter < 1) {
+    err = "classification_pipeline_fit: max_iter must be >= 1";
+  }
+  if (err == "" && UniqueSortedClasses(y).length() < 2) {
+    err = "classification_pipeline_fit: need at least two distinct classes";
+  }
   let imp = EmptyImputer();
   let sc = EmptyScaler();
   let model = EmptyLogRegModel();
   if (err == "") {
-    imp = f1.imputer;
-    let t1 = ImputerTransform(x, imp);
-    err = t1.error;
+    let f1 = ImputerFit(x);
+    err = f1.error;
     if (err == "") {
-      let f2 = ScalerFit(t1.x);
-      err = f2.error;
+      imp = f1.imputer;
+      let t1 = ImputerTransform(x, imp);
+      err = t1.error;
       if (err == "") {
-        sc = f2.scaler;
-        let t2 = ScalerTransform(t1.x, sc);
-        err = t2.error;
+        let f2 = ScalerFit(t1.x);
+        err = f2.error;
         if (err == "") {
-          let f3 = LogRegFit(t2.x, y, c, max_iter, tol);
-          err = f3.error;
+          sc = f2.scaler;
+          let t2 = ScalerTransform(t1.x, sc);
+          err = t2.error;
           if (err == "") {
-            model = f3.model;
+            let f3 = LogRegFit(t2.x, y, c, max_iter, tol);
+            err = f3.error;
+            if (err == "") {
+              model = f3.model;
+            }
           }
         }
       }

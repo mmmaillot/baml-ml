@@ -125,12 +125,32 @@ def test_rejects_incompatible_dimensions_and_bad_input():
     assert not b.ClassificationPipelinePreprocess([[1.0, 2.0]], p).ok
     assert not b.ClassificationPipelineFit([[NAN, NAN, NAN], [NAN, NAN, NAN]], [0, 1], C, MAX_ITER, TOL).ok  # all-missing columns
     assert not b.ClassificationPipelineFit([], [], C, MAX_ITER, TOL).ok
-    assert not b.ClassificationPipelineFit(X_TRAIN, [0, 1, 0], C, MAX_ITER, TOL).ok  # y length mismatch
-    assert not b.ClassificationPipelineFit(X_TRAIN, [1] * len(X_TRAIN), C, MAX_ITER, TOL).ok  # one class
-    assert not b.ClassificationPipelineFit(X_TRAIN, Y_TRAIN, 0.0, MAX_ITER, TOL).ok  # c <= 0
-    assert not b.ClassificationPipelineFit(X_TRAIN, Y_TRAIN, C, 0, TOL).ok  # max_iter < 1
-    assert not b.ClassificationPipelineFit(X_TRAIN, Y_TRAIN, C, MAX_ITER, -1.0).ok  # tol <= 0
+    r = b.ClassificationPipelineFit(X_TRAIN, [0, 1, 0], C, MAX_ITER, TOL)
+    assert not r.ok and "y length differs" in r.error  # y length mismatch
+    r = b.ClassificationPipelineFit(X_TRAIN, [1] * len(X_TRAIN), C, MAX_ITER, TOL)
+    assert not r.ok and "at least two distinct classes" in r.error  # one class
+    r = b.ClassificationPipelineFit(X_TRAIN, Y_TRAIN, 0.0, MAX_ITER, TOL)
+    assert not r.ok and "c must be finite and positive" in r.error  # c <= 0
+    r = b.ClassificationPipelineFit(X_TRAIN, Y_TRAIN, C, 0, TOL)
+    assert not r.ok and "max_iter must be >= 1" in r.error  # max_iter < 1
+    r = b.ClassificationPipelineFit(X_TRAIN, Y_TRAIN, C, MAX_ITER, -1.0)
+    assert not r.ok and "tol must be finite and positive" in r.error  # tol <= 0
     assert not b.ClassificationPipelineFit(X_TRAIN, Y_TRAIN, C, 1, TOL).ok  # non-convergence reported
+
+
+def test_fit_validates_labels_and_hyperparameters_before_preprocessing():
+    # Invalid hyperparameters/labels are rejected up front: the error must not
+    # come from the imputer/scaler steps even when the data would also fail them.
+    all_missing = [[NAN, NAN, NAN], [NAN, NAN, NAN]]
+    r = b.ClassificationPipelineFit(all_missing, [0, 1], 0.0, MAX_ITER, TOL)
+    assert not r.ok
+    assert "classification_pipeline_fit: c must be finite and positive" in r.error
+    r = b.ClassificationPipelineFit(all_missing, [0, 1], C, MAX_ITER, TOL)
+    assert not r.ok
+    assert "imputer_fit" in r.error  # data error surfaces only once args are valid
+    r = b.ClassificationPipelineFit(X_TRAIN, [1] * len(X_TRAIN), C, MAX_ITER, TOL)
+    assert not r.ok
+    assert r.error.startswith("classification_pipeline_fit:")
 
 
 @pytest.mark.parametrize(
