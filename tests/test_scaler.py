@@ -84,7 +84,7 @@ def test_rejects_non_finite_or_bad_shapes():
 
 
 def test_fit_and_transform_reject_overflow_to_infinity():
-    # Mean overflows: 1e308 + 1e308 -> inf
+    # Mean overflows: 1e308 + 1e308 -> inf (consistent with ImputerFit and sklearn)
     mean_ovf = b.ScalerFit([[1e308], [1e308]])
     assert not mean_ovf.ok
     assert "not finite" in mean_ovf.error

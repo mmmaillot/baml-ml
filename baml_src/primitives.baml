@@ -237,7 +237,13 @@ function ColumnMeans(m: float[][]) -> NumArrayResult {
 }
 
 // Internal: per-column population variances (ddof=0) of a validated matrix
-// from precomputed column means, two-pass for numerical stability.
+// from precomputed column means, using Chan, Golub & LeVeque's (1983)
+// corrected two-pass formula:
+//   var = max(0, (sum((x_i - mean)^2) - (sum(x_i - mean))^2 / n) / n)
+// Subtracting the squared residual sum cancels first-order float64 mean
+// rounding (giving exact 0.0 on constant columns like [0.1, 0.1, 0.1]) while
+// preserving two-pass accuracy on large-offset columns (e.g. 1e12 + N(0, 1)),
+// where textbook single-pass Welford loses ~10 digits of precision.
 function ColumnVariancesFromMeansUnchecked(m: float[][], means: float[], cols: int) -> float[] {
   let n = 0.0;
   for (let i = 0; i < m.length(); i += 1) {
@@ -245,24 +251,33 @@ function ColumnVariancesFromMeansUnchecked(m: float[][], means: float[], cols: i
   }
   let variances: float[] = [];
   for (let j = 0; j < cols; j += 1) {
-    let acc = 0.0;
+    let acc_sq = 0.0;
+    let acc_diff = 0.0;
     for (let i = 0; i < m.length(); i += 1) {
       let diff = m[i][j] - means[j];
-      acc = acc + diff * diff;
+      acc_diff = acc_diff + diff;
+      acc_sq = acc_sq + diff * diff;
     }
-    variances.push(acc / n);
+    let corrected = acc_sq;
+    if (IsFinite(acc_sq) && IsFinite(acc_diff)) {
+      corrected = acc_sq - (acc_diff / n) * acc_diff;
+      if (corrected < 0.0) {
+        corrected = 0.0;
+      }
+    }
+    variances.push(corrected / n);
   }
   variances
 }
 
 // Internal: per-column population variances (ddof=0) of a validated matrix,
-// two-pass for numerical stability.
+// corrected two-pass for numerical stability.
 function ColumnVariancesUnchecked(m: float[][], cols: int) -> float[] {
   let means = ColumnMeansUnchecked(m, cols);
   ColumnVariancesFromMeansUnchecked(m, means, cols)
 }
 
-// Per-column population variances (ddof=0), two-pass for numerical stability.
+// Per-column population variances (ddof=0), corrected two-pass for numerical stability.
 function ColumnVariances(m: float[][]) -> NumArrayResult {
   let d = CheckMatrix(m);
   let err = d.error;

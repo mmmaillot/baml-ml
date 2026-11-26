@@ -1,7 +1,17 @@
 // StandardScaler: dense standardization (center per feature, divide by unit
 // population variance, ddof=0). Input must be finite and already imputed
-// (no NaN, no ±Inf). scale = sqrt(population variance) computed in BAML via
-// Newton's method (Sqrt); zero-variance columns use scale = 1.
+// (no NaN, no ±Inf). Variances come from Chan, Golub & LeVeque's (1983)
+// corrected two-pass formula, and `scale = Sqrt(variance)` is computed in BAML
+// via Newton's method.
+//
+// Near-constant threshold (issue #14): following Chan, Golub & LeVeque's
+// two-pass rounding error bound (also used by sklearn's `_is_constant_feature`),
+// a column is indistinguishable from constant when
+//   var <= n * eps * var + (n * eps * mean)^2,
+// i.e. in overflow-safe scale space: `s * Sqrt(1 - n * eps) <= n * eps * |mean|`
+// where `eps = 2^-52` (`0.0000000000000002220446049250313`; beta has no
+// exponent literals) and `n` is the row count. Such columns get `scale = 1.0`,
+// while genuinely representable small scales are preserved.
 
 class StandardScaler {
   means float[]
@@ -55,10 +65,19 @@ function ScalerFit(x: float[][]) -> ScalerFitResult {
   }
   let scales: float[] = [];
   if (err == "") {
+    let n = 0.0;
+    for (let i = 0; i < x.length(); i += 1) {
+      n = n + 1.0;
+    }
+    let n_eps = n * 0.0000000000000002220446049250313;
+    let guard = Sqrt(1.0 - n_eps);
     for (let j = 0; j < d.cols; j += 1) {
-      let s = Sqrt(variances[j]);
-      if (s == 0.0) {
-        s = 1.0;
+      let s = 1.0;
+      if (variances[j] > 0.0) {
+        let cand = Sqrt(variances[j]);
+        if (cand * guard > n_eps * Abs(means[j])) {
+          s = cand;
+        }
       }
       scales.push(s);
     }

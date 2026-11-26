@@ -65,6 +65,18 @@ def test_column_stats_single_row_variance_is_zero():
     assert result.value == pytest.approx([0.0, 0.0])
 
 
+def test_column_variances_corrected_two_pass_on_constant_and_shifted_columns():
+    # 0.1 mean does not round-trip in float64; corrected two-pass still gives 0.0.
+    const_res = b.ColumnVariances([[0.1], [0.1], [0.1]])
+    assert const_res.ok
+    assert const_res.value == [0.0]
+
+    # Large offset + unit spread retains precision (where naive Welford loses ~10 digits).
+    shifted = b.ColumnVariances([[1e12 - 1.0], [1e12 + 1.0]])
+    assert shifted.ok
+    assert shifted.value == pytest.approx([1.0], rel=1e-12)
+
+
 def test_vec_add_sub_scale():
     assert b.VecAdd([1.0, 2.0], [10.0, 20.0]).value == [11.0, 22.0]
     assert b.VecSub([1.0, 2.0], [10.0, 20.0]).value == [-9.0, -18.0]
