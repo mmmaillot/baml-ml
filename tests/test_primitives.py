@@ -1,4 +1,5 @@
 import math
+import sys
 
 import pytest
 
@@ -96,3 +97,42 @@ def test_nan_propagates_through_primitives():
     assert result.ok
     assert math.isnan(result.value[1])
     assert result.value[0] == 2.0
+
+
+def test_isnan_and_isfinite_ieee754_cases():
+    for finite in [
+        0.0,
+        -0.0,
+        1.0,
+        -42.5,
+        5e-324,
+        sys.float_info.min,
+        sys.float_info.max,
+        -sys.float_info.max,
+    ]:
+        assert b.IsNaN(finite) is False
+        assert b.IsFinite(finite) is True
+
+    assert b.IsNaN(math.nan) is True
+    assert b.IsFinite(math.nan) is False
+
+    for inf in [math.inf, -math.inf]:
+        assert b.IsNaN(inf) is False
+        assert b.IsFinite(inf) is False
+
+
+def test_check_finite_matrix():
+    ok = b.CheckFiniteMatrix([[1.0, -2.0], [0.0, sys.float_info.max]])
+    assert ok.ok
+    assert (ok.rows, ok.cols) == (2, 2)
+
+    assert not b.CheckFiniteMatrix([]).ok
+    assert not b.CheckFiniteMatrix([[1.0], [2.0, 3.0]]).ok
+
+    with_nan = b.CheckFiniteMatrix([[1.0, math.nan], [2.0, 3.0]])
+    assert not with_nan.ok
+    assert "NaN or infinite" in with_nan.error
+
+    with_inf = b.CheckFiniteMatrix([[1.0, 2.0], [-math.inf, 3.0]])
+    assert not with_inf.ok
+    assert "NaN or infinite" in with_inf.error

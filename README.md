@@ -28,51 +28,59 @@ Commands:
 ```bash
 npx baml --features beta check      # type-check baml_src/ (no LLM, no API key)
 npx baml --features beta generate   # regenerate the Python client into baml_client/ (gitignored)
-.venv/bin/python -m pytest tests/   # run the Python test harness (auto-generates baml_client/ if missing)
+.venv/bin/python -m pytest tests/   # run the Python test harness (auto-(re)generates baml_client/ when needed)
 .venv/bin/python examples/dot_example.py  # run one deterministic BAML function from Python
 ```
 
 The `--features beta` flag is required: expression functions with statements
 (`let`, `if`, `for`) are a beta feature of the 0.226.3 CLI. The generated
-client embeds the compiled artifact, so the Python side needs no flag and no
-LLM client is defined anywhere — no API key is ever required for these tests.
+client embeds the compiled artifact directly into `./baml_client/`, so the
+Python side needs no flag and no LLM client is defined anywhere — no API key
+is ever required for these tests.
 
 ## Data representation and conventions
 
 Shared by all estimators (implemented in `baml_src/primitives.baml`):
 
 - **Vector**: `float[]`. **Matrix**: `float[][]`, row-major (a list of rows).
-- **Missing values**: IEEE-754 `NaN` in a `float` cell, detected with
-  `x != x`. NaN round-trips through the `baml-py` bridge (verified for
-  scalars, vectors and matrices in 0.226.3), so BAML optionals (`float?`)
-  are not needed; note that 0.226.3 beta expression functions cannot inspect
+- **Missing and finite values**: IEEE-754 `NaN` in a `float` cell represents a
+  missing value, detected with `IsNaN(x)` (`x != x`). Finite values are checked
+  in pure BAML with `IsFinite(x)` (`(x - x) == 0.0`, which rejects both `NaN`
+  and `±Inf`). NaN round-trips through the `baml-py` bridge (verified for
+  scalars, vectors and matrices in 0.226.3), so BAML optionals (`float?`) are
+  not needed; note that 0.226.3 beta expression functions cannot inspect
   `null`, which is why NaN is the missing-value representation.
 - **Numeric types**: `int` for loop indices and counts, `float` for all data.
   The beta expression language has strict typing: `int` and `float` never mix
   implicitly and there is no int→float conversion, so counters that get
   divided are kept as `float` (`n = n + 1.0`).
-- **Shape validation**: every public function validates shapes (non-empty,
-  rectangular matrix; matching vector lengths; matching feature counts) via
-  `CheckMatrix` and related guards.
-- **Error convention**: BAML 0.226.3 expression functions cannot `throw`,
-  `@assert` does not fire for computed (non-LLM) functions, and unions cannot
-  be narrowed with `instanceof`. Fallible functions therefore return a result
-  class with non-nullable fields: `ok bool`, a payload, and `error string`
-  (`""` on success). Python callers check `.ok` / `.error`; BAML callers check
-  `ok`. Error messages are static strings (no string interpolation of numbers
-  in the beta expression language).
+- **Shape and finiteness validation**: every public entry point validates
+  shapes (non-empty, rectangular matrix; matching vector lengths; matching
+  feature counts) via `CheckMatrix` / `CheckFiniteMatrix` and related guards.
+- **Error convention & internal helpers**: BAML 0.226.3 expression functions
+  cannot `throw`, `@assert` does not fire for computed (non-LLM) functions, and
+  unions cannot be narrowed with `instanceof`. Public entry points therefore
+  return a `*Result` class with non-nullable fields: `ok bool`, a payload, and
+  `error string` (`""` on success). Python callers check `.ok` / `.error`; BAML
+  callers check `ok`. Error messages are static strings (no string
+  interpolation of numbers in the beta expression language). Because BAML has
+  no `private` visibility modifier, internal BAML-to-BAML helpers (`IsNaN`,
+  `IsFinite`, `*Unchecked`, `Empty*`) are also generated on `b` — they return
+  raw values and are not part of the public Python API.
 
 ## Implemented so far
 
-- `baml_src/primitives.baml`: `CheckMatrix`, `Dot`, `ColumnMeans`,
-  `ColumnVariances` (population, ddof=0), `VecAdd`, `VecSub`, `VecScale`,
-  `MatVec`, `Transpose`. All arithmetic runs in BAML.
+- `baml_src/primitives.baml`: `IsNaN`, `IsFinite`, `CheckMatrix`,
+  `CheckFiniteMatrix`, `Dot`, `ColumnMeans`, `ColumnVariances` (population,
+  ddof=0), `VecAdd`, `VecSub`, `VecScale`, `MatVec`, `Transpose`. All
+  arithmetic runs in BAML.
 - `baml_src/imputer.baml`: mean `SimpleImputer` — `ImputerFit`,
   `ImputerTransform`, `ImputerFitTransform` with an explicit `MeanImputer`
-  fitted state (per-column means from non-missing training values only).
-  An entirely missing training column is rejected with an error (no silent
-  feature dropping); transform preserves shape and non-missing entries and
-  always uses the stored training statistics. Parity with
+  fitted state (per-column means from finite non-missing training values only).
+  Entirely missing training columns, `±Inf` inputs, non-finite means, and
+  malformed `MeanImputer` states are rejected with documented errors (no silent
+  feature dropping); transform preserves shape and finite non-missing entries
+  and always uses the stored training statistics. Parity with
   `sklearn.impute.SimpleImputer(strategy="mean")` is tested within 1e-12 on
   supported fixtures (no all-missing columns, which sklearn drops by default).
 
@@ -109,7 +117,7 @@ Measure training time, inference latency (p50/p99), throughput, numerical parity
 
 ## Status
 
-Issues #2 (bootstrap + numerical primitives) and #3 (mean SimpleImputer) are implemented and tested: 29 pytest tests pass, including hand-computed fixtures, shape-mismatch rejection, all-missing-column rejection, and sklearn parity.
+Issues #2 (bootstrap + numerical primitives) and #3 (mean SimpleImputer) are implemented and tested: 45 pytest tests pass, including hand-computed fixtures, shape-mismatch rejection, `±Inf` and malformed-state rejection, all-missing-column rejection, and sklearn parity.
 
 Known limitations of BAML 0.226.3 beta expression functions (documented per issue #2 rather than worked around in Python):
 

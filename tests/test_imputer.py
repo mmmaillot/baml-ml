@@ -4,9 +4,10 @@ import numpy as np
 import pytest
 from sklearn.impute import SimpleImputer
 
-from baml_client import b
+from baml_client import b, types
 
 NAN = math.nan
+INF = math.inf
 
 # Hand-computed fixture: column 0 mean = (1 + 3) / 2 = 2,
 # column 1 mean = (4 + 10) / 2 = 7.
@@ -143,3 +144,52 @@ def test_sklearn_parity_on_held_out_rows():
     ref = SimpleImputer(strategy="mean").fit(x_train)
     expected = ref.transform(x_test)
     assert np.allclose(ours, expected, atol=1e-12, rtol=1e-12)
+
+
+@pytest.mark.parametrize(
+    "bad_train",
+    [
+        [[INF, 1.0], [2.0, 3.0]],
+        [[-INF, 1.0], [2.0, 3.0]],
+        [[INF, 1.0], [-INF, 2.0]],  # inf + (-inf) would otherwise yield NaN mean
+    ],
+)
+def test_infinite_values_rejected_in_fit_and_fit_transform(bad_train):
+    fit = b.ImputerFit(bad_train)
+    assert not fit.ok
+    assert "infinite" in fit.error
+
+    ft = b.ImputerFitTransform(bad_train)
+    assert not ft.ok
+    assert "infinite" in ft.error
+
+
+def test_overflowed_column_mean_is_rejected():
+    fit = b.ImputerFit([[1e308], [1e308]])
+    assert not fit.ok
+    assert "not finite" in fit.error
+
+
+@pytest.mark.parametrize("bad_val", [INF, -INF])
+def test_infinite_values_rejected_in_transform(bad_val):
+    fit = b.ImputerFit(X_TRAIN)
+    assert fit.ok
+    res = b.ImputerTransform([[bad_val, 1.0], [NAN, 2.0]], fit.imputer)
+    assert not res.ok
+    assert "infinite" in res.error
+
+
+@pytest.mark.parametrize(
+    "bad_imputer,expected_msg",
+    [
+        (b.EmptyImputer(), "invalid fitted imputer"),
+        (types.MeanImputer(means=[1.0], n_features=2), "invalid fitted imputer"),
+        (types.MeanImputer(means=[1.0, 2.0, 3.0], n_features=2), "invalid fitted imputer"),
+        (types.MeanImputer(means=[NAN, 2.0], n_features=2), "non-finite means"),
+        (types.MeanImputer(means=[INF, 2.0], n_features=2), "non-finite means"),
+    ],
+)
+def test_malformed_imputer_state_is_rejected_without_vm_crash(bad_imputer, expected_msg):
+    res = b.ImputerTransform([[NAN, NAN]], bad_imputer)
+    assert not res.ok
+    assert expected_msg in res.error

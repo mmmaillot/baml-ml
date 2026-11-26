@@ -8,10 +8,13 @@
 // - int and float never mix implicitly: counters that are divided are kept
 //   as float (e.g. n = n + 1.0).
 //
-// Error convention: every public function validates its shapes and returns a
-// result class with a non-nullable `ok` flag and `error` string ("" when ok),
-// because BAML 0.226.3 expression functions cannot throw and cannot narrow
-// unions. Python callers check `.ok` / `.error`; BAML callers check `ok`.
+// Error convention: every public entry point validates its inputs and returns
+// a `*Result` class with a non-nullable `ok` flag and `error` string ("" when
+// ok), because BAML 0.226.3 expression functions cannot throw and cannot
+// narrow unions. Python callers check `.ok` / `.error`; BAML callers check
+// `ok`. BAML has no `private` visibility modifier, so internal BAML-to-BAML
+// helpers (`IsNaN`, `IsFinite`, `*Unchecked`, `Empty*`) also appear on the
+// generated client `b` but return raw values and are not public entry points.
 //
 // Style note: the 0.226.3 beta compiler miscompiles if/else expressions
 // nested inside branches that also contain statements, so every function
@@ -43,8 +46,20 @@ class DimsResult {
   error string
 }
 
+// IEEE-754 NaN test: true iff x is NaN.
+function IsNaN(x: float) -> bool {
+  x != x
+}
+
+// IEEE-754 finiteness test without a math library: x - x == 0.0 holds for
+// every finite float (including ±0.0, subnormals, and ±DBL_MAX) and evaluates
+// to NaN == 0.0 (false) for NaN, +Inf, and -Inf.
+function IsFinite(x: float) -> bool {
+  (x - x) == 0.0
+}
+
 // Shape check for a row-major dense matrix: non-empty, at least one column,
-// and every row of equal length.
+// and every row of equal length. Cell values (including NaN) are not checked.
 function CheckMatrix(m: float[][]) -> DimsResult {
   let err = "";
   let cols = 0;
@@ -64,6 +79,27 @@ function CheckMatrix(m: float[][]) -> DimsResult {
   }
   if (err == "") {
     DimsResult { ok: true, rows: m.length(), cols: cols, error: "" }
+  } else {
+    DimsResult { ok: false, rows: 0, cols: 0, error: err }
+  }
+}
+
+// Shape and finiteness check for estimators requiring complete finite data
+// (no NaN and no ±Inf).
+function CheckFiniteMatrix(m: float[][]) -> DimsResult {
+  let d = CheckMatrix(m);
+  let err = d.error;
+  if (err == "") {
+    for (let i = 0; i < m.length() && err == ""; i += 1) {
+      for (let j = 0; j < d.cols && err == ""; j += 1) {
+        if (!IsFinite(m[i][j])) {
+          err = "matrix contains NaN or infinite values";
+        }
+      }
+    }
+  }
+  if (err == "") {
+    DimsResult { ok: true, rows: d.rows, cols: d.cols, error: "" }
   } else {
     DimsResult { ok: false, rows: 0, cols: 0, error: err }
   }
