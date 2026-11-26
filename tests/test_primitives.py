@@ -136,3 +136,29 @@ def test_check_finite_matrix():
     with_inf = b.CheckFiniteMatrix([[1.0, 2.0], [-math.inf, 3.0]])
     assert not with_inf.ok
     assert "NaN or infinite" in with_inf.error
+
+
+def test_abs_and_sqrt_ieee754_cases():
+    assert b.Abs(-3.5) == 3.5
+    assert b.Abs(3.5) == 3.5
+    assert math.copysign(1.0, b.Abs(-0.0)) == 1.0
+    assert b.Abs(-math.inf) == math.inf
+    assert math.isnan(b.Abs(math.nan))
+
+    for v in [0.0, -0.0, 1.0, 2.0, 0.25, 5e-324, sys.float_info.min, sys.float_info.max]:
+        assert b.Sqrt(v) == pytest.approx(math.sqrt(abs(v)), rel=1e-12, abs=0.0)
+    assert b.Sqrt(-4.0) == 0.0
+    assert b.Sqrt(-math.inf) == 0.0
+    assert b.Sqrt(math.inf) == math.inf
+    assert math.isnan(b.Sqrt(math.nan))
+
+
+def test_vec_norm_handles_extreme_magnitudes_without_premature_overflow_or_underflow():
+    assert b.VecNorm([]) == 0.0
+    assert b.VecNorm([3.0, -4.0]) == pytest.approx(5.0)
+    # Unscaled sum of squares would overflow (1e400 -> inf) or underflow (1e-400 -> 0).
+    assert b.VecNorm([3e200, 4e200]) == pytest.approx(5e200, rel=1e-12)
+    assert b.VecNorm([3e-200, 4e-200]) == pytest.approx(5e-200, rel=1e-12)
+    assert b.VecNorm([math.inf, 1.0]) == math.inf
+    assert math.isnan(b.VecNorm([math.nan, 1.0]))
+

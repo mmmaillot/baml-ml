@@ -58,6 +58,42 @@ function IsFinite(x: float) -> bool {
   (x - x) == 0.0
 }
 
+// Absolute value without a math library (maps -0.0 to 0.0 and -Inf to +Inf;
+// preserves NaN).
+function Abs(x: float) -> float {
+  let y = x;
+  if (x <= 0.0) {
+    y = 0.0 - x;
+  }
+  y
+}
+
+// Square root via Newton's method (BAML 0.226.3 beta exposes no float math
+// methods). Deterministic: fixed 600 iterations from y0 = max(x, 1.0), which
+// reaches machine precision even for subnormal and near-DBL_MAX finite inputs.
+// Preserves NaN and +Inf; clamps finite/infinite x <= 0 to 0.0.
+function Sqrt(x: float) -> float {
+  let y = 0.0;
+  if (IsNaN(x)) {
+    y = x;
+  } else {
+    if (x > 0.0 && !IsFinite(x)) {
+      y = x;
+    }
+    if (x > 0.0 && IsFinite(x)) {
+      let y0 = 1.0;
+      if (x > 1.0) {
+        y0 = x;
+      }
+      y = y0;
+      for (let i = 0; i < 600; i += 1) {
+        y = 0.5 * (y + x / y);
+      }
+    }
+  }
+  y
+}
+
 // Shape check for a row-major dense matrix: non-empty, at least one column,
 // and every row of equal length. Cell values (including NaN) are not checked.
 function CheckMatrix(m: float[][]) -> DimsResult {
@@ -105,6 +141,15 @@ function CheckFiniteMatrix(m: float[][]) -> DimsResult {
   }
 }
 
+// Internal: dot product assuming equal lengths (caller validates).
+function DotUnchecked(a: float[], b: float[]) -> float {
+  let s = 0.0;
+  for (let i = 0; i < a.length(); i += 1) {
+    s = s + a[i] * b[i];
+  }
+  s
+}
+
 // Dot product of two vectors. Vectors must have equal length (two empty
 // vectors give 0.0).
 function Dot(a: float[], b: float[]) -> NumResult {
@@ -114,15 +159,51 @@ function Dot(a: float[], b: float[]) -> NumResult {
     err = "dot: vector lengths differ";
   }
   if (err == "") {
-    for (let i = 0; i < a.length(); i += 1) {
-      s = s + a[i] * b[i];
-    }
+    s = DotUnchecked(a, b);
   }
   if (err == "") {
     NumResult { ok: true, value: s, error: "" }
   } else {
     NumResult { ok: false, value: 0.0, error: err }
   }
+}
+
+// Euclidean norm of a vector scaled by max_i |v[i]| (dnrm2-style) so squares
+// do not overflow for large finite entries (~1e200) or underflow for tiny ones.
+function VecNorm(v: float[]) -> float {
+  let max_abs = 0.0;
+  let has_nan = false;
+  let has_inf = false;
+  for (let i = 0; i < v.length(); i += 1) {
+    let vi = v[i];
+    if (IsNaN(vi)) {
+      has_nan = true;
+    } else {
+      if (!IsFinite(vi)) {
+        has_inf = true;
+      } else {
+        let a = Abs(vi);
+        if (a > max_abs) {
+          max_abs = a;
+        }
+      }
+    }
+  }
+  let res = 0.0;
+  if (has_nan || has_inf) {
+    // DotUnchecked(v, v) produces NaN if any entry is NaN, else +Inf.
+    res = Sqrt(DotUnchecked(v, v));
+  } else {
+    if (max_abs > 0.0) {
+      let acc = 0.0;
+      for (let i = 0; i < v.length(); i += 1) {
+        let u = v[i] / max_abs;
+        acc = acc + u * u;
+      }
+      res = max_abs * Sqrt(acc);
+    }
+  }
+  res
 }
 
 // Internal: per-column means of a matrix already validated by CheckMatrix.
@@ -155,25 +236,39 @@ function ColumnMeans(m: float[][]) -> NumArrayResult {
   }
 }
 
+// Internal: per-column population variances (ddof=0) of a validated matrix
+// from precomputed column means, two-pass for numerical stability.
+function ColumnVariancesFromMeansUnchecked(m: float[][], means: float[], cols: int) -> float[] {
+  let n = 0.0;
+  for (let i = 0; i < m.length(); i += 1) {
+    n = n + 1.0;
+  }
+  let variances: float[] = [];
+  for (let j = 0; j < cols; j += 1) {
+    let acc = 0.0;
+    for (let i = 0; i < m.length(); i += 1) {
+      let diff = m[i][j] - means[j];
+      acc = acc + diff * diff;
+    }
+    variances.push(acc / n);
+  }
+  variances
+}
+
+// Internal: per-column population variances (ddof=0) of a validated matrix,
+// two-pass for numerical stability.
+function ColumnVariancesUnchecked(m: float[][], cols: int) -> float[] {
+  let means = ColumnMeansUnchecked(m, cols);
+  ColumnVariancesFromMeansUnchecked(m, means, cols)
+}
+
 // Per-column population variances (ddof=0), two-pass for numerical stability.
 function ColumnVariances(m: float[][]) -> NumArrayResult {
   let d = CheckMatrix(m);
   let err = d.error;
   let variances: float[] = [];
   if (err == "") {
-    let means = ColumnMeansUnchecked(m, d.cols);
-    let n = 0.0;
-    for (let i = 0; i < m.length(); i += 1) {
-      n = n + 1.0;
-    }
-    for (let j = 0; j < d.cols; j += 1) {
-      let acc = 0.0;
-      for (let i = 0; i < m.length(); i += 1) {
-        let diff = m[i][j] - means[j];
-        acc = acc + diff * diff;
-      }
-      variances.push(acc / n);
-    }
+    variances = ColumnVariancesUnchecked(m, d.cols);
   }
   if (err == "") {
     NumArrayResult { ok: true, value: variances, error: "" }
