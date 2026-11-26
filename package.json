@@ -1,0 +1,9 @@
+{
+  "name": "baml-ml",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Classical machine learning in BAML (see README.md)",
+  "devDependencies": {
+    "@boundaryml/baml": "0.226.3"
+  }
+}

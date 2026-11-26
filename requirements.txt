@@ -1,0 +1,7 @@
+baml-py==0.226.3
+pydantic==2.14.4
+typing_extensions==4.16.0
+numpy==2.5.5
+scipy==1.18.1
+scikit-learn==1.9.1
+pytest==9.2.0
