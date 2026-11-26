@@ -1,0 +1,3 @@
+[package]
+name = "native-observability-probe"
+version = "0.1.0"
