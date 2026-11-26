@@ -1,7 +1,14 @@
 // StandardScaler: dense standardization (center per feature, divide by unit
 // population variance, ddof=0). Input must be finite and already imputed
 // (no NaN, no ±Inf). scale = sqrt(population variance) computed in BAML via
-// Newton's method (Sqrt); zero-variance columns use scale = 1.
+// Newton's method (Sqrt). Means/variances come from Welford's algorithm, so
+// bit-identical constant columns get variance exactly 0.0. Near-constant
+// threshold (issue #14): a column is treated as constant (scale = 1.0) when
+// its scale s satisfies s <= 8 * eps * |mean| * sqrt(n), where eps = 2^-52
+// (0.0000000000000002220446049250313; beta has no exponent literals) and n is
+// the row count — i.e. when the scale is within float64 rounding noise of the
+// column mean. Genuinely representable small scales (mean ± scale distinct in
+// float64) are preserved.
 
 class StandardScaler {
   means float[]
@@ -37,8 +44,14 @@ function ScalerFit(x: float[][]) -> ScalerFitResult {
   let err = d.error;
   let means: float[] = [];
   let variances: float[] = [];
+  let n = 0.0;
   if (err == "") {
-    means = ColumnMeansUnchecked(x, d.cols);
+    let stats = ColumnStatsWelfordUnchecked(x, d.cols);
+    means = stats.means;
+    variances = stats.variances;
+    for (let i = 0; i < x.length(); i += 1) {
+      n = n + 1.0;
+    }
     for (let j = 0; j < means.length() && err == ""; j += 1) {
       if (!IsFinite(means[j])) {
         err = "scaler_fit: computed column mean is not finite";
@@ -46,7 +59,6 @@ function ScalerFit(x: float[][]) -> ScalerFitResult {
     }
   }
   if (err == "") {
-    variances = ColumnVariancesFromMeansUnchecked(x, means, d.cols);
     for (let j = 0; j < variances.length() && err == ""; j += 1) {
       if (!IsFinite(variances[j])) {
         err = "scaler_fit: computed non-finite variance (input magnitude too large)";
@@ -57,7 +69,8 @@ function ScalerFit(x: float[][]) -> ScalerFitResult {
   if (err == "") {
     for (let j = 0; j < d.cols; j += 1) {
       let s = Sqrt(variances[j]);
-      if (s == 0.0) {
+      let tol = 8.0 * 0.0000000000000002220446049250313 * Abs(means[j]) * Sqrt(n);
+      if (s <= tol) {
         s = 1.0;
       }
       scales.push(s);

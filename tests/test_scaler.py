@@ -84,10 +84,15 @@ def test_rejects_non_finite_or_bad_shapes():
 
 
 def test_fit_and_transform_reject_overflow_to_infinity():
-    # Mean overflows: 1e308 + 1e308 -> inf
-    mean_ovf = b.ScalerFit([[1e308], [1e308]])
-    assert not mean_ovf.ok
-    assert "not finite" in mean_ovf.error
+    # Constant huge column: Welford keeps the mean finite and variance exactly
+    # 0.0 (no overflow), so this is valid with scale = 1.0 and zeroed output.
+    const_huge = b.ScalerFit([[1e308], [1e308]])
+    assert const_huge.ok
+    assert const_huge.scaler.means == [1e308]
+    assert const_huge.scaler.scales == [1.0]
+    t_huge = b.ScalerTransform([[1e308], [1e308]], const_huge.scaler)
+    assert t_huge.ok
+    assert t_huge.x == [[0.0], [0.0]]
 
     # Mean is 0.0 (finite), but squared deviations overflow: (1e200)^2 -> inf
     var_ovf = b.ScalerFit([[1e200], [-1e200]])

@@ -85,11 +85,19 @@ Shared by all estimators (implemented in `baml_src/primitives.baml`):
   supported fixtures (no all-missing columns, which sklearn drops by default).
 - `baml_src/scaler.baml`: `StandardScaler` — `ScalerFit`, `ScalerTransform`,
   `ScalerFitTransform` with an explicit `StandardScaler` fitted state (per-feature
-  mean and population variance, ddof=0; scale = `Sqrt(variance)`, and scale = 1
-  for zero-variance columns). Input must be finite and already imputed; malformed
+  mean and population variance, ddof=0; scale = `Sqrt(variance)`). Means/variances
+  use Welford's online algorithm (`ColumnStatsWelfordUnchecked`), so bit-identical
+  constant columns get variance exactly `0.0`. Near-constant threshold (issue #14):
+  a column is treated as constant (`scale = 1.0`) when its scale `s` satisfies
+  `s <= 8 * eps * |mean| * sqrt(n)` with `eps = 2^-52` and `n` the row count —
+  i.e. within float64 rounding noise of the column mean (covers constant columns
+  like `0.1`, `log(1e-5)`, `1e100`, `1e-100`), while genuinely representable small
+  scales are preserved. Input must be finite and already imputed; malformed
   scaler states (including non-positive or non-finite scales), dimension
   mismatches, and non-finite standardized outputs are rejected cleanly. Parity
-  with `sklearn.preprocessing.StandardScaler` is tested within 1e-9.
+  with `sklearn.preprocessing.StandardScaler` is tested within 1e-9, plus
+  sklearn-inspired numerical hardening tests (constant/near-constant columns,
+  post-scaling invariants) in `tests/test_numerical_hardening.py`.
 - `baml_src/linreg.baml`: `LinearRegression` (ordinary least squares with
   intercept) — `LinearRegressionFit`, `LinearRegressionPredict` with an explicit
   `LinearRegressionModel` state (coefficients, intercept, feature count). Solved by
@@ -142,7 +150,7 @@ Measure training time, inference latency (p50/p99), throughput, numerical parity
 
 ## Status
 
-Issues #2, #3, #4 (`StandardScaler`), and #5 (`LinearRegression`) are implemented and tested, along with the regression half of #7 (`RegressionPipeline`; classification `Pipeline` + `predict_proba` still awaits #6): 101 pytest tests pass, including hand-computed fixtures, shape-mismatch, underdetermined and rank-deficiency rejection, `±Inf`/overflow and malformed-state rejection without VM crashes, all-missing-column rejection, held-out statistics reuse, and sklearn parity (SimpleImputer 1e-12, StandardScaler 1e-9, LinearRegression/RegressionPipeline 1e-6).
+Issues #2, #3, #4 (`StandardScaler`), #5 (`LinearRegression`), #7 (regression `RegressionPipeline`; classification `Pipeline` + `predict_proba` still awaits #6) and #14 (near-constant scaler threshold + sklearn-inspired numerical hardening tests) are implemented and tested: 117 pytest tests pass, including hand-computed fixtures, shape-mismatch, underdetermined and rank-deficiency rejection, `±Inf`/overflow and malformed-state rejection without VM crashes, all-missing-column rejection, held-out statistics reuse, constant/near-constant column handling, and sklearn parity (SimpleImputer 1e-12, StandardScaler 1e-9, LinearRegression/RegressionPipeline 1e-6).
 
 Known limitations of BAML 0.226.3 beta expression functions (documented per issue #2 rather than worked around in Python):
 

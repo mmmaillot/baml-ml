@@ -262,6 +262,37 @@ function ColumnVariancesUnchecked(m: float[][], cols: int) -> float[] {
   ColumnVariancesFromMeansUnchecked(m, means, cols)
 }
 
+class ColumnStats {
+  means float[]
+  variances float[]
+}
+
+// Internal: per-column mean and population variance (ddof=0) of a validated
+// matrix via Welford's online algorithm. Unlike the two-pass variant, Welford
+// yields variance exactly 0.0 for bit-identical constant columns (the running
+// mean equals the constant, so every correction term is exactly zero), which
+// is what lets StandardScaler detect constant columns without rounding noise.
+function ColumnStatsWelfordUnchecked(m: float[][], cols: int) -> ColumnStats {
+  let means: float[] = [];
+  let variances: float[] = [];
+  for (let j = 0; j < cols; j += 1) {
+    let mean = 0.0;
+    let m2 = 0.0;
+    let n = 0.0;
+    for (let i = 0; i < m.length(); i += 1) {
+      let x = m[i][j];
+      n = n + 1.0;
+      let delta = x - mean;
+      mean = mean + delta / n;
+      let delta2 = x - mean;
+      m2 = m2 + delta * delta2;
+    }
+    means.push(mean);
+    variances.push(m2 / n);
+  }
+  ColumnStats { means: means, variances: variances }
+}
+
 // Per-column population variances (ddof=0), two-pass for numerical stability.
 function ColumnVariances(m: float[][]) -> NumArrayResult {
   let d = CheckMatrix(m);
