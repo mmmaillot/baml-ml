@@ -1,0 +1,9 @@
+[package]
+name = "numbam-interop"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+numbam = { path = "../.." }
+baml_sdk = { path = "../gen/baml_sdk" }
