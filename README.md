@@ -66,3 +66,7 @@ Individual runners are also available: [`benchmarks/sklearn_benchmark.py`](bench
 Experimental software, not a production-ready replacement for scikit-learn.
 
 [Apache 2.0](LICENSE).
+
+## New BAML language migration
+
+The original MVP is frozen at [v0.1.0](https://github.com/mmmaillot/baml-ml/tree/v0.1.0). The BAML language 0.25.0 port lives in [migration/](migration/README.md), with native tests and a generated Python SDK regression suite. See that directory for pinned installation, generation and test commands. The historical commands above still target the original MVP toolchain.
