@@ -1,6 +1,6 @@
 # Numerical backends: pure BAML vs. native acceleration
 
-Status: **Proposed / exploratory (2026-11-26)**. This note records an architectural discussion, not a decision to change the v0.1 implementation or roadmap.
+Status: **Proposed / exploratory (2026-11-26)**. Updated with the NumBam working name, Rust backend candidates, and NumPy-first roadmap. This note records an architectural discussion, not a decision to change the v0.1 implementation or roadmap.
 
 ## Context and motivation
 
@@ -75,7 +75,7 @@ Compare identical input data and split, model objectives, comparable trace granu
 
 The small MVP datasets establish feasibility and parity, not large-scale performance. Later, synthetic matrix sizes can expose the crossover at which native kernels outweigh bridge overhead.
 
-## Potential standalone project: baml-numerics
+## Proposed standalone project: NumBam
 
 A reusable numerical layer could serve classical ML, statistics, optimization, signal processing, time series and embedding operations beyond baml-ml.
 
@@ -83,13 +83,66 @@ A preliminary public search on 2026-11-26 for repositories named baml-numerics /
 
 If a gap is confirmed, keep the first version narrow: a tested numerical API, pure BAML reference implementation and one accelerated native operation. Extract reusable primitives only after the baml-ml experiment establishes the need and the integration mechanism is proven.
 
+### Positioning and identity
+
+**NumBam** (working name): Numerical computing for BAML.
+
+*Fast numerical computing. Observable by design.*
+
+Proposed GitHub description: "The fundamental library for numerical computing in BAML, powered by Rust."
+
+NumBam should be a NumPy-like foundation rather than a complete port of NumPy or SciPy. Its value is a small, efficient, BAML-facing numerical API built on existing native libraries, with meaningful operation boundaries for BAML observability. Rust is the preferred implementation language for the native layer because BAML's runtime is itself written in Rust, but this alone does not establish a supported extension mechanism.
+
+The name NumBam was preferred over RayBam (an array/BAML pun) because the latter deliberately evokes the Ray-Ban brand. NumBam is a working name, not a legally cleared or reserved package name. Verify availability on GitHub, crates.io and npm and check relevant trademark databases before launch. Do not copy the identity of an existing brand.
+
+### NumPy first, SciPy second
+
+NumPy supplies the core array abstraction, shape/dtype conventions, broadcasting, elementwise operations, reductions and basic dense linear algebra. SciPy builds on NumPy arrays with specialized scientific algorithms, including more extensive linear algebra, optimization, sparse matrices, statistics and signal processing. Both can rely on native numerical kernels.
+
+NumBam should prioritize the NumPy-like layer, with a few targeted linear algebra capabilities needed by baml-ml. A broader SciPy-like layer is a later opportunity, tentatively named **SciBam**, not a committed separate repository or dependency.
+
+| Layer | Proposed project | Responsibility |
+| --- | --- | --- |
+| ML algorithms and pipelines | baml-ml | Training, inference, preprocessing, domain-level diagnostics |
+| Scientific algorithms | SciBam (possible later project) | Optimization, convergence diagnostics, special functions and scientific workflows |
+| Numerical foundation | NumBam | Dense arrays, elementwise functions, reductions and linear algebra |
+| Native implementation | Rust and existing numerical libraries | Storage, vectorized kernels, decompositions and solves |
+
+Dependency direction: baml-ml and any future SciBam use NumBam; NumBam must not depend on either. baml-ml can use NumBam directly without waiting for SciBam.
+
+### Candidate Rust stack
+
+| Library | Role | Decision |
+| --- | --- | --- |
+| [ndarray](https://github.com/rust-ndarray/ndarray) | N-dimensional arrays, shape/stride management, array operations | Candidate foundation |
+| [ndarray-linalg](https://github.com/rust-ndarray/ndarray-linalg) | LAPACK-backed dense linear algebra for ndarray | Candidate if external BLAS/LAPACK packaging is acceptable |
+| [faer](https://github.com/sarah-quinones/faer-rs) | High-performance Rust-native matrix algorithms and factorizations | Alternative linear algebra backend; evaluate conversions and portability |
+| Rust f64 methods / [libm](https://crates.io/crates/libm) | Scalar mathematical functions | Prefer existing implementations over reimplementing series expansions |
+
+Do not build another BLAS or LAPACK implementation. Compare the Rust-native route (e.g. faer) against a BLAS/LAPACK-backed route where useful; select the smallest viable dependency set, not every candidate at once. In particular, ndarray and faer have different array representations, so benchmark conversions before combining them.
+
+### Proposed roadmap (after feasibility gate)
+
+- **Gate 0: native interoperability.** Prove that BAML can call a Rust numerical kernel through a supported extension or host-call mechanism, with no numerical computation delegated to Python. Demonstrate observable duration/status at the boundary, test data transfer and error handling, and document the runtime version and build/distribution process. If there is no practical supported mechanism, stop and discuss upstream integration with BoundaryML; do not pretend a standalone Rust crate is automatically callable from BAML.
+- **P0: core arrays.** Start with dense float64 vectors and matrices, shape validation, predictable layout, and contiguous native storage if the bridge supports it. Add creation/conversion, shape, transpose/reshape as needed, elementwise arithmetic and exp/log/sqrt, sum/mean/variance. Keep generalized N-dimensional arrays, arbitrary dtypes and full NumPy broadcasting as later extensions, not MVP requirements.
+- **P1: linear algebra.** Dot, matvec, matmul, norm, QR and least squares; consider SVD and rank-aware solving only when required. Reuse existing optimized kernels. Demonstrate one end-to-end accelerated baml-ml operation and preserve the pure BAML reference for differential tests.
+- **P2: scientific algorithms.** Stable softmax/logsumexp, gradient descent, line search and eventually L-BFGS or statistical routines. Keep iterative orchestration in BAML where observing loss, gradient norms, step sizes and convergence is valuable; use NumBam kernels for expensive numerical operations. Consider extracting this higher-level layer into SciBam only after concrete use cases justify it.
+
+The first proof of concept should be one coarse-grained native operation (e.g. dot or matvec), not an entire array framework. Evaluate small and large inputs; native dispatch and copying may dominate small operations. Full NumPy/SciPy API compatibility, GPU computing and sparse arrays are out of scope initially.
+
+### Design boundary
+
+The preferred architecture is a native NumPy-like foundation and a BAML-first, hyper-observable scientific/ML layer. A native QR or exp kernel need not expose its internal arithmetic. A BAML optimizer should retain meaningful iteration-level diagnostics rather than hide its entire execution in a native solver, unless an explicit diagnostic interface provides equivalent value. Native handles, zero-copy buffers, and automatic traces across the language boundary are design hypotheses to verify, not current features.
+
+The pure BAML code in baml-ml remains an important reference and experimental control; NumBam must not invalidate the current MVP or its four-way benchmark.
+
 ## Recommended sequence
 
 - Keep the current pure BAML implementation and finish the v0.1 roadmap (#1, #8–#11).
 - Profile the actual workload and identify hot operations.
 - Investigate native interoperability with a small proof of concept.
 - Add an optional accelerated backend only if it preserves meaningful observation and materially improves end-to-end performance.
-- Consider a separate baml-numerics project or upstream contribution after those results.
+- Consider launching NumBam or contributing upstream after those results. SciBam is a longer-term optional direction.
 
 ## References and evidence
 
