@@ -25,27 +25,35 @@ jobs:
       - uses: actions/checkout@v4
       - name: Set up Rust
         run: rustup toolchain install stable --profile minimal
-      - name: Set up isolated BAML language toolchain
-        working-directory: numbam/interop
-        env:
-          BAML_HOME: ${{ runner.temp }}/numbam-baml
-          BAML_VERSION: '0.25.0'
+      - name: Download pinned BAML release assets
         run: |
-          installer="$(mktemp)"
-          curl --proto '=https' --tlsv1.2 --retry 3 --fail --silent --show-error --location https://pkg.boundaryml.com/install.sh --output "$installer"
-          sh "$installer" --wrapper-only --no-modify-path --yes
-          rm "$installer"
-          "$BAML_HOME/bin/baml" toolchain use 0.25.0
-          "$BAML_HOME/bin/baml" --version
-          echo "$BAML_HOME/bin" >> "$GITHUB_PATH"
-          echo "BAML_HOME=$BAML_HOME" >> "$GITHUB_ENV"
-          echo "BAML_VERSION=$BAML_VERSION" >> "$GITHUB_ENV"
+          set -euo pipefail
+          dest="$RUNNER_TEMP/numbam-baml"
+          mkdir -p "$dest/toolchain"
+          base="https://github.com/BoundaryML/baml/releases/download/baml-language-0.25.0"
+          archive="baml-language-0.25.0-x86_64-unknown-linux-gnu.tar.gz"
+          bridge="libbaml_cffi-x86_64-unknown-linux-gnu.so"
+          curl --proto '=https' --tlsv1.2 --retry 3 --fail --silent --show-error --location "$base/$archive" --output "$dest/$archive"
+          curl --proto '=https' --tlsv1.2 --retry 3 --fail --silent --show-error --location "$base/$bridge" --output "$dest/$bridge"
+          (
+            cd "$dest"
+            printf '%s  %s\n' bd306796330f90a8c1bc3edc9030d84c8f248b0a06701954c21cfa7d531dec73 "$archive" | sha256sum --check
+            printf '%s  %s\n' 2bda8a842cd706222dc4a93dca4d18696256807c986f9b333dfb22b314c48d9b "$bridge" | sha256sum --check
+          )
+          tar -C "$dest/toolchain" -xzf "$dest/$archive"
+          cli="$(find "$dest/toolchain" -type f -name baml-cli -print -quit)"
+          test -n "$cli"
+          chmod +x "$cli"
+          "$cli" --version
+          echo "BAML_CLI=$cli" >> "$GITHUB_ENV"
+          echo "BAML_BRIDGE_PATH=$dest/$bridge" >> "$GITHUB_ENV"
+          echo "BAML_BRIDGE_DISABLE_DOWNLOAD=true" >> "$GITHUB_ENV"
       - name: Generate the Rust SDK
         working-directory: numbam/interop
         run: |
-          baml --version
-          baml check
-          baml generate
+          "$BAML_CLI" --version
+          "$BAML_CLI" check
+          "$BAML_CLI" generate --from "$PWD"
           test -f gen/baml_sdk/Cargo.toml
           grep -F 'baml_bridge = "=0.25.0"' gen/baml_sdk/Cargo.toml
       - name: Execute the real BAML to Rust round trip
