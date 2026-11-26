@@ -293,6 +293,9 @@ function LogRegOptimize(x: float[][], y: int[], classes: int[], c: float, max_it
         theta = cand;
         loss = closs;
         t = t * 2.0;
+        if (t > 1024.0) {
+          t = 1024.0;
+        }
         it_done = it + 1;
       }
     }

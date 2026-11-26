@@ -39,6 +39,8 @@ def test_log_edges():
     assert b.Log(1.0) == 0.0
     assert b.Log(math.inf) == math.inf
     assert b.Log(0.0) < -1e300  # finite "-inf" sentinel
+    assert b.Log(-1.0) < -1e300
+    assert b.Log(-math.inf) < -1e300
 
 
 # ------------------------------------------------------- softmax / proba edges
