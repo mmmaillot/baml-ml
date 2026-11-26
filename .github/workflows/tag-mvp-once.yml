@@ -1,0 +1,33 @@
+name: Freeze original MVP v0.1.0
+
+on:
+  push:
+    branches:
+      - maintenance/tag-mvp-v0.1.0
+    paths:
+      - .github/workflows/tag-mvp-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TARGET: '080799af9027a5938f7f2e3cab34c3ff41e4ef51'
+    steps:
+      - name: Create immutable-by-convention MVP tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GH_REPO" = "mmmaillot/baml-ml"
+          test "$(gh api "repos/$GH_REPO/git/commits/$TARGET" --jq .sha)" = "$TARGET"
+          if ! gh api --method POST "repos/$GH_REPO/git/refs" -f ref=refs/tags/v0.1.0 -f sha="$TARGET"; then
+            echo "Tag creation did not succeed; verify whether the exact tag already exists."
+          fi
+          actual="$(gh api "repos/$GH_REPO/git/ref/tags/v0.1.0" --jq .object.sha)"
+          test "$actual" = "$TARGET"
+          echo "Verified refs/tags/v0.1.0 -> $actual"
