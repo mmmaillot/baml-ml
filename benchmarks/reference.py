@@ -1,5 +1,5 @@
 """Reference pipelines and BAML wrappers shared by the examples (#8) and the
-benchmarks (#9).
+benchmarks (#9, #10).
 
 Python is used only for orchestration, dataset preparation, reference models
 and evaluation; every numerical operation inside the BAML pipelines runs in
@@ -21,6 +21,7 @@ from sklearn.preprocessing import StandardScaler
 REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
+
 
 def _ensure_generated_client() -> None:
     baml_src = REPO_ROOT / "baml_src"
@@ -67,6 +68,11 @@ SKLEARN_TOL = 0.0000000001  # 1e-10
 SKLEARN_MAX_ITER = 10000
 
 
+def _ok(res):
+    assert res.ok, res.error
+    return res
+
+
 def make_sklearn_pipeline(task):
     steps = [
         ("imputer", SimpleImputer(strategy="mean")),
@@ -86,84 +92,60 @@ def make_sklearn_pipeline(task):
 def fit_baml_pipeline(split):
     """Fit the BAML pipeline (issue #7) on the training rows only."""
     if split.task == "classification":
-        res = b.ClassificationPipelineFit(
-            split.x_train.tolist(),
-            [int(v) for v in split.y_train],
-            BAML_C,
-            BAML_MAX_ITER,
-            BAML_TOL,
-        )
-        assert res.ok, res.error
-        return res.pipeline
-    res = b.RegressionPipelineFit(split.x_train.tolist(), [float(v) for v in split.y_train])
-    assert res.ok, res.error
-    return res.pipeline
+        return _ok(
+            b.ClassificationPipelineFit(
+                split.x_train.tolist(),
+                [int(v) for v in split.y_train],
+                BAML_C,
+                BAML_MAX_ITER,
+                BAML_TOL,
+            )
+        ).pipeline
+    return _ok(b.RegressionPipelineFit(split.x_train.tolist(), [float(v) for v in split.y_train])).pipeline
 
 
 def predict_baml(split, pipeline, x):
     """Return (predictions, probabilities); probabilities are None for regression."""
     x = np.asarray(x, dtype=float)
     if split.task == "classification":
-        proba = b.ClassificationPipelinePredictProba(x.tolist(), pipeline)
-        assert proba.ok, proba.error
-        pred = b.ClassificationPipelinePredict(x.tolist(), pipeline)
-        assert pred.ok, pred.error
+        proba = _ok(b.ClassificationPipelinePredictProba(x.tolist(), pipeline))
+        pred = _ok(b.ClassificationPipelinePredict(x.tolist(), pipeline))
         return np.asarray(pred.value), np.asarray(proba.probs)
-    res = b.RegressionPipelinePredict(x.tolist(), pipeline)
-    assert res.ok, res.error
+    res = _ok(b.RegressionPipelinePredict(x.tolist(), pipeline))
     return np.asarray(res.value), None
 
 
-def staged_fit(split, call):
-    """Fit the pipeline stage by stage through call(stage, function_name, *args).
+def staged_fit(split, client=b):
+    """Fit the pipeline stage by stage via BAML client calls on training data only.
 
-    Stage names follow the #9 span convention (pipeline.stage.<step>.<op>) so
-    telemetry can name each step. Numerics are identical to the monolithic
-    pipeline entry points (asserted in tests): the same BAML functions are
-    called in the same order on the same training data only.
+    Calling each BAML step separately gives per-stage FunctionLog visibility
+    when a Collector is attached to `client`. Numerics are identical to the
+    monolithic pipeline entry points (asserted in tests).
     """
     x = split.x_train.tolist()
+    imp = _ok(client.ImputerFit(x)).imputer
+    x1 = _ok(client.ImputerTransform(x, imp)).x
+    sc = _ok(client.ScalerFit(x1)).scaler
+    x2 = _ok(client.ScalerTransform(x1, sc)).x
     if split.task == "classification":
         y = [int(v) for v in split.y_train]
+        model = _ok(client.LogRegFit(x2, y, BAML_C, BAML_MAX_ITER, BAML_TOL)).model
     else:
         y = [float(v) for v in split.y_train]
-    r = call("pipeline.stage.imputer.fit", "ImputerFit", x)
-    assert r.ok, r.error
-    imp = r.imputer
-    r = call("pipeline.stage.imputer.transform", "ImputerTransform", x, imp)
-    assert r.ok, r.error
-    x1 = r.x
-    r = call("pipeline.stage.scaler.fit", "ScalerFit", x1)
-    assert r.ok, r.error
-    sc = r.scaler
-    r = call("pipeline.stage.scaler.transform", "ScalerTransform", x1, sc)
-    assert r.ok, r.error
-    x2 = r.x
-    if split.task == "classification":
-        r = call("pipeline.stage.clf.fit", "LogRegFit", x2, y, BAML_C, BAML_MAX_ITER, BAML_TOL)
-    else:
-        r = call("pipeline.stage.reg.fit", "LinearRegressionFit", x2, y)
-    assert r.ok, r.error
-    return {"imputer": imp, "scaler": sc, "model": r.model}
+        model = _ok(client.LinearRegressionFit(x2, y)).model
+    return {"imputer": imp, "scaler": sc, "model": model}
 
 
-def staged_predict(split, state, x, call):
-    """Staged inference (impute -> scale -> model predict) through call(stage, function_name, *args).
+def staged_predict(split, state, x, client=b):
+    """Staged inference (impute -> scale -> model predict) via BAML client calls.
 
-    Returns (predictions, probabilities); probabilities are None for regression.
+    Matches sklearn_benchmark._predict: returns class probabilities for
+    classification (LogRegPredictProba) and predictions for regression
+    (LinearRegressionPredict).
     """
     xl = np.asarray(x, dtype=float).tolist()
-    r = call("pipeline.stage.imputer.transform", "ImputerTransform", xl, state["imputer"])
-    assert r.ok, r.error
-    r = call("pipeline.stage.scaler.transform", "ScalerTransform", r.x, state["scaler"])
-    assert r.ok, r.error
-    x2 = r.x
+    x1 = _ok(client.ImputerTransform(xl, state["imputer"])).x
+    x2 = _ok(client.ScalerTransform(x1, state["scaler"])).x
     if split.task == "classification":
-        rp = call("pipeline.predict_proba", "LogRegPredictProba", x2, state["model"])
-        rd = call("pipeline.predict", "LogRegPredict", x2, state["model"])
-        assert rp.ok, rp.error
-        assert rd.ok, rd.error
-        return np.asarray(rd.value), np.asarray(rp.probs)
-    r = call("pipeline.predict", "LinearRegressionPredict", x2, state["model"])
-    assert r.ok, r.error
-    return np.asarray(r.value), None
+        return np.asarray(_ok(client.LogRegPredictProba(x2, state["model"])).probs)
+    return np.asarray(_ok(client.LinearRegressionPredict(x2, state["model"])).value)

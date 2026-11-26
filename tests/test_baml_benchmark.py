@@ -1,8 +1,8 @@
 """Smoke tests for the issue #10 BAML benchmark runner: shared #9 schema,
-telemetry on/off behavior (off retains zero logs, on retains named-stage
-function logs, nothing is exported by the pinned runtime), parity between
-telemetry configurations, #8 parity vs sklearn, and staged-vs-monolithic
-pipeline equality. No performance targets are imposed.
+telemetry on/off behavior (off retains zero logs, on retains per-stage
+FunctionLogs), warmup exclusion from trace counters, parity between telemetry
+configurations, #8 parity vs sklearn, and staged-vs-monolithic pipeline
+equality. No performance targets are imposed.
 """
 
 import json
@@ -11,7 +11,6 @@ import numpy as np
 import pytest
 
 from benchmarks import baml_benchmark as bb
-from benchmarks.baml_benchmark import make_caller
 from benchmarks.datasets import MISSING_FRAC, load_split
 from benchmarks.reference import (
     fit_baml_pipeline,
@@ -37,7 +36,7 @@ RESULT_FIELDS = {
 }
 
 
-def _run(tmp_path, datasets=("iris",), missing_frac=0.0):
+def _run(tmp_path, datasets=("iris",), warmups=0, missing_frac=0.0):
     out = tmp_path / "results" / "baml_benchmark.json"
     doc = bb.main(
         [
@@ -48,7 +47,7 @@ def _run(tmp_path, datasets=("iris",), missing_frac=0.0):
             "--fit-repetitions",
             "1",
             "--warmups",
-            "0",
+            str(warmups),
             "--missing-frac",
             str(missing_frac),
             "--out",
@@ -89,7 +88,7 @@ def test_output_schema_fields_and_units(doc):
             assert r["throughput_rows_per_s"] is None
         else:
             assert r["throughput_rows_per_s"] > 0.0  # rows per second
-        assert r["trace"]["runtime_spans_exported"] == 0  # pinned runtime never exports expr spans
+        assert set(r["trace"]) == {"spans", "bytes"}
 
 
 def test_operations_cover_bridge_fit_batch_and_single_row(doc):
@@ -100,17 +99,28 @@ def test_operations_cover_bridge_fit_batch_and_single_row(doc):
     assert ("predict", 1) in ops
 
 
-def test_telemetry_off_retains_nothing_telemetry_on_retains_named_stages(doc):
+def test_telemetry_off_retains_nothing_telemetry_on_retains_stage_logs(doc):
     off = [r for r in doc["results"] if r["variant"] == "baml-telemetry-off"]
     on = [r for r in doc["results"] if r["variant"] == "baml-telemetry-on"]
-    assert off and all(r["trace"]["spans"] == 0 and r["trace"]["bytes"] == 0 for r in off)
+    assert off and all(r["trace"] == {"spans": 0, "bytes": 0} for r in off)
     assert on and all(r["trace"]["spans"] > 0 and r["trace"]["bytes"] > 0 for r in on)
+
     fit_on = next(r for r in on if r["operation"] == "fit")
-    names = fit_on["trace"]["function_log_names"]
-    for expected in ("ImputerFit", "ImputerTransform", "ScalerFit", "ScalerTransform", "LogRegFit"):
-        assert expected in names, names
-    pred_on = next(r for r in on if r["operation"] == "predict" and r["batch_size"] == 30)
-    assert "LogRegPredictProba" in pred_on["trace"]["function_log_names"]
+    batch_on = next(r for r in on if r["operation"] == "predict" and r["batch_size"] == 30)
+    assert fit_on["trace"]["spans"] == 5  # 1 rep * 5 staged fit calls
+    assert batch_on["trace"]["spans"] == 6  # 2 reps * 3 staged predict_proba calls
+
+    sample = doc["trace_sample"]
+    for expected in (
+        "IsFinite",
+        "ImputerFit",
+        "ImputerTransform",
+        "ScalerFit",
+        "ScalerTransform",
+        "LogRegFit",
+        "LogRegPredictProba",
+    ):
+        assert expected in sample, sample
 
 
 def test_predictions_match_between_telemetry_configs_and_vs_sklearn(doc):
@@ -122,21 +132,23 @@ def test_predictions_match_between_telemetry_configs_and_vs_sklearn(doc):
     assert p["sklearn_max_abs_diff"] <= 1e-3
 
 
+def test_warmups_excluded_from_trace_counts(tmp_path):
+    # Diabetes OLS fit is fast, so running with warmups=1 verifies warmup logs are discarded.
+    d = _run(tmp_path, datasets=("diabetes",), warmups=1)
+    on = [r for r in d["results"] if r["variant"] == "baml-telemetry-on"]
+    fit_on = next(r for r in on if r["operation"] == "fit")
+    batch_on = next(r for r in on if r["operation"] == "predict" and r["batch_size"] == 89)
+    assert fit_on["trace"]["spans"] == 5  # 1 fit rep * 5 stages (warmup discarded)
+    assert batch_on["trace"]["spans"] == 6  # 2 predict reps * 3 stages (warmup discarded)
+    assert d["parity"][0]["matches_sklearn_reference"] is True
+
+
 def test_staged_execution_equals_monolithic_pipeline_and_sklearn():
     split = load_split("diabetes", missing_frac=MISSING_FRAC)
-    plain = make_caller("baml-telemetry-off")[0]
-    state = staged_fit(split, plain)
-    pred_staged, _ = staged_predict(split, state, split.x_test, plain)
+    state = staged_fit(split)
+    pred_staged = staged_predict(split, state, split.x_test)
     pipeline = fit_baml_pipeline(split)
     pred_mono, _ = predict_baml(split, pipeline, split.x_test)
     assert np.array_equal(pred_staged, pred_mono)  # staged == pipeline entry point
     ref = make_sklearn_pipeline(split.task).fit(split.x_train, split.y_train)
     assert np.max(np.abs(pred_staged - ref.predict(split.x_test))) <= 1e-9  # #8 regression tolerance
-
-
-def test_telemetry_on_actually_collects_logs(doc):
-    on_fit = next(r for r in doc["results"] if r["variant"] == "baml-telemetry-on" and r["operation"] == "fit")
-    off_fit = next(r for r in doc["results"] if r["variant"] == "baml-telemetry-off" and r["operation"] == "fit")
-    assert on_fit["trace"]["spans"] == 5  # 5 staged fit calls, one log each
-    assert off_fit["trace"]["spans"] == 0
-    assert on_fit["trace"]["bytes"] > off_fit["trace"]["bytes"] == 0

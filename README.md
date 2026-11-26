@@ -20,9 +20,9 @@ We want to measure the cost of making ML observable at runtime, rather than manu
 | Backend | Without tracing | With tracing |
 | --- | --- | --- |
 | scikit-learn | Vanilla | OpenTelemetry |
-| BAML | Planned | Planned |
+| BAML | Telemetry off | Collector (per-stage) |
 
-We compare numerical parity, training time, inference latency, throughput and trace volume. The scikit-learn benchmark runner is implemented; the BAML telemetry comparison and final results are still pending.
+We compare numerical parity, training time, inference latency, throughput and trace volume. Both the scikit-learn and BAML benchmark runners are implemented; publishing the final comparison results is still pending.
 
 ## Run it
 
@@ -39,10 +39,11 @@ npx baml --features beta generate
 .venv/bin/python examples/diabetes_example.py
 ```
 
-Run the reference benchmark:
+Run the benchmarks:
 
 ```bash
 .venv/bin/python benchmarks/sklearn_benchmark.py
+.venv/bin/python benchmarks/baml_benchmark.py
 ```
 
 ## Next
