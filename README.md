@@ -29,7 +29,10 @@ Commands:
 npx baml --features beta check      # type-check baml_src/ (no LLM, no API key)
 npx baml --features beta generate   # regenerate the Python client into baml_client/ (gitignored)
 .venv/bin/python -m pytest tests/   # run the Python test harness (auto-(re)generates baml_client/ when needed)
-.venv/bin/python examples/dot_example.py  # run one deterministic BAML function from Python
+.venv/bin/python examples/dot_example.py        # run one deterministic BAML function from Python
+.venv/bin/python examples/iris_example.py       # issue #8: BAML ClassificationPipeline vs sklearn on Iris (clean + 10% NaN, seed 42)
+.venv/bin/python examples/diabetes_example.py   # issue #8: BAML RegressionPipeline vs sklearn on Diabetes (clean + 10% NaN, seed 42)
+.venv/bin/python benchmarks/sklearn_benchmark.py --out benchmarks/results/sklearn_benchmark.json  # issue #9: sklearn vanilla vs OpenTelemetry reference benchmark
 ```
 
 The `--features beta` flag is required: expression functions with statements
@@ -135,6 +138,10 @@ Shared by all estimators (implemented in `baml_src/primitives.baml`):
   deterministic standardized Iris split: probabilities within 1e-3 (measured
   ~2e-7) and identical labels; gradient checked against finite differences.
 
+- `benchmarks/datasets.py` + `benchmarks/reference.py` (issue #8): shared deterministic fixtures — `load_iris` / `load_diabetes(scaled=False)`, fixed seed 42, 80/20 split (stratified for Iris only), optional fixed-seed 10% NaN variant — and the sklearn reference pipelines plus thin BAML wrappers used by both runtimes. Python only prepares data, runs reference models and evaluates; all BAML numerics stay in BAML.
+- `examples/iris_example.py` and `examples/diabetes_example.py` (issue #8): end-to-end examples printing sklearn-reference and BAML metrics (accuracy/log loss/probability diffs on Iris; RMSE/R^2/prediction diffs on Diabetes) for the clean and the missing-value variant. Parity is asserted in `tests/test_examples.py` with explicit tolerances (proba 1e-3 and log loss 1e-6 for the solver-related GD-vs-lbfgs difference, measured ~1e-7; predictions/RMSE/R^2 1e-9 for OLS QR-vs-LAPACK, measured ~5e-13), plus a no-preprocessing-leakage check (fitted imputer/scaler stats equal the training-only numpy oracle).
+- `benchmarks/sklearn_benchmark.py` (issue #9): Python reference benchmark runner, variants `sklearn` (uninstrumented) and `sklearn-otel` (OpenTelemetry spans around fit/predict and each named pipeline stage; in-memory exporter, `force_flush` outside timed regions, trace volume estimated from `Span.to_json()` bytes). Measures fit time, batch and single-row predict latency p50/p99, throughput, and trace volume per dataset with warm-ups, repetitions and a monotonic timer; dataset loading is excluded from timed regions; thread counts pinned to 1 and recorded. Writes a machine-readable JSON schema (schema_version 1: config, telemetry, environment, parity, results; non-applicable measurements are null) reusable by issue #10. Smoke-tested in `tests/test_benchmarks.py` (schema fields, timing units, vanilla emits zero spans, OTel emits named stage spans, instrumented/uninstrumented predictions match exactly).
+
 ## MVP
 
 Implement training and inference in BAML, with a small scikit-learn-inspired API:
@@ -162,13 +169,13 @@ Measure training time, inference latency (p50/p99), throughput, numerical parity
 
 - `baml_src/`: native ML implementations (BAML source)
 - `baml_client/`: generated Python client (gitignored; produced by `npx baml --features beta generate`)
-- `benchmarks/`: comparison harness
+- `benchmarks/`: comparison harness — shared dataset fixtures (`datasets.py`), sklearn reference pipelines + BAML wrappers (`reference.py`), and the sklearn vanilla/OpenTelemetry benchmark runner (`sklearn_benchmark.py`, writes JSON under the gitignored `benchmarks/results/`)
 - `tests/`: unit and numerical parity tests (pytest; Python is the oracle/driver only, never a numerical backend for BAML functions)
-- `examples/`: runnable examples
+- `examples/`: runnable examples (`dot_example.py`, and the issue #8 Iris/Diabetes parity examples)
 
 ## Status
 
-Issues #2, #3, #4 (`StandardScaler`), #5 (`LinearRegression`), #6 (multiclass `LogisticRegression`), #7 (`Pipeline`: `RegressionPipeline` and `ClassificationPipeline`), and #14 (near-constant scaler threshold + sklearn-inspired numerical hardening tests) are implemented and tested: 159 pytest tests pass, including hand-computed fixtures, shape-mismatch, underdetermined and rank-deficiency rejection, `±Inf`/overflow and malformed-state rejection without VM crashes, all-missing-column rejection, held-out statistics reuse, constant/near-constant and large-offset column handling, extreme-logit softmax stability, gradient finite-difference checks, and sklearn parity (SimpleImputer 1e-12, StandardScaler 1e-9, LinearRegression/RegressionPipeline 1e-6, LogisticRegression and ClassificationPipeline proba 1e-3).
+Issues #2, #3, #4 (`StandardScaler`), #5 (`LinearRegression`), #6 (multiclass `LogisticRegression`), #7 (`Pipeline`: `RegressionPipeline` and `ClassificationPipeline`), #8 (Iris/Diabetes examples + end-to-end parity tests), #9 (sklearn vanilla/OpenTelemetry benchmark runner), and #14 (near-constant scaler threshold + sklearn-inspired numerical hardening tests) are implemented and tested: 175 pytest tests pass, including hand-computed fixtures, shape-mismatch, underdetermined and rank-deficiency rejection, `±Inf`/overflow and malformed-state rejection without VM crashes, all-missing-column rejection, held-out statistics reuse, constant/near-constant and large-offset column handling, extreme-logit softmax stability, gradient finite-difference checks, and sklearn parity (SimpleImputer 1e-12, StandardScaler 1e-9, LinearRegression/RegressionPipeline 1e-6, LogisticRegression and ClassificationPipeline proba 1e-3, end-to-end pipeline parity on Iris/Diabetes clean and 10%-NaN seed-42 splits: proba 1e-3, log loss 1e-6, predictions/RMSE/R^2 1e-9).
 
 Known limitations of BAML 0.226.3 beta expression functions (documented per issue #2 rather than worked around in Python):
 
