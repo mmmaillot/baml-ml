@@ -15,14 +15,14 @@ The pipelines are tested against scikit-learn on Iris and Diabetes, with and wit
 
 ## The experiment
 
-We want to measure the cost of making ML observable at runtime, rather than manually instrumenting each pipeline.
+We measure numerical parity, training time, inference latency, throughput and trace volume across four variants:
 
 | Backend | Without tracing | With tracing |
 | --- | --- | --- |
-| scikit-learn | Vanilla | OpenTelemetry |
-| BAML | Telemetry off | Collector (per-stage) |
+| scikit-learn | Vanilla (`sklearn`) | OpenTelemetry (`sklearn-otel`) |
+| BAML | Telemetry off (`baml-telemetry-off`) | Collector (`baml-telemetry-on`) |
 
-We compare numerical parity, training time, inference latency, throughput and trace volume. Both the scikit-learn and BAML benchmark runners are implemented; publishing the final comparison results is still pending.
+See the **[Benchmark comparison & inference trace report](docs/benchmarks/report.md)** (raw JSON artifacts under [`docs/benchmarks/`](docs/benchmarks/)). Numerical parity holds (`<= 1e-7` on Iris probabilities, `<= 1e-12` on Diabetes OLS) and BAML Collector overhead is modest relative to VM compute, but `baml-py 0.226.3` does not yet export expression-function spans or runtime durations and remains orders of magnitude slower than compiled C/BLAS kernels on these small datasets.
 
 ## Run it
 
@@ -35,19 +35,29 @@ npm ci
 npx baml --features beta generate
 
 .venv/bin/python -m pytest tests/
-.venv/bin/python examples/iris_example.py
-.venv/bin/python examples/diabetes_example.py
 ```
 
-Run the benchmarks:
+Run the examples and the synthetic missing-value inference trace demo:
 
 ```bash
-.venv/bin/python benchmarks/sklearn_benchmark.py
-.venv/bin/python benchmarks/baml_benchmark.py
+.venv/bin/python examples/iris_example.py
+.venv/bin/python examples/diabetes_example.py
+.venv/bin/python examples/trace_demo.py
 ```
+
+Regenerate all four benchmark variants, the trace demo, and the comparison report:
+
+```bash
+.venv/bin/python benchmarks/run_all.py
+# or overwrite the published report & raw JSON files:
+.venv/bin/python benchmarks/run_all.py --out-dir docs/benchmarks
+```
+
+Individual runners are also available: [`benchmarks/sklearn_benchmark.py`](benchmarks/sklearn_benchmark.py) and [`benchmarks/baml_benchmark.py`](benchmarks/baml_benchmark.py).
 
 ## Next
 
+- [Benchmark report & raw results](docs/benchmarks/report.md)
 - [MVP roadmap](https://github.com/mmmaillot/baml-ml/issues/1)
 - [Implementation notes](docs/implementation.md), including numerical methods and BAML limitations.
 - [NumBam](numbam/README.md): minimal Rust numerical backend in this repository; BAML integration is still experimental.
