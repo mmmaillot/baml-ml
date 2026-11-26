@@ -54,3 +54,37 @@ differences, and classification label equality. Tolerances are unchanged:
 Iris 1e-3, Diabetes 1e-9, train-only means 1e-12. Native tests reject non-finite
 predictions, wrong output shapes and error results. Full historical test
 suite/SDK migration is #27; performance and telemetry comparisons are #28.
+
+
+## Historical Python regression suite (#27)
+
+Generate the new Python SDK from the same pinned CLI. Set
+`BAML_BRIDGE_PATH` to the verified matching engine library and
+`BAML_BRIDGE_DISABLE_DOWNLOAD=true` (see CI for exact checksums).
+From the repository root:
+
+```bash
+python -m pip install -r migration/host_tests/requirements.txt
+python migration/examples/generate_examples.py
+(cd migration && "$BAML_CLI" generate --from "$PWD")
+python migration/host_tests/prepare.py
+export PYTHONPATH="$PWD/migration/gen:$PWD/migration/host_tests/generated"
+(cd migration/host_tests/generated && python -m pytest tests)
+```
+
+The test mirror preserves the original numerical assertions and reference
+functions; only the legacy client import and generation bootstrap change.
+The new SDK exposes functions as `Name_sync` and generated classes directly.
+The name adapter does not implement any numerical logic. Both SDKs must not
+be loaded in one process. Python tests exercise host marshalling, NaN and
+infinity, malformed fitted states, random differential checks, gradients,
+convergence, end-to-end predictions and train-only preprocessing, alongside
+the native BAML tests. The sklearn-only benchmark tests are also retained.
+
+Explicit exclusions: old npm-client freshness/layout tests are specific to
+the historical toolchain and are replaced by new SDK smoke tests. The old
+Collector-based BAML benchmark and trace demo/report tests
+(`test_baml_benchmark.py`, `test_report_and_trace_demo.py`) remain available
+on the historical baseline; porting their runtime-specific behavior belongs
+to #28 and the observability phase. No old assertions are weakened or deleted.
+The old test suite and NumBam workflows are untouched.
