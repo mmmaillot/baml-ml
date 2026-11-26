@@ -114,9 +114,22 @@ Shared by all estimators (implemented in `baml_src/primitives.baml`):
   `RegressionPipelinePredict`, plus the shared `PipelinePreprocessSteps` helper.
   Fitting is sequential on training data only; inference applies the stored
   states and never updates them, and downstream steps short-circuit when an
-  upstream step fails. `ClassificationPipeline*` (`predict` + `predict_proba`)
-  lands once issue #6 (`LogisticRegression`) is implemented. Parity with the
-  equivalent sklearn `Pipeline` is tested within 1e-6.
+  upstream step fails. Parity with the equivalent sklearn `Pipeline` is tested
+  within 1e-6.
+- `baml_src/logistic.baml`: multiclass (multinomial) `LogisticRegression` with L2
+  penalty (issue #6) — `LogRegFit`, `LogRegPredictProba`, `LogRegPredict` with an
+  explicit `LogisticRegressionModel` state (sorted class order, per-class weights
+  and intercepts, `n_iter`, `converged`). Objective: sum of NLL + ||W||²/(2C),
+  intercepts unpenalized, optimized as the 1/n-scaled equivalent (same argmin)
+  with C=1 by default usage; optimizer is gradient descent with Armijo
+  backtracking line search (warm-started step), max_iter iterations, converged
+  when the gradient inf-norm <= tol; non-convergence is reported as an error.
+  Stable softmax (max subtraction) keeps rows finite and summing to 1 even for
+  logits of ±1000. `Exp`/`Log` are implemented in BAML (`primitives.baml`):
+  halving+squaring + Taylor for `Exp`, power-of-two scaling + atanh series for
+  `Log`. Parity with a converged sklearn multinomial `LogisticRegression` on a
+  deterministic standardized Iris split: probabilities within 1e-3 (measured
+  ~2e-7) and identical labels; gradient checked against finite differences.
 
 ## MVP
 
@@ -151,7 +164,7 @@ Measure training time, inference latency (p50/p99), throughput, numerical parity
 
 ## Status
 
-Issues #2, #3, #4 (`StandardScaler`), #5 (`LinearRegression`), #14 (near-constant scaler threshold + sklearn-inspired numerical hardening tests), and the regression half of #7 (`RegressionPipeline`; classification `Pipeline` + `predict_proba` still awaits #6) are implemented and tested: 122 pytest tests pass, including hand-computed fixtures, shape-mismatch, underdetermined and rank-deficiency rejection, `±Inf`/overflow and malformed-state rejection without VM crashes, all-missing-column rejection, held-out statistics reuse, constant/near-constant and large-offset column handling, and sklearn parity (SimpleImputer 1e-12, StandardScaler 1e-9, LinearRegression/RegressionPipeline 1e-6).
+Issues #2, #3, #4 (`StandardScaler`), #5 (`LinearRegression`), #6 (multiclass `LogisticRegression`), #14 (near-constant scaler threshold + sklearn-inspired numerical hardening tests), and the regression half of #7 (`RegressionPipeline`) are implemented and tested: 147 pytest tests pass, including hand-computed fixtures, shape-mismatch, underdetermined and rank-deficiency rejection, `±Inf`/overflow and malformed-state rejection without VM crashes, all-missing-column rejection, held-out statistics reuse, constant/near-constant and large-offset column handling, extreme-logit softmax stability, gradient finite-difference checks, and sklearn parity (SimpleImputer 1e-12, StandardScaler 1e-9, LinearRegression/RegressionPipeline 1e-6, LogisticRegression proba 1e-3).
 
 Known limitations of BAML 0.226.3 beta expression functions (documented per issue #2 rather than worked around in Python):
 
@@ -162,6 +175,8 @@ Known limitations of BAML 0.226.3 beta expression functions (documented per issu
 - No arithmetic mixing between `int` and `float`, and no int→float conversion.
 - No float math methods (`sqrt`, `abs`, `pow`) and no math namespace in the beta surface — implemented in BAML instead (`Abs`, `Sqrt` via Newton's method); `exp`/`log` for later tickets (e.g. LogisticRegression) would need the same treatment (series expansions).
 - No exponent float literals (`1e-10`, `1.0e308` are parse errors) — use decimal literals (`0.0000000001`).
+- No default parameter values and no `break`/`continue` — pass all arguments explicitly and drive loops with flags.
+- `params` is a reserved keyword; a top-level `//` comment containing a `[...] =` pattern (e.g. `// logits[k] = ...`) breaks the beta parser — avoid that shape in top-level comments.
 - The beta compiler miscompiles if/else expressions nested inside branches that also contain statements; `baml_src` therefore uses flat statement-level validation plus a single tail if/else.
 
 No LLM calls, tree models, model exporters, or dashboards are in scope for v0.1.

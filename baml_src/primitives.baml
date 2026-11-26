@@ -46,6 +46,12 @@ class DimsResult {
   error string
 }
 
+class IntArrayResult {
+  ok bool
+  value int[]
+  error string
+}
+
 // IEEE-754 NaN test: true iff x is NaN.
 function IsNaN(x: float) -> bool {
   x != x
@@ -72,6 +78,102 @@ function Abs(x: float) -> float {
 // methods). Deterministic: fixed 600 iterations from y0 = max(x, 1.0), which
 // reaches machine precision even for subnormal and near-DBL_MAX finite inputs.
 // Preserves NaN and +Inf; clamps finite/infinite x <= 0 to 0.0.
+// Natural exponential, float-only (no math library): halve the argument until
+// |r| <= 0.5, evaluate a 30-term Taylor series there, then square back
+// (exp(x) = exp(x/2)^2). Halving+squaring keeps the relative error at
+// ~2^depth * eps (<= ~5e-13 for |x| <= 709) with no accumulated reduction
+// error. exp(+Inf) = +Inf, exp(-Inf) = 0.0, NaN propagates; exp(-x) = 1/exp(x),
+// so very negative x underflows to 0.0 (values below ~5e-324 are lost).
+// Deterministic.
+function Exp(x: float) -> float {
+  let res = 0.0;
+  if (IsNaN(x)) {
+    res = x;
+  }
+  if (!IsFinite(x) && x > 0.0) {
+    res = x;
+  }
+  if (!IsFinite(x) && x < 0.0) {
+    res = 0.0;
+  }
+  if (IsFinite(x)) {
+    let neg = false;
+    let r = x;
+    if (r < 0.0) {
+      neg = true;
+      r = 0.0 - r;
+    }
+    let depth = 0.0;
+    while (r > 0.5) {
+      r = r * 0.5;
+      depth = depth + 1.0;
+    }
+    let term = 1.0;
+    let sum = 1.0;
+    let kf = 0.0;
+    for (let k = 0; k < 30; k += 1) {
+      kf = kf + 1.0;
+      term = term * r / kf;
+      sum = sum + term;
+    }
+    res = sum;
+    let i = 0.0;
+    while (i < depth) {
+      res = res * res;
+      i = i + 1.0;
+    }
+    if (neg) {
+      res = 1.0 / res;
+    }
+  }
+  res
+}
+
+// Natural logarithm for x > 0 via scaling into [1, 2) by powers of two plus a
+// 40-term atanh series: ln(m) = 2 * sum_{k} y^(2k+1)/(2k+1), y = (m-1)/(m+1).
+// log(+Inf) = +Inf; for x <= 0 (finite) returns -1e308 as a finite "-Inf"
+// sentinel (callers in this repo only evaluate log of sums >= 1 via LogSumExp).
+function Log(x: float) -> float {
+  let res = 0.0;
+  if (IsNaN(x)) {
+    res = x;
+  }
+  if (!IsFinite(x) && x > 0.0) {
+    res = x;
+  }
+  if (IsFinite(x) && x <= 0.0) {
+    let big = 1.0;
+    for (let i = 0; i < 1023; i += 1) {
+      big = big * 2.0;
+    }
+    res = 0.0 - big;
+  }
+  if (IsFinite(x) && x > 0.0) {
+    let m = x;
+    let e = 0.0;
+    while (m >= 2.0) {
+      m = m * 0.5;
+      e = e + 1.0;
+    }
+    while (m < 1.0) {
+      m = m * 2.0;
+      e = e - 1.0;
+    }
+    let y = (m - 1.0) / (m + 1.0);
+    let y2 = y * y;
+    let term = y;
+    let sum = y;
+    let k = 1.0;
+    for (let i = 0; i < 40; i += 1) {
+      k = k + 2.0;
+      term = term * y2;
+      sum = sum + term / k;
+    }
+    res = e * 0.6931471805599453 + 2.0 * sum;
+  }
+  res
+}
+
 function Sqrt(x: float) -> float {
   let y = 0.0;
   if (IsNaN(x)) {
