@@ -1,0 +1,51 @@
+name: BAML language migration
+
+on:
+  pull_request:
+    paths:
+      - 'migration/**'
+      - '.github/workflows/baml-migration.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'migration/**'
+      - '.github/workflows/baml-migration.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  primitives:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BAML_TELEMETRY: "off"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download pinned BAML release assets
+        run: |
+          set -euo pipefail
+          dest="$RUNNER_TEMP/numbam-baml"
+          mkdir -p "$dest/toolchain"
+          base="https://github.com/BoundaryML/baml/releases/download/baml-language-0.25.0"
+          archive="baml-language-0.25.0-x86_64-unknown-linux-gnu.tar.gz"
+          curl --proto '=https' --tlsv1.2 --retry 3 --fail --silent --show-error --location "$base/$archive" --output "$dest/$archive"
+          (
+            cd "$dest"
+            printf '%s  %s\n' bd306796330f90a8c1bc3edc9030d84c8f248b0a06701954c21cfa7d531dec73 "$archive" | sha256sum --check
+          )
+          tar -C "$dest/toolchain" -xzf "$dest/$archive"
+          cli="$(find "$dest/toolchain" -type f -name baml-cli -print -quit)"
+          test -n "$cli"
+          chmod +x "$cli"
+          "$cli" --version
+          echo "BAML_CLI=$cli" >> "$GITHUB_ENV"
+      - name: Check and test migrated primitives
+        working-directory: migration
+        run: |
+          set -euo pipefail
+          "$BAML_CLI" --version
+          "$BAML_CLI" check
+          "$BAML_CLI" test --list
+          "$BAML_CLI" test --max-concurrency 1
