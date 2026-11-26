@@ -26,9 +26,20 @@ jobs:
       - name: Set up Rust
         run: rustup toolchain install stable --profile minimal
       - name: Set up isolated BAML language toolchain
-        uses: BoundaryML/baml/packaging/github-actions/setup-baml@baml-language-0.25.0
-        with:
-          toolchain: '0.25.0'
+        working-directory: numbam/interop
+        env:
+          BAML_HOME: ${{ runner.temp }}/numbam-baml
+          BAML_VERSION: '0.25.0'
+        run: |
+          installer="$(mktemp)"
+          curl --proto '=https' --tlsv1.2 --retry 3 --fail --silent --show-error --location https://pkg.boundaryml.com/install.sh --output "$installer"
+          sh "$installer" --wrapper-only --no-modify-path --yes
+          rm "$installer"
+          "$BAML_HOME/bin/baml" toolchain use 0.25.0
+          "$BAML_HOME/bin/baml" --version
+          echo "$BAML_HOME/bin" >> "$GITHUB_PATH"
+          echo "BAML_HOME=$BAML_HOME" >> "$GITHUB_ENV"
+          echo "BAML_VERSION=$BAML_VERSION" >> "$GITHUB_ENV"
       - name: Generate the Rust SDK
         working-directory: numbam/interop
         run: |
