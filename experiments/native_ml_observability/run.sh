@@ -96,6 +96,25 @@ for mode in off default empty span; do
       if [ "$mode" = empty ] || [ "$mode" = span ]; then
         jq -e '[.rows[][2] | split(".")[-1]] | (index("ImputerTransform") != null and index("ScalerTransform") != null and index("LogRegPredictProba") != null)' "$CASE/spans.json" >/dev/null
       fi
+      if [ "$mode" = span ]; then
+        jq -e --arg s "$sample" --slurpfile ref "$ORACLE" '
+          def row($n): [.rows[] | select(.[2] == ("user."+$n))] | if length == 1 then .[0] else error("missing or duplicate span "+$n) end;
+          def near($a;$b): ($a|length)==($b|length) and ([range(0;($b|length)) as $i | ($a[$i]-$b[$i])|fabs < 1e-10]|all);
+          $ref[0][$s] as $e |
+          row("ClassificationPipelinePredictProba") as $p |
+          row("ImputerTransform") as $i |
+          row("ScalerTransform") as $z |
+          row("LogRegPredictProba") as $m |
+          ([$i,$z,$m] | all(.[1]==$p[0] and .[3]=="return" and .[4]>0)) and
+          ($i[5].x[0] | if $s=="missing" then .[1]["$float"]=="NaN" and .[0]==$e.input[0] and .[2:4]==$e.input[2:4] else .==$e.input end) and
+          near($i[6].x[0];$e.imputed) and near($z[5].x[0];$e.imputed) and
+          near($z[6].x[0];$e.scaled) and near($m[5].x[0];$e.scaled) and
+          near($m[6].probs[0];$e.probs) and near($p[6].probs[0];$e.probs) and
+          ($m[5].model.weights|length)==3
+        ' "$CASE/spans.json" > "$CASE/payload-assertion.json"
+      elif [ "$mode" = empty ]; then
+        jq -e '[.rows[] | select(.[2]|test("^user\\\\.(ClassificationPipelinePredictProba|ImputerTransform|ScalerTransform|LogRegPredictProba)$"))] | length==4 and all(.[5]==null and .[6]==null)' "$CASE/spans.json" > "$CASE/payload-assertion.json"
+      fi
     )
   done
 done
@@ -113,8 +132,14 @@ for sample in scalar matrix failure; do
     if [ "$sample" = failure ]; then test "$rc" -eq 1; else test "$rc" -eq 0; fi
     collect
     if [ "$sample" = matrix ]; then
+      jq -e '[.rows[] | select(.[2]=="user.matrix_echo")] | length==1 and (.[0] | .[5].x==.[6] and (.[6]|length)==100 and ([range(0;100) as $i | range(0;100) as $j | .[6][$i][$j]==(($i*100+$j+1)*0.125)]|all))' "$CASE/spans.json" > "$CASE/payload-assertion.json"
       jq -c '.rows[] | select(.[2]|endswith("matrix_echo")) | {name:.[2],input_type:(.[5]|type),output_type:(.[6]|type),input_preview:(.[5]|tostring|.[0:300]),output_preview:(.[6]|tostring|.[0:300])}' "$CASE/spans.json"
     else
+      if [ "$sample" = scalar ]; then
+        jq -e '[.rows[] | select(.[2]=="user.span_leaf")] | length==1 and (.[0] | .[5].x==20 and .[6]==21)' "$CASE/spans.json" > "$CASE/payload-assertion.json"
+      else
+        jq -e '[.rows[] | select(.[2]=="user.fail_leaf")] | length==1 and (.[0] | .[3]=="panic_error" and .[5].x==[1] and .[7].error["$class"]=="baml.panics.IndexOutOfBounds" and .[7].error.index==5 and .[7].error.length==1 and ([.[7].stack_trace.frames[].function_name]|index("user.fail_leaf")!=null))' "$CASE/spans.json" > "$CASE/payload-assertion.json"
+      fi
       jq -c '.rows[] | select(.[2]|test("span_leaf|span_middle|fail_leaf|Failure"))' "$CASE/spans.json"
     fi
   )
