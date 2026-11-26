@@ -1,0 +1,362 @@
+{
+  "schema_version": 1,
+  "runner": "benchmarks/sklearn_benchmark.py",
+  "generated_at_utc": "2026-11-26T17:31:21.511018+00:00",
+  "config": {
+    "seed": 42,
+    "test_size": 0.2,
+    "missing_frac": 0.0,
+    "datasets": [
+      "iris",
+      "diabetes"
+    ],
+    "variants": [
+      "sklearn",
+      "sklearn-otel"
+    ],
+    "repetitions": 10,
+    "warmups": 1,
+    "timer": "time.perf_counter",
+    "timer_unit": "s",
+    "thread_env": {
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1"
+    }
+  },
+  "telemetry": {
+    "variant": "sklearn-otel",
+    "granularity": "one span per operation plus one span per named pipeline stage",
+    "payload_policy": "default span attributes; no custom event payloads",
+    "exporter": "in-memory span exporter via SimpleSpanProcessor; force_flush outside timed regions",
+    "volume_serialization": "Span.to_json() UTF-8 bytes per finished span"
+  },
+  "environment": {
+    "python": "3.12.16",
+    "platform": "Linux-6.18.57-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "threadpool": [
+      {
+        "user_api": "blas",
+        "num_threads": 1
+      },
+      {
+        "user_api": "openmp",
+        "num_threads": 1
+      },
+      {
+        "user_api": "blas",
+        "num_threads": 1
+      }
+    ],
+    "packages": {
+      "numpy": "2.5.5",
+      "scikit-learn": "1.9.1",
+      "opentelemetry-api": "1.45.2",
+      "opentelemetry-sdk": "1.45.2",
+      "baml-py": "0.226.3"
+    }
+  },
+  "trace_sample": [
+    "pipeline.fit",
+    "pipeline.predict",
+    "pipeline.predict_proba",
+    "pipeline.stage.clf.fit",
+    "pipeline.stage.clf.predict_proba",
+    "pipeline.stage.imputer.fit_transform",
+    "pipeline.stage.imputer.transform",
+    "pipeline.stage.reg.fit",
+    "pipeline.stage.reg.predict",
+    "pipeline.stage.scaler.fit_transform",
+    "pipeline.stage.scaler.transform"
+  ],
+  "parity": [
+    {
+      "dataset": "iris",
+      "missing_frac": 0.0,
+      "variants": [
+        "sklearn",
+        "sklearn-otel"
+      ],
+      "predictions_match": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "dataset": "diabetes",
+      "missing_frac": 0.0,
+      "variants": [
+        "sklearn",
+        "sklearn-otel"
+      ],
+      "predictions_match": true,
+      "max_abs_diff": 0.0
+    }
+  ],
+  "results": [
+    {
+      "dataset": "iris",
+      "task": "classification",
+      "missing_frac": 0.0,
+      "variant": "sklearn",
+      "operation": "fit",
+      "batch_size": null,
+      "repetitions": 10,
+      "warmups": 1,
+      "timing_s": {
+        "p50": 0.013010637500883604,
+        "p99": 0.01425537933004307,
+        "mean": 0.013081670400242728,
+        "min": 0.01251066599979822,
+        "max": 0.014333514000099967
+      },
+      "throughput_rows_per_s": null,
+      "trace": {
+        "spans": 0,
+        "bytes": 0
+      }
+    },
+    {
+      "dataset": "iris",
+      "task": "classification",
+      "missing_frac": 0.0,
+      "variant": "sklearn",
+      "operation": "predict",
+      "batch_size": 30,
+      "repetitions": 10,
+      "warmups": 1,
+      "timing_s": {
+        "p50": 0.001904028500575805,
+        "p99": 0.0021742270499998996,
+        "mean": 0.0019430869999268908,
+        "min": 0.0018388230000709882,
+        "max": 0.002187920999858761
+      },
+      "throughput_rows_per_s": 15439.349859851236,
+      "trace": {
+        "spans": 0,
+        "bytes": 0
+      }
+    },
+    {
+      "dataset": "iris",
+      "task": "classification",
+      "missing_frac": 0.0,
+      "variant": "sklearn",
+      "operation": "predict",
+      "batch_size": 1,
+      "repetitions": 10,
+      "warmups": 1,
+      "timing_s": {
+        "p50": 0.0016419424991909182,
+        "p99": 0.001985897340600785,
+        "mean": 0.0016569404600462196,
+        "min": 0.0014780189994780812,
+        "max": 0.002227359000244178
+      },
+      "throughput_rows_per_s": 603.5219877315963,
+      "trace": {
+        "spans": 0,
+        "bytes": 0
+      }
+    },
+    {
+      "dataset": "iris",
+      "task": "classification",
+      "missing_frac": 0.0,
+      "variant": "sklearn-otel",
+      "operation": "fit",
+      "batch_size": null,
+      "repetitions": 10,
+      "warmups": 1,
+      "timing_s": {
+        "p50": 0.012023471500469896,
+        "p99": 0.013310190699303347,
+        "mean": 0.011999883000135015,
+        "min": 0.011001928000041516,
+        "max": 0.013380738999330788
+      },
+      "throughput_rows_per_s": null,
+      "trace": {
+        "spans": 44,
+        "bytes": 39523
+      }
+    },
+    {
+      "dataset": "iris",
+      "task": "classification",
+      "missing_frac": 0.0,
+      "variant": "sklearn-otel",
+      "operation": "predict",
+      "batch_size": 30,
+      "repetitions": 10,
+      "warmups": 1,
+      "timing_s": {
+        "p50": 0.00161325599947304,
+        "p99": 0.001826107230153866,
+        "mean": 0.001653725199685141,
+        "min": 0.0014998099995864322,
+        "max": 0.001827336000133073
+      },
+      "throughput_rows_per_s": 18140.86161697954,
+      "trace": {
+        "spans": 44,
+        "bytes": 39523
+      }
+    },
+    {
+      "dataset": "iris",
+      "task": "classification",
+      "missing_frac": 0.0,
+      "variant": "sklearn-otel",
+      "operation": "predict",
+      "batch_size": 1,
+      "repetitions": 10,
+      "warmups": 1,
+      "timing_s": {
+        "p50": 0.0016812594994917163,
+        "p99": 0.0021701050486080927,
+        "mean": 0.0017080909900141705,
+        "min": 0.0014990340005169855,
+        "max": 0.002303148001374211
+      },
+      "throughput_rows_per_s": 585.4489051497801,
+      "trace": {
+        "spans": 1200,
+        "bytes": 1077600
+      }
+    },
+    {
+      "dataset": "diabetes",
+      "task": "regression",
+      "missing_frac": 0.0,
+      "variant": "sklearn",
+      "operation": "fit",
+      "batch_size": null,
+      "repetitions": 10,
+      "warmups": 1,
+      "timing_s": {
+        "p50": 0.004251943499184563,
+        "p99": 0.004860650988794077,
+        "mean": 0.004341339199527283,
+        "min": 0.004113080998649821,
+        "max": 0.004884328998741694
+      },
+      "throughput_rows_per_s": null,
+      "trace": {
+        "spans": 0,
+        "bytes": 0
+      }
+    },
+    {
+      "dataset": "diabetes",
+      "task": "regression",
+      "missing_frac": 0.0,
+      "variant": "sklearn",
+      "operation": "predict",
+      "batch_size": 89,
+      "repetitions": 10,
+      "warmups": 1,
+      "timing_s": {
+        "p50": 0.0016779195002527558,
+        "p99": 0.0018398530602098616,
+        "mean": 0.0016771803999290568,
+        "min": 0.001515910998932668,
+        "max": 0.0018432790002407273
+      },
+      "throughput_rows_per_s": 53065.25165913256,
+      "trace": {
+        "spans": 0,
+        "bytes": 0
+      }
+    },
+    {
+      "dataset": "diabetes",
+      "task": "regression",
+      "missing_frac": 0.0,
+      "variant": "sklearn",
+      "operation": "predict",
+      "batch_size": 1,
+      "repetitions": 10,
+      "warmups": 1,
+      "timing_s": {
+        "p50": 0.001610526000149548,
+        "p99": 0.002107074721316167,
+        "mean": 0.0016230185292095464,
+        "min": 0.0013954179994470906,
+        "max": 0.003110436999122612
+      },
+      "throughput_rows_per_s": 616.1359109603184,
+      "trace": {
+        "spans": 0,
+        "bytes": 0
+      }
+    },
+    {
+      "dataset": "diabetes",
+      "task": "regression",
+      "missing_frac": 0.0,
+      "variant": "sklearn-otel",
+      "operation": "fit",
+      "batch_size": null,
+      "repetitions": 10,
+      "warmups": 1,
+      "timing_s": {
+        "p50": 0.004547795500002394,
+        "p99": 0.004879597930084856,
+        "mean": 0.004533498300224892,
+        "min": 0.0041282210004283115,
+        "max": 0.0048947830000543036
+      },
+      "throughput_rows_per_s": null,
+      "trace": {
+        "spans": 44,
+        "bytes": 39512
+      }
+    },
+    {
+      "dataset": "diabetes",
+      "task": "regression",
+      "missing_frac": 0.0,
+      "variant": "sklearn-otel",
+      "operation": "predict",
+      "batch_size": 89,
+      "repetitions": 10,
+      "warmups": 1,
+      "timing_s": {
+        "p50": 0.0018667655012905016,
+        "p99": 0.0020205058503051988,
+        "mean": 0.0018685757000639568,
+        "min": 0.001728008999634767,
+        "max": 0.0020221020004100865
+      },
+      "throughput_rows_per_s": 47629.86053867325,
+      "trace": {
+        "spans": 44,
+        "bytes": 39303
+      }
+    },
+    {
+      "dataset": "diabetes",
+      "task": "regression",
+      "missing_frac": 0.0,
+      "variant": "sklearn-otel",
+      "operation": "predict",
+      "batch_size": 1,
+      "repetitions": 10,
+      "warmups": 1,
+      "timing_s": {
+        "p50": 0.001690260500254226,
+        "p99": 0.002816274079268624,
+        "mean": 0.0017677074932456317,
+        "min": 0.001446267000574153,
+        "max": 0.04498452299958444
+      },
+      "throughput_rows_per_s": 565.7044526998817,
+      "trace": {
+        "spans": 3560,
+        "bytes": 3179080
+      }
+    }
+  ]
+}
