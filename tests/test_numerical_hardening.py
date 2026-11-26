@@ -37,16 +37,38 @@ def test_constant_columns_get_scale_one_and_near_zero_output(const):
     assert np.allclose(np.asarray(ft.x), ref.transform(np.asarray(x)), atol=1e-12)
 
 
-@pytest.mark.parametrize("base,delta", [(1.0, 1e-17), (1.0, 1e-30), (0.1, 1e-18), (1e100, 1e83)])
-def test_near_constant_below_float64_precision_gets_scale_one(base, delta):
-    # base + delta rounds to base in float64 -> bit-identical column.
-    assert base + delta == base
-    x = [[base], [base + delta], [base], [base + delta]]
-    fit = b.ScalerFit(x)
+@pytest.mark.parametrize(
+    "n_samples,average,scale",
+    [
+        (10, 1.0, 1e-15),
+        (100, 1.0, 1e-14),
+        (1000, 1.0, 1e-13),
+        (100, 1e10, 1e-4),
+        (1000, 1e10, 1e-3),
+    ],
+)
+def test_near_constant_distinct_values_within_rounding_bound_get_scale_one(
+    n_samples, average, scale
+):
+    x_arr = np.empty((n_samples, 1), dtype=np.float64)
+    x_arr[: n_samples // 2, 0] = average + scale
+    x_arr[n_samples // 2 :, 0] = average - scale
+    # Genuinely distinct float64 entries (non-zero variance) within the two-pass
+    # rounding noise bound: actually exercises the near-constant threshold branch.
+    assert x_arr[0, 0] != x_arr[-1, 0]
+
+    fit = b.ScalerFit(x_arr.tolist())
     assert fit.ok, fit.error
+    ref = SkScaler().fit(x_arr)
+    assert ref.scale_ == pytest.approx([1.0])
     assert fit.scaler.scales == [1.0]
-    t = b.ScalerTransform(x, fit.scaler)
-    assert all(abs(v) <= 1e-12 for row in t.x for v in row)
+
+    t = b.ScalerTransform(x_arr.tolist(), fit.scaler)
+    assert t.ok
+    # Centered values are (x - mean) / 1.0; sequential vs pairwise sum of `n`
+    # values around `average` can differ by O(n * eps * |average|).
+    atol = max(1e-12, n_samples * np.finfo(np.float64).eps * abs(average))
+    assert np.allclose(np.asarray(t.x), ref.transform(x_arr), atol=atol)
 
 
 def test_representable_small_scale_is_preserved():
@@ -61,6 +83,22 @@ def test_representable_small_scale_is_preserved():
     assert np.allclose(fit.scaler.scales, ref.scale_, rtol=1e-9)
     t = b.ScalerTransform(x, fit.scaler)
     assert np.allclose(np.asarray(t.x), ref.transform(np.asarray(x)), atol=1e-9)
+
+
+@pytest.mark.parametrize("offset", [1e6, 1e9, 1e12])
+def test_large_offset_small_spread_maintains_sklearn_parity(offset):
+    # Real-world shifted features (e.g. Unix timestamps in s / ms): corrected
+    # two-pass retains 1e-9 parity where naive single-pass Welford degrades.
+    rng = np.random.default_rng(42)
+    x = offset + rng.normal(scale=1.0, size=(200, 2))
+    fit = b.ScalerFit(x.tolist())
+    assert fit.ok, fit.error
+    ours = np.asarray(b.ScalerTransform(x.tolist(), fit.scaler).x)
+
+    ref = SkScaler().fit(x)
+    assert np.allclose(fit.scaler.means, ref.mean_, rtol=1e-12, atol=1e-12)
+    assert np.allclose(fit.scaler.scales, ref.scale_, rtol=1e-9, atol=1e-12)
+    assert np.allclose(ours, ref.transform(x), rtol=1e-9, atol=1e-9)
 
 
 def test_post_scaling_invariants_mixed_matrix():

@@ -1,14 +1,17 @@
 // StandardScaler: dense standardization (center per feature, divide by unit
 // population variance, ddof=0). Input must be finite and already imputed
-// (no NaN, no ±Inf). scale = sqrt(population variance) computed in BAML via
-// Newton's method (Sqrt). Means/variances come from Welford's algorithm, so
-// bit-identical constant columns get variance exactly 0.0. Near-constant
-// threshold (issue #14): a column is treated as constant (scale = 1.0) when
-// its scale s satisfies s <= 8 * eps * |mean| * sqrt(n), where eps = 2^-52
-// (0.0000000000000002220446049250313; beta has no exponent literals) and n is
-// the row count — i.e. when the scale is within float64 rounding noise of the
-// column mean. Genuinely representable small scales (mean ± scale distinct in
-// float64) are preserved.
+// (no NaN, no ±Inf). Variances come from Chan, Golub & LeVeque's (1983)
+// corrected two-pass formula, and `scale = Sqrt(variance)` is computed in BAML
+// via Newton's method.
+//
+// Near-constant threshold (issue #14): following Chan, Golub & LeVeque's
+// two-pass rounding error bound (also used by sklearn's `_is_constant_feature`),
+// a column is indistinguishable from constant when
+//   var <= n * eps * var + (n * eps * mean)^2,
+// i.e. in overflow-safe scale space: `s * Sqrt(1 - n * eps) <= n * eps * |mean|`
+// where `eps = 2^-52` (`0.0000000000000002220446049250313`; beta has no
+// exponent literals) and `n` is the row count. Such columns get `scale = 1.0`,
+// while genuinely representable small scales are preserved.
 
 class StandardScaler {
   means float[]
@@ -44,14 +47,8 @@ function ScalerFit(x: float[][]) -> ScalerFitResult {
   let err = d.error;
   let means: float[] = [];
   let variances: float[] = [];
-  let n = 0.0;
   if (err == "") {
-    let stats = ColumnStatsWelfordUnchecked(x, d.cols);
-    means = stats.means;
-    variances = stats.variances;
-    for (let i = 0; i < x.length(); i += 1) {
-      n = n + 1.0;
-    }
+    means = ColumnMeansUnchecked(x, d.cols);
     for (let j = 0; j < means.length() && err == ""; j += 1) {
       if (!IsFinite(means[j])) {
         err = "scaler_fit: computed column mean is not finite";
@@ -59,6 +56,7 @@ function ScalerFit(x: float[][]) -> ScalerFitResult {
     }
   }
   if (err == "") {
+    variances = ColumnVariancesFromMeansUnchecked(x, means, d.cols);
     for (let j = 0; j < variances.length() && err == ""; j += 1) {
       if (!IsFinite(variances[j])) {
         err = "scaler_fit: computed non-finite variance (input magnitude too large)";
@@ -67,11 +65,19 @@ function ScalerFit(x: float[][]) -> ScalerFitResult {
   }
   let scales: float[] = [];
   if (err == "") {
+    let n = 0.0;
+    for (let i = 0; i < x.length(); i += 1) {
+      n = n + 1.0;
+    }
+    let n_eps = n * 0.0000000000000002220446049250313;
+    let guard = Sqrt(1.0 - n_eps);
     for (let j = 0; j < d.cols; j += 1) {
-      let s = Sqrt(variances[j]);
-      let tol = 8.0 * 0.0000000000000002220446049250313 * Abs(means[j]) * Sqrt(n);
-      if (s <= tol) {
-        s = 1.0;
+      let s = 1.0;
+      if (variances[j] > 0.0) {
+        let cand = Sqrt(variances[j]);
+        if (cand * guard > n_eps * Abs(means[j])) {
+          s = cand;
+        }
       }
       scales.push(s);
     }
