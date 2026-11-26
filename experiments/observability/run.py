@@ -48,6 +48,7 @@ def main():
         home.mkdir()
         env = dict(os.environ, HOME=str(home), XDG_CONFIG_HOME=str(home / "config"),
                    XDG_DATA_HOME=str(home / "data"), XDG_CACHE_HOME=str(home / "cache"),
+                   BAML_HOME=str(home / "baml"),
                    DO_NOT_TRACK="1")
         for key in ("BOUNDARY_API_KEY", "BOUNDARY_PROJECT", "BAML_TELEMETRY"):
             env.pop(key, None)
@@ -77,6 +78,8 @@ def main():
                          "SELECT span_name, COUNT(*) AS n FROM spans GROUP BY span_name"]),
             ("sample", ["local", "recordings", "query", "--output-format", "json",
                         "SELECT * FROM spans LIMIT 12"]),
+            ("profiler", ["local", "recordings", "query", "--output-format", "json",
+                          "SELECT * FROM profiler LIMIT 30"]),
         ]
         evidence = {k: command(a, project, env, case / k) for k, a in queries}
         item = {"case": name, "function": function, "mode": mode,
@@ -84,7 +87,7 @@ def main():
                 "recording_bytes": sum(f["bytes"] for f in recordings) if recordings else None}
         summary.append(item)
         print(json.dumps(item), flush=True)
-        for k in ("schema", "count", "grouped", "sample"):
+        for k in ("schema", "count", "grouped", "sample", "profiler"):
             print(k, (case / (k + ".stdout")).read_text()[:2500], flush=True)
     (OUT / "summary.json").write_text(json.dumps(summary, indent=2))
     # Do not interpret absence of recordings as zero spans when queries fail.
