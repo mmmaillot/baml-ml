@@ -58,4 +58,22 @@ jobs:
           grep -F 'baml_bridge = "=0.25.0"' gen/baml_sdk/Cargo.toml
       - name: Execute the real BAML to Rust round trip
         working-directory: numbam/interop/consumer
-        run: cargo +stable run
+        run: cargo +stable run --bin numbam-interop
+      - name: Measure bridge and kernel latency (release)
+        working-directory: numbam/interop/consumer
+        run: |
+          set -euo pipefail
+          cargo +stable build --release --bin bridge_bench
+          mkdir -p benchmark-results
+          ./target/release/bridge_bench | tee benchmark-results/bridge.csv
+          test "$(wc -l < benchmark-results/bridge.csv)" -eq 55
+          rustc +stable --version > benchmark-results/environment.txt
+          "$BAML_CLI" --version >> benchmark-results/environment.txt
+          uname -a >> benchmark-results/environment.txt
+          lscpu >> benchmark-results/environment.txt
+      - name: Upload bridge measurements
+        uses: actions/upload-artifact@v4
+        with:
+          name: numbam-bridge-benchmark
+          path: numbam/interop/consumer/benchmark-results/
+          if-no-files-found: error

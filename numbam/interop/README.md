@@ -1,6 +1,6 @@
 # BAML → Rust integration
 
-Status: isolated host-callback proof of concept added; CI validation pending. Do not add a fake BAML adapter or silently route calculations through Python.
+Status: isolated host-callback proof of concept passed in CI (BAML language 0.25.0). Do not add a fake BAML adapter or silently route calculations through Python.
 
 baml-ml pins the CLI and baml-py to 0.226.3. The newer BAML language documentation describes host callbacks, native Rust compilation and standalone packaging, but those capabilities have not been verified in this pinned toolchain.
 
@@ -16,7 +16,7 @@ With the new BAML wrapper installed and Rust available:
 cd numbam/interop
 BAML_VERSION=0.25.0 baml check
 BAML_VERSION=0.25.0 baml generate
-cargo run --manifest-path consumer/Cargo.toml
+cargo run --manifest-path consumer/Cargo.toml --bin numbam-interop
 ```
 
 The generated Rust SDK uses BAML's bridge shared library; success here does not establish a single self-contained binary. The bridge dependency is confined to this consumer, not NumBam itself. Do not mark the packaging, trace or performance criteria complete.
@@ -35,3 +35,17 @@ Only after this proof succeeds should we integrate exp and log into logistic reg
 References: [runtime architecture](https://boundaryml.com/how-baml-works), [native compilation and host callbacks](https://boundaryml.com/blog/baml-0.24.0), [adoption and standalone packaging](https://boundaryml.com/adopt).
 
 Record actual commands, versions and results here once tested.
+
+## Bridge benchmark
+
+The [interop CI](https://github.com/mmmaillot/baml-ml/actions/runs/45868255498) passed the actual callback round trip. The version manifest returned 404, so CI installs checksum-pinned CLI and engine release assets directly and sets BAML_BRIDGE_PATH and BAML_BRIDGE_DISABLE_DOWNLOAD.
+
+The release-mode bridge benchmark compares six operations at sizes 0, 4, 10, 64, 256, 1024, 4096, 16384 and 65536: direct Rust dot (borrowed slices), Rust vector cloning, matched no-op BAML dispatch, matched no-op BAML-to-Rust callback, pure BAML ordered dot, and BAML-to-Rust NumBam dot. Each uses five warmups and 31 samples; execution order rotates, numerical parity is checked after each timed calculation. Direct Rust calls are batched to reduce timer noise. Input ownership preparation is measured separately; SDK marshalling, callback registration, dispatch, conversion and result handling remain in the SDK timings.
+
+Run after SDK generation with the bridge environment set:
+
+```bash
+cargo run --release --manifest-path consumer/Cargo.toml --bin bridge_bench
+```
+
+The CI logs and CSV artifact report p50/p95 in nanoseconds. Compare callback_probe minus baml_probe as an approximate incremental callback cost; callback_dot vs baml_dot is the actual crossover test. These are end-to-end comparisons, not exact decomposition of copying or allocation inside the engine. Do not equate Rust-to-BAML overhead with the Python-to-BAML probe from the original MVP. Runtime trace settings are held constant, not assumed disabled based on analytics settings. Shared CI runner results are exploratory, not production performance claims. No hard latency threshold in CI.
