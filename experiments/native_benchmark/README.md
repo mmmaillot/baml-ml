@@ -51,6 +51,30 @@ bash experiments/native_benchmark/run.sh /tmp/native-benchmark
 
 CI archives 96 raw trial records, file inventories, query results, aggregate
 report and representative BTEL trees. There is no performance threshold on
-a shared runner. The first run must validate actual clock/JSON compatibility.
-No measured results yet, and no claim about native-versus-sklearn latency,
-production throughput, privacy controls or whether Rust is necessary.
+a shared runner. The first run validated clock/JSON compatibility and all 96 trials.
+
+## Results
+
+[CI run 45903002778](https://github.com/mmmaillot/baml-ml/actions/runs/45903002778/job/140193026836), medians of four trials, aggregate loop time divided by measured calls.
+
+| Workload | Off | Default | Empty span | Selective span |
+|---|---:|---:|---:|---:|
+| Single (5000 calls), µs/call | 15.99 | 23.05 | 24.77 | 35.56 |
+| Batch 30, µs/call | 227.08 | 308.45 | 312.71 | 387.90 |
+| Fit, ms/call | 237.51 | 299.43 | 289.39 | 290.61 |
+| Single throughput, rows/s | 62522 | 43389 | 40376 | 28123 |
+| Single process wall, ms | 115 | 235 | 240 | 295 |
+| Single peak RSS, KiB | 84350 | 91776 | 100162 | 102214 |
+
+Relative native overhead for single inference: +44%, +55%, +122%; batch: +36%, +38%, +71%; fit: +26%, +22%, +22%. Fit mode ordering is not a robust ranking given only four shared-runner trials.
+
+Marginal storage slope between 100 and 5000 calls (bytes/additional call):
+
+| Mode | BTEL | CAS | SQL index | Sum |
+|---|---:|---:|---:|---:|
+| Off | 0 | 0 | 0 | 0 |
+| Default | 0.007 | 0 | 0 | 0.007 |
+| Empty span | 212.86 | 0 | 1102.58 | 1315.44 |
+| Selective span | 372.86 | 0 | 1246.76 | 1619.62 |
+
+The index is created by querying, not by inference itself. CAS deduplication benefits from repeated inputs. No claim about native-versus-sklearn latency, production throughput, privacy controls or whether Rust is necessary.
