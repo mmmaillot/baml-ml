@@ -20,4 +20,37 @@ cd migration
 - Retain matrix shape checks, result classes, ordered dot, scaled norm and corrected two-pass variance; no NumBam calls or solver changes.
 - Port all 18 original primitive test cases to native BAML tests, plus Exp and Log checks against f64 reference values. No full estimator migration or SDK parity claim in this ticket.
 
-CI validation pending. Follow [#25](https://github.com/mmmaillot/baml-ml/issues/25).
+Primitive CI: [20/20 passed](https://github.com/mmmaillot/baml-ml/actions/runs/45875548493).
+
+
+## Estimators and examples (#26)
+
+The four estimators and both pipeline variants are ported to the same project.
+The original modified Gram-Schmidt QR and multinomial gradient descent with
+Armijo line search remain unchanged. No NumBam calls or Python numerical callbacks.
+
+Prepare clean and 10%-missing Iris and Diabetes examples using the same
+historical dataset loader, seed 42, train/test split, and reference model
+hyperparameters. Python generates a temporary BAML fixture file, containing
+inputs and independent sklearn predictions / train-only means. Native BAML
+functions execute fitting, inference and parity checks. No Python SDK is
+needed for these examples.
+
+```bash
+# From the repository root, using Python 3.12:
+python -m pip install -r migration/examples/requirements.txt
+python migration/examples/generate_examples.py
+cd migration
+"$BAML_CLI" check
+"$BAML_CLI" test --max-concurrency 1 --test-timeout 5m
+"$BAML_CLI" run ExampleIrisClean
+"$BAML_CLI" run ExampleIrisMissing
+"$BAML_CLI" run ExampleDiabetesClean
+"$BAML_CLI" run ExampleDiabetesMissing
+```
+
+The example results expose maximum absolute prediction and preprocessing mean
+differences, and classification label equality. Tolerances are unchanged:
+Iris 1e-3, Diabetes 1e-9, train-only means 1e-12. Native tests reject non-finite
+predictions, wrong output shapes and error results. Full historical test
+suite/SDK migration is #27; performance and telemetry comparisons are #28.
