@@ -23,18 +23,18 @@ function empty_middle(x: int) -> int { empty_leaf(x) * 2 }
 function EmptyNested() -> int { empty_middle(20) }
 
 function DefaultLoop() -> int {
-    let mut total = 0;
-    for (let i in 0..10000) { total = total + default_leaf(i); }
+    let total = 0;
+    for (let i = 0; i < 10000; i += 1) { total = total + default_leaf(i); }
     total
 }
 function TimingLoop() -> int {
-    let mut total = 0;
-    for (let i in 0..10000) { total = total + timing_leaf(i); }
+    let total = 0;
+    for (let i = 0; i < 10000; i += 1) { total = total + timing_leaf(i); }
     total
 }
 function SpanLoop() -> int {
-    let mut total = 0;
-    for (let i in 0..10000) { total = total + span_leaf(i); }
+    let total = 0;
+    for (let i = 0; i < 10000; i += 1) { total = total + span_leaf(i); }
     total
 }
 
@@ -43,10 +43,10 @@ function matrix_echo(x: float[][]) -> float[][] { x }
 
 function MatrixSmall() -> float[][] { matrix_echo([[1.0, 2.0], [3.0, 4.0]]) }
 function MatrixLarge() -> int {
-    let mut x: float[][] = [];
-    for (let i in 0..100) {
-        let mut row: float[] = [];
-        for (let j in 0..100) { row.push(1.25); }
+    let x: float[][] = [];
+    for (let i = 0; i < 100; i += 1) {
+        let row: float[] = [];
+        for (let j = 0; j < 100; j += 1) { row.push(1.25); }
         x.push(row);
     }
     let y = matrix_echo(x);
