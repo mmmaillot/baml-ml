@@ -112,3 +112,58 @@ def predict_baml(split, pipeline, x):
     res = b.RegressionPipelinePredict(x.tolist(), pipeline)
     assert res.ok, res.error
     return np.asarray(res.value), None
+
+
+def staged_fit(split, call):
+    """Fit the pipeline stage by stage through call(stage, function_name, *args).
+
+    Stage names follow the #9 span convention (pipeline.stage.<step>.<op>) so
+    telemetry can name each step. Numerics are identical to the monolithic
+    pipeline entry points (asserted in tests): the same BAML functions are
+    called in the same order on the same training data only.
+    """
+    x = split.x_train.tolist()
+    if split.task == "classification":
+        y = [int(v) for v in split.y_train]
+    else:
+        y = [float(v) for v in split.y_train]
+    r = call("pipeline.stage.imputer.fit", "ImputerFit", x)
+    assert r.ok, r.error
+    imp = r.imputer
+    r = call("pipeline.stage.imputer.transform", "ImputerTransform", x, imp)
+    assert r.ok, r.error
+    x1 = r.x
+    r = call("pipeline.stage.scaler.fit", "ScalerFit", x1)
+    assert r.ok, r.error
+    sc = r.scaler
+    r = call("pipeline.stage.scaler.transform", "ScalerTransform", x1, sc)
+    assert r.ok, r.error
+    x2 = r.x
+    if split.task == "classification":
+        r = call("pipeline.stage.clf.fit", "LogRegFit", x2, y, BAML_C, BAML_MAX_ITER, BAML_TOL)
+    else:
+        r = call("pipeline.stage.reg.fit", "LinearRegressionFit", x2, y)
+    assert r.ok, r.error
+    return {"imputer": imp, "scaler": sc, "model": r.model}
+
+
+def staged_predict(split, state, x, call):
+    """Staged inference (impute -> scale -> model predict) through call(stage, function_name, *args).
+
+    Returns (predictions, probabilities); probabilities are None for regression.
+    """
+    xl = np.asarray(x, dtype=float).tolist()
+    r = call("pipeline.stage.imputer.transform", "ImputerTransform", xl, state["imputer"])
+    assert r.ok, r.error
+    r = call("pipeline.stage.scaler.transform", "ScalerTransform", r.x, state["scaler"])
+    assert r.ok, r.error
+    x2 = r.x
+    if split.task == "classification":
+        rp = call("pipeline.predict_proba", "LogRegPredictProba", x2, state["model"])
+        rd = call("pipeline.predict", "LogRegPredict", x2, state["model"])
+        assert rp.ok, rp.error
+        assert rd.ok, rd.error
+        return np.asarray(rd.value), np.asarray(rp.probs)
+    r = call("pipeline.predict", "LinearRegressionPredict", x2, state["model"])
+    assert r.ok, r.error
+    return np.asarray(r.value), None
