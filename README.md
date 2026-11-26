@@ -108,14 +108,18 @@ Shared by all estimators (implemented in `baml_src/primitives.baml`):
   overflowing inputs, as well as malformed model states, are rejected explicitly.
   Parity with `sklearn.linear_model.LinearRegression` is tested within 1e-6 on
   well-conditioned fixtures.
-- `baml_src/pipeline.baml`: regression half of `Pipeline` (part of issue #7:
-  Imputer → Scaler → LinearRegression) with an explicit `RegressionPipeline`
-  state — `RegressionPipelineFit`, `RegressionPipelinePreprocess`,
-  `RegressionPipelinePredict`, plus the shared `PipelinePreprocessSteps` helper.
-  Fitting is sequential on training data only; inference applies the stored
-  states and never updates them, and downstream steps short-circuit when an
-  upstream step fails. Parity with the equivalent sklearn `Pipeline` is tested
-  within 1e-6.
+- `baml_src/pipeline.baml`: minimal `Pipeline` (issue #7: Imputer → Scaler →
+  LinearRegression or LogisticRegression) with explicit fitted states —
+  `RegressionPipeline` (`RegressionPipelineFit`, `RegressionPipelinePreprocess`,
+  `RegressionPipelinePredict`) and `ClassificationPipeline`
+  (`ClassificationPipelineFit`, `ClassificationPipelinePreprocess`,
+  `ClassificationPipelinePredict`, `ClassificationPipelinePredictProba`), plus
+  the shared `PipelinePreprocessSteps` helper. Fitting is sequential on
+  training data only; inference applies the stored states and never updates
+  them, and downstream steps short-circuit when an upstream step fails.
+  Parity with the equivalent sklearn `Pipeline` is tested within 1e-6
+  (regression) and 1e-3 on probabilities with identical labels (classification
+  on a missing-value Iris split).
 - `baml_src/logistic.baml`: multiclass (multinomial) `LogisticRegression` with L2
   penalty (issue #6) — `LogRegFit`, `LogRegPredictProba`, `LogRegPredict` with an
   explicit `LogisticRegressionModel` state (sorted class order, per-class weights
@@ -164,7 +168,7 @@ Measure training time, inference latency (p50/p99), throughput, numerical parity
 
 ## Status
 
-Issues #2, #3, #4 (`StandardScaler`), #5 (`LinearRegression`), #6 (multiclass `LogisticRegression`), #14 (near-constant scaler threshold + sklearn-inspired numerical hardening tests), and the regression half of #7 (`RegressionPipeline`) are implemented and tested: 147 pytest tests pass, including hand-computed fixtures, shape-mismatch, underdetermined and rank-deficiency rejection, `±Inf`/overflow and malformed-state rejection without VM crashes, all-missing-column rejection, held-out statistics reuse, constant/near-constant and large-offset column handling, extreme-logit softmax stability, gradient finite-difference checks, and sklearn parity (SimpleImputer 1e-12, StandardScaler 1e-9, LinearRegression/RegressionPipeline 1e-6, LogisticRegression proba 1e-3).
+Issues #2, #3, #4 (`StandardScaler`), #5 (`LinearRegression`), #6 (multiclass `LogisticRegression`), #7 (`Pipeline`: `RegressionPipeline` and `ClassificationPipeline`), and #14 (near-constant scaler threshold + sklearn-inspired numerical hardening tests) are implemented and tested: 159 pytest tests pass, including hand-computed fixtures, shape-mismatch, underdetermined and rank-deficiency rejection, `±Inf`/overflow and malformed-state rejection without VM crashes, all-missing-column rejection, held-out statistics reuse, constant/near-constant and large-offset column handling, extreme-logit softmax stability, gradient finite-difference checks, and sklearn parity (SimpleImputer 1e-12, StandardScaler 1e-9, LinearRegression/RegressionPipeline 1e-6, LogisticRegression and ClassificationPipeline proba 1e-3).
 
 Known limitations of BAML 0.226.3 beta expression functions (documented per issue #2 rather than worked around in Python):
 
