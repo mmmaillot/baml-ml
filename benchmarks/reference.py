@@ -22,11 +22,21 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-try:
-    from baml_client import b
-except ModuleNotFoundError:
-    # Clean checkout: baml_client/ is gitignored, generate it once via the
-    # pinned CLI (tests/ do the same, with staleness detection, via conftest).
+def _ensure_generated_client() -> None:
+    baml_src = REPO_ROOT / "baml_src"
+    client_dir = REPO_ROOT / "baml_client"
+    init_py = client_dir / "__init__.py"
+    inlined_py = client_dir / "inlinedbaml.py"
+    up_to_date = False
+    if init_py.exists() and inlined_py.exists():
+        baml_files = list(baml_src.rglob("*.baml"))
+        if not baml_files:
+            up_to_date = True
+        else:
+            latest = max(baml_src.stat().st_mtime, *(p.stat().st_mtime for p in baml_files))
+            up_to_date = inlined_py.stat().st_mtime >= latest
+    if up_to_date:
+        return
     local_bin = REPO_ROOT / "node_modules" / ".bin"
     cli = (
         shutil.which("baml", path=str(local_bin))
@@ -35,12 +45,17 @@ except ModuleNotFoundError:
         or shutil.which("baml-cli")
     )
     if cli is None:
+        if init_py.exists():
+            return
         raise RuntimeError(
             "baml_client/ is missing and no baml CLI was found; run `npm install` "
             "then `npx baml --features beta generate` from the repository root."
         )
     subprocess.run([cli, "--features", "beta", "generate"], cwd=REPO_ROOT, check=True)
-    from baml_client import b
+
+
+_ensure_generated_client()
+from baml_client import b
 
 # Classifier hyperparameters shared by the BAML pipeline and the sklearn
 # reference (C=1.0 both sides; sklearn gets a tight tol so the reference is a

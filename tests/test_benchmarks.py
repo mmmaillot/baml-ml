@@ -72,7 +72,7 @@ def test_output_schema_fields_and_units(tmp_path):
             assert r["batch_size"] is None
             assert r["throughput_rows_per_s"] is None  # not applicable -> null
         else:
-            assert r["batch_size"] in (1, r["batch_size"])
+            assert isinstance(r["batch_size"], int) and r["batch_size"] >= 1
             assert r["throughput_rows_per_s"] > 0.0  # rows per second
         assert set(r["trace"]) == {"spans", "bytes"}
 

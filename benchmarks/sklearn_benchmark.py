@@ -196,6 +196,9 @@ def _measure(variant, split, repetitions, warmups):
         provider.force_flush()
     emit("predict", 1, single_times, _trace_delta(exporter, span_names))
 
+    if provider is not None:
+        provider.shutdown()
+
     return records, last_pred, sorted(span_names)
 
 
