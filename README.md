@@ -49,7 +49,8 @@ Run the reference benchmark:
 
 - [MVP roadmap](https://github.com/mmmaillot/baml-ml/issues/1)
 - [Implementation notes](docs/implementation.md), including numerical methods and BAML limitations.
-- [NumBam and native numerical backends](docs/architecture/numerical-backends.md), a possible next step using Rust and existing optimized libraries.
+- [NumBam](numbam/README.md): minimal Rust numerical backend in this repository; BAML integration is still experimental.
+- [Native backend and embedded runtime design](docs/architecture/numerical-backends.md).
 
 Experimental software, not a production-ready replacement for scikit-learn.
 

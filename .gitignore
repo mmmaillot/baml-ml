@@ -14,3 +14,4 @@ baml_client/
 .DS_Store
 .env
 benchmarks/results/
+numbam/target/
