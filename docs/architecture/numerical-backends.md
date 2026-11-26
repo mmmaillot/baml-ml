@@ -1,6 +1,6 @@
 # Numerical backends: pure BAML vs. native acceleration
 
-Status: **Proposed / exploratory (2026-11-26)**. Updated with the NumBam working name, Rust backend candidates, and NumPy-first roadmap. This note records an architectural discussion, not a decision to change the v0.1 implementation or roadmap.
+Status: **Proposed / exploratory (2026-11-26)**. Updated with the minimal NumBam scope, definition of done, and embedded inference follow-up. This note records an architectural discussion, not a decision to change the v0.1 implementation or roadmap.
 
 ## Context and motivation
 
@@ -75,13 +75,13 @@ Compare identical input data and split, model objectives, comparable trace granu
 
 The small MVP datasets establish feasibility and parity, not large-scale performance. Later, synthetic matrix sizes can expose the crossover at which native kernels outweigh bridge overhead.
 
-## Proposed standalone project: NumBam
+## NumBam: native numerical backend inside baml-ml
 
-A reusable numerical layer could serve classical ML, statistics, optimization, signal processing, time series and embedding operations beyond baml-ml.
+NumBam initially lives in the same repository under [numbam/](../../numbam/README.md). Its sole current purpose is to support our ML experiments; a standalone project is not planned for v0.1. A reusable layer may eventually serve other scientific use cases, but those are not current requirements.
 
 A preliminary public search on 2026-11-26 for repositories named baml-numerics / baml-math and BAML numerical or linear algebra libraries did not identify a maintained NumPy-like library or ready-to-use BLAS/LAPACK binding for BoundaryML's language. This is not exhaustive proof of absence. Check upstream standard packages, the current language repository, package registries and ask BoundaryML maintainers before starting a separate project; prefer contributing to an existing library if one exists.
 
-If a gap is confirmed, keep the first version narrow: a tested numerical API, pure BAML reference implementation and one accelerated native operation. Extract reusable primitives only after the baml-ml experiment establishes the need and the integration mechanism is proven.
+Keep the first version narrow: a tested Rust numerical API, the existing pure BAML reference implementation, and a real native interoperability experiment.
 
 ### Positioning and identity
 
@@ -99,7 +99,7 @@ The name NumBam was preferred over RayBam (an array/BAML pun) because the latter
 
 NumPy supplies the core array abstraction, shape/dtype conventions, broadcasting, elementwise operations, reductions and basic dense linear algebra. SciPy builds on NumPy arrays with specialized scientific algorithms, including more extensive linear algebra, optimization, sparse matrices, statistics and signal processing. Both can rely on native numerical kernels.
 
-NumBam should prioritize the NumPy-like layer, with a few targeted linear algebra capabilities needed by baml-ml. A broader SciPy-like layer is a later opportunity, tentatively named **SciBam**, not a committed separate repository or dependency.
+NumBam prioritizes only the numerical operations needed by the current baml-ml code. A broader SciPy-like layer, tentatively named **SciBam**, is explicitly deferred.
 
 | Layer | Proposed project | Responsibility |
 | --- | --- | --- |
@@ -121,14 +121,38 @@ Dependency direction: baml-ml and any future SciBam use NumBam; NumBam must not 
 
 Do not build another BLAS or LAPACK implementation. Compare the Rust-native route (e.g. faer) against a BLAS/LAPACK-backed route where useful; select the smallest viable dependency set, not every candidate at once. In particular, ndarray and faer have different array representations, so benchmark conversions before combining them.
 
-### Proposed roadmap (after feasibility gate)
+### NumBam v0.1: scope and definition of done
 
-- **Gate 0: native interoperability.** Prove that BAML can call a Rust numerical kernel through a supported extension or host-call mechanism, with no numerical computation delegated to Python. Demonstrate observable duration/status at the boundary, test data transfer and error handling, and document the runtime version and build/distribution process. If there is no practical supported mechanism, stop and discuss upstream integration with BoundaryML; do not pretend a standalone Rust crate is automatically callable from BAML.
-- **P0: core arrays.** Start with dense float64 vectors and matrices, shape validation, predictable layout, and contiguous native storage if the bridge supports it. Add creation/conversion, shape, transpose/reshape as needed, elementwise arithmetic and exp/log/sqrt, sum/mean/variance. Keep generalized N-dimensional arrays, arbitrary dtypes and full NumPy broadcasting as later extensions, not MVP requirements.
-- **P1: linear algebra.** Dot, matvec, matmul, norm, QR and least squares; consider SVD and rank-aware solving only when required. Reuse existing optimized kernels. Demonstrate one end-to-end accelerated baml-ml operation and preserve the pure BAML reference for differential tests.
-- **P2: scientific algorithms.** Stable softmax/logsumexp, gradient descent, line search and eventually L-BFGS or statistical routines. Keep iterative orchestration in BAML where observing loss, gradient norms, step sizes and convergence is valuable; use NumBam kernels for expensive numerical operations. Consider extracting this higher-level layer into SciBam only after concrete use cases justify it.
+Tracking: [issue #20](https://github.com/mmmaillot/baml-ml/issues/20).
 
-The first proof of concept should be one coarse-grained native operation (e.g. dot or matvec), not an entire array framework. Evaluate small and large inputs; native dispatch and copying may dominate small operations. Full NumPy/SciPy API compatibility, GPU computing and sparse arrays are out of scope initially.
+The next priority is a minimal native backend, followed by an embedded inference runtime. Keep NumBam in this repository. Do not build a general-purpose NumPy replacement.
+
+| Priority | Operation | Why |
+| --- | --- | --- |
+| P0 | dot | Both regressions and inference |
+| P0 | vectorized exp | Logistic regression softmax and optimization |
+| P0 | log | Logistic regression loss and log-sum-exp |
+| Conditional | sqrt, matvec | Only if profiling demonstrates a need |
+| Deferred | mean, variance, least squares | Keep current BAML implementations until evidence justifies replacing them |
+
+Use Rust standard-library functions and slices first. No external BLAS/LAPACK installation, generic array framework, Python numerical callbacks, or SciBam. Existing optimized Rust crates are options only if justified by measured workloads. Preserve the current QR solver and logistic optimizer initially; do not confound the experiment with a change of algorithms.
+
+The initial crate implements dot, vectorized exp and log as dependency-free Rust functions; the existing BAML estimators do not yet call them. Their tests and a Rust-only smoke example do not prove BAML interop or trace support.
+
+**Definition of done (all six required):**
+
+- [ ] BAML can call a Rust function using a supported native interop mechanism.
+- [ ] Selected primitives pass differential numerical parity tests against BAML and/or NumPy.
+- [ ] At least one existing baml-ml pipeline benefits measurably from acceleration and preserves numerical parity.
+- [ ] The bridge overhead is measured, including conversion/allocation/dispatch.
+- [ ] Native operations remain observable at their BAML boundary, demonstrated with actual trace or profiling evidence.
+- [ ] A standalone executable containing BAML and the Rust kernels runs without Python, Cargo or separately installed numerical libraries on the target.
+
+A direct Rust executable is a useful packaging smoke test, but it does not satisfy the last criterion. Use the supported BAML-to-host integration mechanism, not a subprocess or an unverified FFI shim. Keep the existing pure-BAML runtime pinned; if the host-call mechanism requires a newer toolchain, evaluate that separately.
+
+### Embedded inference runtime (next phase)
+
+After the six criteria are met, investigate exporting fitted classical ML pipelines to a portable, observable runtime. The first target should be inference of the existing linear/logistic regression pipelines; there is no need to bring training-only decompositions or optimizers into the deployment artifact. Prefer a self-contained executable per platform, no Python or separately installed numerical libraries on the target, offline execution and local observability. Compare with ONNX Runtime for the supported models; ONNX compatibility is a future option, not an MVP prerequisite. A combined BAML/Rust executable has not yet been demonstrated.
 
 ### Design boundary
 
@@ -142,7 +166,7 @@ The pure BAML code in baml-ml remains an important reference and experimental co
 - Profile the actual workload and identify hot operations.
 - Investigate native interoperability with a small proof of concept.
 - Add an optional accelerated backend only if it preserves meaningful observation and materially improves end-to-end performance.
-- Consider launching NumBam or contributing upstream after those results. SciBam is a longer-term optional direction.
+- Keep NumBam in this repo; move to an embedded inference runtime once issue #20 is complete. SciBam is explicitly deferred.
 
 ## References and evidence
 

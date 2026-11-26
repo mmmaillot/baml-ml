@@ -1,0 +1,12 @@
+[package]
+name = "numbam"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Minimal Rust numerical kernels for baml-ml"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
