@@ -94,3 +94,46 @@ jobs:
           name: migration-host-tests
           path: host-tests.xml
           if-no-files-found: warn
+      - name: Benchmark migrated SDK
+        env:
+          OMP_NUM_THREADS: "1"
+          OPENBLAS_NUM_THREADS: "1"
+          MKL_NUM_THREADS: "1"
+        run: |
+          python migration/benchmarks/run.py --out migration-benchmark-results/new-baml.json
+      - name: Check out historical MVP tag
+        uses: actions/checkout@v4
+        with:
+          ref: v0.1.0
+          path: legacy-mvp
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare isolated historical SDK
+        working-directory: legacy-mvp
+        run: |
+          set -euo pipefail
+          python -m venv .venv
+          .venv/bin/python -m pip install -r requirements.txt
+          npm ci
+          npx baml --features beta generate
+          git rev-parse HEAD > ../migration-benchmark-results/legacy-commit.txt
+      - name: Re-run historical BAML and sklearn benchmarks
+        working-directory: legacy-mvp
+        env:
+          OMP_NUM_THREADS: "1"
+          OPENBLAS_NUM_THREADS: "1"
+          MKL_NUM_THREADS: "1"
+        run: |
+          set -euo pipefail
+          .venv/bin/python benchmarks/baml_benchmark.py --repetitions 10 --fit-repetitions 3 --warmups 1 --out ../migration-benchmark-results/legacy-baml.json
+          .venv/bin/python benchmarks/sklearn_benchmark.py --repetitions 10 --warmups 1 --out ../migration-benchmark-results/sklearn.json
+      - name: Generate migration comparison report
+        run: python migration/benchmarks/report.py migration-benchmark-results
+      - name: Upload benchmark artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-benchmark-results
+          path: migration-benchmark-results/
+          if-no-files-found: warn
