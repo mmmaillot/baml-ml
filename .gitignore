@@ -13,3 +13,4 @@ baml_client/
 *.sqlite-shm
 .DS_Store
 .env
+benchmarks/results/
