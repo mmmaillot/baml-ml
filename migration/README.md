@@ -88,3 +88,47 @@ Collector-based BAML benchmark and trace demo/report tests
 on the historical baseline; porting their runtime-specific behavior belongs
 to #28 and the observability phase. No old assertions are weakened or deleted.
 The old test suite and NumBam workflows are untouched.
+
+
+## Runtime benchmark baseline (#28)
+
+The new SDK runner reuses the historical staged fit/predict functions and seed-42
+Iris/Diabetes splits. It records wall time for the trivial bridge probe, staged
+fit, full test batch and each single-row prediction; per-call samples, p50/p99,
+throughput and parity are saved in JSON. No runtime-only timing is inferred.
+New trace metrics remain null until a supported capture path is demonstrated.
+
+After the SDK and historical test mirror are generated as above:
+
+```bash
+export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
+export BAML_TELEMETRY=off
+python migration/benchmarks/run.py --out migration-benchmark-results/new-baml.json
+```
+
+On the same machine, in a separate checkout and Python environment:
+
+```bash
+git worktree add --detach /tmp/baml-mvp v0.1.0
+cd /tmp/baml-mvp
+python3.12 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+npm ci
+npx baml --features beta generate
+.venv/bin/python benchmarks/baml_benchmark.py --repetitions 10 --fit-repetitions 3 --warmups 1 --out /absolute/path/migration-benchmark-results/legacy-baml.json
+.venv/bin/python benchmarks/sklearn_benchmark.py --repetitions 10 --warmups 1 --out /absolute/path/migration-benchmark-results/sklearn.json
+```
+
+Back in the migration checkout:
+
+```bash
+python migration/benchmarks/report.py migration-benchmark-results
+```
+
+CI runs this protocol and uploads the raw JSON and report. Fit uses the historical
+3 repetitions for both BAML versions and 10 for sklearn; all predict/probe
+measurements use 10 repetitions and one warmup, except single-row inference
+which is warmed by the batch. The benchmark is not an optimization target.
+The old Collector is not a verified API of the new SDK. BAML_TELEMETRY=off
+does not by itself prove runtime tracing is disabled. A native trace capture
+probe, on/off overhead and Rust SDK comparison remain to be established.
