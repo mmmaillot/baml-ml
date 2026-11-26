@@ -2,71 +2,58 @@
 
 What would scikit-learn look like if observability were built into the language?
 
-baml-ml is an experiment in classical machine learning written in [BAML](https://github.com/BoundaryML/baml). Both training and inference run in BAML, including the numerical primitives. Python is used for loading data, testing and benchmarking against scikit-learn. No LLMs or API keys are needed.
+An experimental classical ML library written in [BAML](https://github.com/BoundaryML/baml), targeting native execution and built-in observability. No LLMs or API keys required.
 
-## What's implemented
+## Implemented
 
 - Mean imputation and standard scaling
-- Linear regression (OLS)
-- Multinomial logistic regression (L2)
+- Linear regression (OLS) and multinomial logistic regression (L2)
 - Classification and regression pipelines
+- Native profiling and selective semantic tracing, validated on an Iris pipeline
 
-The pipelines are tested against scikit-learn on Iris and Diabetes, with and without missing values.
+Numerical parity against scikit-learn is tested on Iris and Diabetes, including missing values. The current implementation is in [migration/](migration/README.md), pinned to BAML 0.26.0.
 
-## The experiment
+## Native observability
 
-We measure numerical parity, training time, inference latency, throughput and trace volume across four variants:
+Four declarative span directives expose the actual input, imputed values, standardized values, model parameters and predicted probabilities, together with the call hierarchy and durations. Default profiling aggregates function invocations without recording each intermediate value.
 
-| Backend | Without tracing | With tracing |
-| --- | --- | --- |
-| scikit-learn | Vanilla (`sklearn`) | OpenTelemetry (`sklearn-otel`) |
-| BAML | Telemetry off (`baml-telemetry-off`) | Collector (`baml-telemetry-on`) |
+See [native ML observability](experiments/native_ml_observability/README.md) for verified payloads, typed NaN, structured errors and storage measurements.
 
-See the **[Benchmark comparison & inference trace report](docs/benchmarks/report.md)** (raw JSON artifacts under [`docs/benchmarks/`](docs/benchmarks/)). Numerical parity holds (`<= 1e-7` on Iris probabilities, `<= 1e-12` on Diabetes OLS) and BAML Collector overhead is modest relative to VM compute, but `baml-py 0.226.3` does not yet export expression-function spans or runtime durations and remains orders of magnitude slower than compiled C/BLAS kernels on these small datasets.
+## Performance baseline
 
-## Run it
+Native Iris workloads, medians of four trials on a shared CI runner ([raw evidence and protocol](experiments/native_benchmark/README.md)):
 
-Requires Python 3.12 and Node.js 22. The BAML CLI and runtime are pinned to 0.226.3.
+| Workload | Off | Default | Empty span | Selective span |
+|---|---:|---:|---:|---:|
+| Single prediction | 16.0 µs | 23.0 µs | 24.8 µs | 35.6 µs |
+| Batch of 30 | 227 µs | 308 µs | 313 µs | 388 µs |
+| Training (120 rows) | 238 ms | 299 ms | 289 ms | 291 ms |
 
-```bash
-python3.12 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-npm ci
-npx baml --features beta generate
+Single inference throughput ranges from 62,522 predictions/s without tracing to 28,123/s with selective spans. The latter adds approximately 373 bytes of BTEL and 1,247 bytes of SQL index per repeated prediction. CAS marginal growth was zero for repeated identical inputs. The SQL index is created during querying.
 
-.venv/bin/python -m pytest tests/
+These are aggregate timings for small, repeated workloads, not production latency percentiles or a controlled comparison with scikit-learn.
+
+## Run
+
+Follow the [pinned CLI installation and native test instructions](migration/README.md). To reproduce the native experiments with the verified CLI:
+
+```sh
+export BAML_CLI=/absolute/path/to/baml-cli
+bash experiments/native_ml_observability/run.sh /tmp/native-ml-observability
+bash experiments/native_benchmark/run.sh /tmp/native-benchmark
 ```
-
-Run the examples and the synthetic missing-value inference trace demo:
-
-```bash
-.venv/bin/python examples/iris_example.py
-.venv/bin/python examples/diabetes_example.py
-.venv/bin/python examples/trace_demo.py
-```
-
-Regenerate all four benchmark variants, the trace demo, and the comparison report:
-
-```bash
-.venv/bin/python benchmarks/run_all.py
-# or overwrite the published report & raw JSON files:
-.venv/bin/python benchmarks/run_all.py --out-dir docs/benchmarks
-```
-
-Individual runners are also available: [`benchmarks/sklearn_benchmark.py`](benchmarks/sklearn_benchmark.py) and [`benchmarks/baml_benchmark.py`](benchmarks/baml_benchmark.py).
 
 ## Next
 
-- [Benchmark report & raw results](docs/benchmarks/report.md)
-- [MVP roadmap](https://github.com/mmmaillot/baml-ml/issues/1)
-- [Implementation notes](docs/implementation.md), including numerical methods and BAML limitations.
-- [NumBam](numbam/README.md): minimal Rust numerical backend in this repository; BAML integration is still experimental.
+- Characterize scaling with distinct inputs, larger feature dimensions and batches.
+- Profile numerical hotspots before choosing any native acceleration.
+- [NumBam](numbam/README.md): experimental Rust numerical backend, deferred pending measured need ([#20](https://github.com/mmmaillot/baml-ml/issues/20)).
 - [Native backend and embedded runtime design](docs/architecture/numerical-backends.md).
+
+## Historical MVP
+
+The original toolchain and Collector-based experiments are preserved at [v0.1.0](https://github.com/mmmaillot/baml-ml/tree/v0.1.0). See the [historical benchmark report](docs/benchmarks/report.md) and [implementation notes](docs/implementation.md). Those results are not the current native baseline.
 
 Experimental software, not a production-ready replacement for scikit-learn.
 
 [Apache 2.0](LICENSE).
-
-## New BAML language migration
-
-The original MVP is frozen at [v0.1.0](https://github.com/mmmaillot/baml-ml/tree/v0.1.0). The BAML language 0.26.0 port lives in [migration/](migration/README.md), with native tests and a generated Python SDK regression suite. See that directory for pinned installation, generation and test commands. The historical commands above still target the original MVP toolchain.
