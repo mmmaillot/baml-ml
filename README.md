@@ -70,10 +70,10 @@ Shared by all estimators (implemented in `baml_src/primitives.baml`):
 
 ## Implemented so far
 
-- `baml_src/primitives.baml`: `IsNaN`, `IsFinite`, `Sqrt` (Newton's method),
-  `VecNorm`, `CheckMatrix`, `CheckFiniteMatrix`, `Dot`, `ColumnMeans`,
-  `ColumnVariances` (population, ddof=0), `VecAdd`, `VecSub`, `VecScale`,
-  `MatVec`, `Transpose`. All arithmetic runs in BAML.
+- `baml_src/primitives.baml`: `IsNaN`, `IsFinite`, `Abs`, `Sqrt` (Newton's
+  method), `VecNorm` (max-abs scaled), `CheckMatrix`, `CheckFiniteMatrix`,
+  `Dot`, `ColumnMeans`, `ColumnVariances` (population, ddof=0), `VecAdd`,
+  `VecSub`, `VecScale`, `MatVec`, `Transpose`. All arithmetic runs in BAML.
 - `baml_src/imputer.baml`: mean `SimpleImputer` — `ImputerFit`,
   `ImputerTransform`, `ImputerFitTransform` with an explicit `MeanImputer`
   fitted state (per-column means from finite non-missing training values only).
@@ -86,24 +86,28 @@ Shared by all estimators (implemented in `baml_src/primitives.baml`):
 - `baml_src/scaler.baml`: `StandardScaler` — `ScalerFit`, `ScalerTransform`,
   `ScalerFitTransform` with an explicit `StandardScaler` fitted state (per-feature
   mean and population variance, ddof=0; scale = `Sqrt(variance)`, and scale = 1
-  for zero-variance columns). Input must be finite and already imputed; transform
-  validates dimensions and uses the stored training statistics. Parity with
-  `sklearn.preprocessing.StandardScaler` is tested within 1e-9.
+  for zero-variance columns). Input must be finite and already imputed; malformed
+  scaler states (including non-positive or non-finite scales), dimension
+  mismatches, and non-finite standardized outputs are rejected cleanly. Parity
+  with `sklearn.preprocessing.StandardScaler` is tested within 1e-9.
 - `baml_src/linreg.baml`: `LinearRegression` (ordinary least squares with
   intercept) — `LinearRegressionFit`, `LinearRegressionPredict` with an explicit
   `LinearRegressionModel` state (coefficients, intercept, feature count). Solved by
   QR decomposition of the design matrix `[1 | X]` via modified Gram-Schmidt plus
-  back substitution; rank-deficient input (post-orthogonalization column norm
-  <= 1e-10 times its original norm) is rejected explicitly. Parity with
-  `sklearn.linear_model.LinearRegression` is tested within 1e-6 on well-conditioned
-  fixtures.
-- `baml_src/pipeline.baml`: minimal `Pipeline` (Imputer → Scaler → LinearRegression)
-  with an explicit fitted `Pipeline` state — `PipelineFit`, `PipelinePreprocess`
-  (named impute-then-scale step), `PipelinePredict`. Fitting is sequential on
-  training data only; inference applies the stored states and never updates them.
-  The classification variant (`predict_proba`) lands with issue #6
-  (LogisticRegression). Parity with the equivalent sklearn `Pipeline` is tested
-  within 1e-6.
+  back substitution; underdetermined (`n < p + 1`), rank-deficient
+  (post-orthogonalization column norm <= 1e-10 times its original norm), and
+  overflowing inputs, as well as malformed model states, are rejected explicitly.
+  Parity with `sklearn.linear_model.LinearRegression` is tested within 1e-6 on
+  well-conditioned fixtures.
+- `baml_src/pipeline.baml`: regression half of `Pipeline` (part of issue #7:
+  Imputer → Scaler → LinearRegression) with an explicit `RegressionPipeline`
+  state — `RegressionPipelineFit`, `RegressionPipelinePreprocess`,
+  `RegressionPipelinePredict`, plus the shared `PipelinePreprocessSteps` helper.
+  Fitting is sequential on training data only; inference applies the stored
+  states and never updates them, and downstream steps short-circuit when an
+  upstream step fails. `ClassificationPipeline*` (`predict` + `predict_proba`)
+  lands once issue #6 (`LogisticRegression`) is implemented. Parity with the
+  equivalent sklearn `Pipeline` is tested within 1e-6.
 
 ## MVP
 
@@ -138,15 +142,16 @@ Measure training time, inference latency (p50/p99), throughput, numerical parity
 
 ## Status
 
-Issues #2, #3, #4 (StandardScaler), #5 (LinearRegression) and #7 (Pipeline) are implemented and tested: 76 pytest tests pass, including hand-computed fixtures, shape-mismatch and rank-deficiency rejection, `±Inf` and malformed-state rejection, all-missing-column rejection, held-out statistics reuse, and sklearn parity (SimpleImputer 1e-12, StandardScaler 1e-9, LinearRegression/Pipeline 1e-6).
+Issues #2, #3, #4 (`StandardScaler`), and #5 (`LinearRegression`) are implemented and tested, along with the regression half of #7 (`RegressionPipeline`; classification `Pipeline` + `predict_proba` still awaits #6): 101 pytest tests pass, including hand-computed fixtures, shape-mismatch, underdetermined and rank-deficiency rejection, `±Inf`/overflow and malformed-state rejection without VM crashes, all-missing-column rejection, held-out statistics reuse, and sklearn parity (SimpleImputer 1e-12, StandardScaler 1e-9, LinearRegression/RegressionPipeline 1e-6).
 
 Known limitations of BAML 0.226.3 beta expression functions (documented per issue #2 rather than worked around in Python):
 
 - Statement-level expression functions require `--features beta`.
 - No `throw`/exceptions and no runtime `@assert` in computed functions → the result-class error convention above.
+- Floating-point division by `0.0` or `-0.0` traps at runtime in the BAML VM (`DivisionByZero`) instead of producing IEEE-754 `±Inf`/`NaN` → divisors (including user-supplied model parameters) must be checked before `/`.
 - `float?`/`null` values cannot be inspected inside expression functions → NaN is used for missing values.
 - No arithmetic mixing between `int` and `float`, and no int→float conversion.
-- No float math methods (`sqrt`, `abs`, `pow`) and no math namespace in the beta surface — implemented in BAML instead (`Sqrt` via Newton's method); `exp`/`log` for later tickets (e.g. LogisticRegression) would need the same treatment (series expansions).
+- No float math methods (`sqrt`, `abs`, `pow`) and no math namespace in the beta surface — implemented in BAML instead (`Abs`, `Sqrt` via Newton's method); `exp`/`log` for later tickets (e.g. LogisticRegression) would need the same treatment (series expansions).
 - No exponent float literals (`1e-10`, `1.0e308` are parse errors) — use decimal literals (`0.0000000001`).
 - The beta compiler miscompiles if/else expressions nested inside branches that also contain statements; `baml_src` therefore uses flat statement-level validation plus a single tail if/else.
 

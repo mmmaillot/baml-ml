@@ -39,16 +39,19 @@ function ScalerFit(x: float[][]) -> ScalerFitResult {
   let variances: float[] = [];
   if (err == "") {
     means = ColumnMeansUnchecked(x, d.cols);
-    variances = ColumnVariancesUnchecked(x, d.cols);
-  }
-  let var_bad = false;
-  for (let j = 0; j < variances.length() && !var_bad; j += 1) {
-    if (!IsFinite(variances[j])) {
-      var_bad = true;
+    for (let j = 0; j < means.length() && err == ""; j += 1) {
+      if (!IsFinite(means[j])) {
+        err = "scaler_fit: computed column mean is not finite";
+      }
     }
   }
-  if (var_bad) {
-    err = "scaler_fit: computed non-finite variance (input magnitude too large)";
+  if (err == "") {
+    variances = ColumnVariancesFromMeansUnchecked(x, means, d.cols);
+    for (let j = 0; j < variances.length() && err == ""; j += 1) {
+      if (!IsFinite(variances[j])) {
+        err = "scaler_fit: computed non-finite variance (input magnitude too large)";
+      }
+    }
   }
   let scales: float[] = [];
   if (err == "") {
@@ -68,27 +71,47 @@ function ScalerFit(x: float[][]) -> ScalerFitResult {
 }
 
 // Standardize using the stored training statistics. Input must be finite and
-// have the same feature count as the fitted scaler.
+// have the same feature count as the fitted scaler; malformed scaler states
+// (including non-positive or non-finite scales) and non-finite outputs are
+// rejected without dividing by zero.
 function ScalerTransform(x: float[][], scaler: StandardScaler) -> ScalerTransformResult {
   let err = "";
   if (scaler.n_features <= 0 || scaler.means.length() != scaler.n_features || scaler.scales.length() != scaler.n_features) {
     err = "scaler_transform: invalid fitted scaler state";
   }
-  let d = CheckFiniteMatrix(x);
-  if (err == "" && d.error != "") {
-    err = d.error;
-  }
-  if (err == "" && d.cols != scaler.n_features) {
-    err = "scaler_transform: feature count differs from fitted scaler";
+  if (err == "") {
+    for (let j = 0; j < scaler.n_features && err == ""; j += 1) {
+      if (!IsFinite(scaler.means[j])) {
+        err = "scaler_transform: fitted scaler contains non-finite means";
+      }
+      if (err == "" && (!IsFinite(scaler.scales[j]) || scaler.scales[j] <= 0.0)) {
+        err = "scaler_transform: fitted scaler contains invalid scales";
+      }
+    }
   }
   let out: float[][] = [];
   if (err == "") {
-    for (let i = 0; i < x.length(); i += 1) {
-      let row: float[] = [];
-      for (let j = 0; j < d.cols; j += 1) {
-        row.push((x[i][j] - scaler.means[j]) / scaler.scales[j]);
+    let d = CheckFiniteMatrix(x);
+    err = d.error;
+    if (err == "" && d.cols != scaler.n_features) {
+      err = "scaler_transform: feature count differs from fitted scaler";
+    }
+    if (err == "") {
+      let non_finite_out = false;
+      for (let i = 0; i < x.length(); i += 1) {
+        let row: float[] = [];
+        for (let j = 0; j < d.cols; j += 1) {
+          let z = (x[i][j] - scaler.means[j]) / scaler.scales[j];
+          if (!IsFinite(z)) {
+            non_finite_out = true;
+          }
+          row.push(z);
+        }
+        out.push(row);
       }
-      out.push(row);
+      if (non_finite_out) {
+        err = "scaler_transform: standardized value is not finite";
+      }
     }
   }
   if (err == "") {
@@ -102,16 +125,14 @@ function ScalerFitTransform(x: float[][]) -> ScalerFitTransformResult {
   let f = ScalerFit(x);
   let err = f.error;
   let sc = EmptyScaler();
-  if (err == "") {
-    sc = f.scaler;
-  }
-  let t = ScalerTransform(x, sc);
-  if (err == "") {
-    err = t.error;
-  }
   let out: float[][] = [];
   if (err == "") {
-    out = t.x;
+    sc = f.scaler;
+    let t = ScalerTransform(x, sc);
+    err = t.error;
+    if (err == "") {
+      out = t.x;
+    }
   }
   if (err == "") {
     ScalerFitTransformResult { ok: true, scaler: sc, x: out, error: "" }

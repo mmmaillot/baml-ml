@@ -77,21 +77,50 @@ def test_rejects_non_finite_or_bad_shapes():
     assert not b.ScalerFit([[1.0], [2.0, 3.0]]).ok
     assert not b.ScalerFit([[1.0, math.nan]]).ok
     assert not b.ScalerFit([[1.0, math.inf]]).ok
+    assert not b.ScalerFitTransform([[1.0, math.nan]]).ok
     fit = b.ScalerFit(X)
     assert not b.ScalerTransform([[1.0, 2.0, 3.0]], fit.scaler).ok
     assert not b.ScalerTransform([[1.0], [2.0, math.nan]], fit.scaler).ok
 
 
-def test_malformed_scaler_state_rejected():
-    fit = b.ScalerFit(X)
-    assert fit.ok
-    bad = types.StandardScaler(means=[1.0], scales=[1.0, 2.0], n_features=2)
-    res = b.ScalerTransform([[1.0, 2.0]], bad)
+def test_fit_and_transform_reject_overflow_to_infinity():
+    # Mean overflows: 1e308 + 1e308 -> inf
+    mean_ovf = b.ScalerFit([[1e308], [1e308]])
+    assert not mean_ovf.ok
+    assert "not finite" in mean_ovf.error
+
+    # Mean is 0.0 (finite), but squared deviations overflow: (1e200)^2 -> inf
+    var_ovf = b.ScalerFit([[1e200], [-1e200]])
+    assert not var_ovf.ok
+    assert "non-finite variance" in var_ovf.error
+
+    # Valid tiny-scale training set, held-out row overflows (x - mean) / scale
+    tiny_fit = b.ScalerFit([[0.0], [1e-100]])
+    assert tiny_fit.ok
+    out_ovf = b.ScalerTransform([[1e250]], tiny_fit.scaler)
+    assert not out_ovf.ok
+    assert "not finite" in out_ovf.error
+
+
+@pytest.mark.parametrize(
+    "bad_scaler,expected_msg",
+    [
+        (b.EmptyScaler(), "invalid fitted scaler"),
+        (types.StandardScaler(means=[1.0], scales=[1.0, 2.0], n_features=2), "invalid fitted scaler"),
+        (types.StandardScaler(means=[1.0, 2.0], scales=[1.0], n_features=2), "invalid fitted scaler"),
+        (types.StandardScaler(means=[math.nan, 0.0], scales=[1.0, 1.0], n_features=2), "non-finite means"),
+        (types.StandardScaler(means=[math.inf, 0.0], scales=[1.0, 1.0], n_features=2), "non-finite means"),
+        (types.StandardScaler(means=[0.0, 0.0], scales=[0.0, 1.0], n_features=2), "invalid scales"),
+        (types.StandardScaler(means=[0.0, 0.0], scales=[-0.0, 1.0], n_features=2), "invalid scales"),
+        (types.StandardScaler(means=[0.0, 0.0], scales=[-2.0, 1.0], n_features=2), "invalid scales"),
+        (types.StandardScaler(means=[0.0, 0.0], scales=[math.nan, 1.0], n_features=2), "invalid scales"),
+        (types.StandardScaler(means=[0.0, 0.0], scales=[math.inf, 1.0], n_features=2), "invalid scales"),
+    ],
+)
+def test_malformed_scaler_state_rejected_without_vm_crash(bad_scaler, expected_msg):
+    res = b.ScalerTransform([[1.0, 2.0]], bad_scaler)
     assert not res.ok
-    assert "invalid fitted scaler" in res.error
-    empty = b.EmptyScaler()
-    res = b.ScalerTransform([[1.0, 2.0]], empty)
-    assert not res.ok
+    assert expected_msg in res.error
 
 
 @pytest.mark.parametrize("seed", [0, 1, 2])
