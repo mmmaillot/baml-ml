@@ -14,7 +14,7 @@ Implement training and inference in BAML, with a small scikit-learn-inspired API
 - `LogisticRegression` (multiclass)
 - `Pipeline`
 
-Two datasets: Iris for classification and Boston Housing for regression. Boston Housing is a legacy benchmark removed from scikit-learn due to ethical concerns about its variables; use it only for historical numerical and runtime comparison, not for real-world housing decisions.
+Two built-in scikit-learn datasets: Iris for classification (`load_iris`, 150 samples, 4 features) and Diabetes for regression (`load_diabetes`, 442 samples, 10 features). Use `load_diabetes(scaled=False)` to exercise our own preprocessing without the dataset loader's default scaling.
 
 ## Experiment
 
@@ -32,7 +32,7 @@ Measure training time, inference latency (p50/p99), throughput, numerical parity
 - `baml_src/`: native ML implementations
 - `benchmarks/`: comparison harness
 - `tests/`: unit and numerical parity tests
-- `examples/`: Iris and Boston Housing examples
+- `examples/`: Iris and Diabetes examples
 
 ## Status
 
