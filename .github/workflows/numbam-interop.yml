@@ -1,0 +1,42 @@
+name: NumBam BAML interop
+
+on:
+  pull_request:
+    paths:
+      - 'numbam/**'
+      - '.github/workflows/numbam-interop.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'numbam/**'
+      - '.github/workflows/numbam-interop.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  host-callback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BAML_TELEMETRY: "off"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust
+        run: rustup toolchain install stable --profile minimal
+      - name: Set up isolated BAML language toolchain
+        uses: BoundaryML/baml/packaging/github-actions/setup-baml@baml-language-0.25.0
+        with:
+          toolchain: '0.25.0'
+      - name: Generate the Rust SDK
+        working-directory: numbam/interop
+        run: |
+          baml --version
+          baml check
+          baml generate
+          test -f gen/baml_sdk/Cargo.toml
+          grep -F 'baml_bridge = "=0.25.0"' gen/baml_sdk/Cargo.toml
+      - name: Execute the real BAML to Rust round trip
+        working-directory: numbam/interop/consumer
+        run: cargo +stable run
