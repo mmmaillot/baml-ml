@@ -1,8 +1,8 @@
 # BAML language migration (phase 1)
 
-Isolated port to BAML language 0.25.0. The historical project and NumBam are unchanged. Baseline: [v0.1.0](https://github.com/mmmaillot/baml-ml/tree/v0.1.0).
+Isolated port to BAML language 0.26.0. The historical project and NumBam are unchanged. Baseline: [v0.1.0](https://github.com/mmmaillot/baml-ml/tree/v0.1.0).
 
-Use the exact Linux CLI asset and SHA-256 from [migration CI](../.github/workflows/baml-migration.yml), extracted from the [official release](https://github.com/BoundaryML/baml/releases/tag/baml-language-0.25.0). The version manifest returned 404 during the interop POC, so CI verifies the release archive directly. With `BAML_CLI` set to the extracted executable's absolute path:
+Use the exact Linux CLI asset and published SHA-256 sidecar verified by [migration CI](../.github/workflows/baml-migration.yml), extracted from the [official release](https://github.com/BoundaryML/baml/releases/tag/baml-language-0.26.0). The version manifest returned 404 during the interop POC, so CI verifies the release archive directly. With `BAML_CLI` set to the extracted executable's absolute path:
 
 ```bash
 cd migration
@@ -13,7 +13,7 @@ cd migration
 
 ## Primitive compatibility
 
-- Replace handwritten Exp, Log, Sqrt, Abs, IsNaN and IsFinite with [native float methods](https://github.com/BoundaryML/baml/blob/baml-language-0.25.0/baml_language/crates/baml_builtins2/baml_std/baml/float.baml).
+- Replace handwritten Exp, Log, Sqrt, Abs, IsNaN and IsFinite with [native float methods](https://github.com/BoundaryML/baml/blob/baml-language-0.26.0/baml_language/crates/baml_builtins2/baml_std/baml/float.baml).
 - New language float equality is reflexive even for NaN, and comparisons have a total order. Use the predicate wrappers before ordering; never detect NaN with `x != x`.
 - Retain the old finite negative Log sentinel for nonpositive values and Sqrt clamp to positive zero. NaN propagates.
 - Native Exp intentionally improves subnormal behavior: e.g. exp(-720) is positive, whereas the old reciprocal implementation underflowed early. Platform math may differ in last bits.
@@ -60,13 +60,13 @@ suite/SDK migration is #27; performance and telemetry comparisons are #28.
 
 Generate the new Python SDK from the same pinned CLI. Set
 `BAML_BRIDGE_PATH` to the verified matching engine library and
-`BAML_BRIDGE_DISABLE_DOWNLOAD=true` (see CI for exact checksums).
+`BAML_BRIDGE_DISABLE_DOWNLOAD=true` (see CI for release checksum verification).
 From the repository root:
 
 ```bash
 python -m pip install -r migration/host_tests/requirements.txt
 python migration/examples/generate_examples.py
-(cd migration && "$BAML_CLI" generate --from "$PWD")
+(cd migration && "$BAML_CLI" generate)
 python migration/host_tests/prepare.py
 export PYTHONPATH="$PWD/migration/gen:$PWD/migration/host_tests/generated"
 (cd migration/host_tests/generated && python -m pytest tests)
@@ -130,5 +130,5 @@ CI runs this protocol and uploads the raw JSON and report. Fit uses the historic
 measurements use 10 repetitions and one warmup, except single-row inference
 which is warmed by the batch. The benchmark is not an optimization target.
 The old Collector is not a verified API of the new SDK. BAML_TELEMETRY=off
-does not by itself prove runtime tracing is disabled. A native trace capture
+is documented to disable recordings/cloud uploads in 0.26.0; capture itself is not measured by this benchmark. A native trace capture
 probe, on/off overhead and Rust SDK comparison remain to be established.
