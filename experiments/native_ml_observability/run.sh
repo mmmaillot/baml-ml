@@ -113,7 +113,7 @@ for mode in off default empty span; do
           ($m[5].model.weights|length)==3
         ' "$CASE/spans.json" > "$CASE/payload-assertion.json"
       elif [ "$mode" = empty ]; then
-        jq -e '[.rows[] | select(.[2]|test("^user\\\\.(ClassificationPipelinePredictProba|ImputerTransform|ScalerTransform|LogRegPredictProba)$"))] | length==4 and all(.[5]==null and .[6]==null)' "$CASE/spans.json" > "$CASE/payload-assertion.json"
+        jq -e '[.rows[] | select((.[2]|split(".")[-1]) as $n | ["ClassificationPipelinePredictProba","ImputerTransform","ScalerTransform","LogRegPredictProba"] | index($n)!=null)] | length==4 and all(.[5]==null and .[6]==null)' "$CASE/spans.json" > "$CASE/payload-assertion.json"
       fi
     )
   done
