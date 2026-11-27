@@ -37,8 +37,8 @@ specifically for models trained with scikit-learn. Scikit-learn is the only trai
   coarse-grained native kernels, parity and packaging evidence. No per-dot
   FFI or new generic numerical framework. No commitment yet to ndarray,
   faer, SmartCore or ONNX.
-- Treat tracing as a configurable operational policy: default aggregate
-  profiling, selective semantic spans for investigation, disabled mode for
+- Treat tracing as a configurable operational policy: default metadata-only semantic spans,
+  aggregate profiling and opt-in full semantic spans, disabled mode for
   comparison. Production sampling, sensitive-data controls and retention
   are requirements to evaluate, not features already implemented.
 
@@ -52,8 +52,8 @@ specifically for models trained with scikit-learn. Scikit-learn is the only trai
    at semantic step boundaries, model identity, failures and durations;
    evaluate capture policies, privacy and storage. Distinguish debugging
    traces from statistical production monitoring.
-3. Establish an embeddable or standalone inference interface and packaging.
-   Keep the existing CLI as an experimental harness.
+3. Ship a standalone batch/edge executable with native BAML packaging.
+   SDK and HTTP serving are deferred; see [standalone-first](standalone-first.md).
 4. Profile representative inference workloads. Consider NumBam only if
    the measured benefit justifies the conversion and integration costs.
 

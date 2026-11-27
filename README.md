@@ -17,6 +17,10 @@ See the [artifact contract](migration/artifacts/README.md) for precise restricti
 
 Load or prepare a model once, then call its prediction methods for repeated single or batch requests in the same BAML execution. The loader owns and validates the parameter snapshot; every request still validates its inputs. See the [API examples](migration/artifacts/README.md#export-and-run).
 
+## Standalone-first delivery
+
+The MVP is a native packaged executable for batch and edge inference. No inference SDK or serving framework. See the [standalone-first ADR](docs/architecture/standalone-first.md). Linux x86-64 packaging is under validation.
+
 ## Run and validate
 
 The native runtime is pinned to BAML 0.26.0. Follow the [installation and test instructions](migration/README.md).
@@ -38,8 +42,9 @@ The loaded-model runtime uses native BAML trace options with stable semantic bou
 
 1. Strengthen imported-model validation and reference coverage.
 2. Define inference observation policies, sensitive-data controls and retention.
-3. Establish standalone or embedded packaging.
-4. Consider numerical acceleration only when representative inference profiles justify it ([#20](https://github.com/mmmaillot/baml-ml/issues/20)).
+3. Package a standalone batch/edge executable; qualify Linux x86-64, macOS ARM64 and Linux ARM64.
+4. Benchmark standalone batch/edge workloads.
+5. Consider numerical acceleration only when representative inference profiles justify it ([#20](https://github.com/mmmaillot/baml-ml/issues/20)).
 
 [Architecture decision](docs/architecture/inference-first.md).
 

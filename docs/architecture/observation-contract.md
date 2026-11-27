@@ -1,6 +1,6 @@
 # Native inference observation contract v1
 
-Status: initial implementation, CI validation pending. Applies to loaded
+Status: validated in [CI run 45953941508](https://github.com/mmmaillot/baml-ml/actions/runs/45953941508). Applies to loaded
 LinearRegression and LogisticRegression models, not the legacy checked
 stateless helper API or arbitrary caller instrumentation.
 
