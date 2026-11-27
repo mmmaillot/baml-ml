@@ -1,46 +1,38 @@
-// Focused migration smoke/contract tests. Full historical suite is #27.
-test "imputer_training_only" {
-  let fit = ImputerFit([[1.0, float.nan()], [3.0, 8.0]]);
-  assert.is_true(fit.ok)
-  assert.equal(fit.imputer.means, [2.0, 8.0])
-  let pred = ImputerTransform([[float.nan(), 100.0]], fit.imputer);
+// Fitted states are supplied directly; training is external.
+test "imputer_transform_contract" {
+  let imp = MeanImputer { means: [2.0,8.0], n_features: 2 };
+  let pred = ImputerTransform([[float.nan(),100.0]],imp);
   assert.is_true(pred.ok)
-  assert.equal(pred.x, [[2.0, 100.0]])
-  assert.is_true(!ImputerFit([[float.nan()], [float.nan()]]).ok)
-  assert.is_true(!ImputerFit([[float.inf()]]).ok)
-  assert.is_true(!ImputerTransform([[1.0]], fit.imputer).ok)
+  assert.equal(pred.x,[[2.0,100.0]])
+  assert.is_true(!ImputerTransform([[1.0]],imp).ok)
+  assert.is_true(!ImputerTransform([[float.inf(),1.0]],imp).ok)
+  let bad = MeanImputer { means: [float.nan(),8.0], n_features: 2 };
+  assert.is_true(!ImputerTransform([[1.0,2.0]],bad).ok)
 }
-test "scaler_fit_transform_contract" {
-  let fit = ScalerFitTransform([[1.0, 5.0], [3.0, 5.0]]);
-  assert.is_true(fit.ok)
-  assert.equal(fit.scaler.means, [2.0, 5.0])
-  assert.equal(fit.scaler.scales, [1.0, 1.0])
-  assert.equal(fit.x, [[-1.0, 0.0], [1.0, 0.0]])
-  assert.is_true(!ScalerFit([[float.nan()]]).ok)
-  assert.is_true(!ScalerTransform([[1.0]], fit.scaler).ok)
+test "scaler_transform_contract" {
+  let s = StandardScaler { means: [2.0,5.0], scales: [1.0,1.0], n_features: 2 };
+  let p = ScalerTransform([[1.0,5.0],[3.0,5.0]],s);
+  assert.is_true(p.ok)
+  assert.equal(p.x,[[-1.0,0.0],[1.0,0.0]])
+  assert.is_true(!ScalerTransform([[float.nan(),5.0]],s).ok)
+  assert.is_true(!ScalerTransform([[1.0]],s).ok)
 }
-test "linear_regression_fit_predict" {
-  let fit = LinearRegressionFit([[0.0], [1.0], [2.0], [3.0]], [1.0, 3.0, 5.0, 7.0]);
-  assert.is_true(fit.ok)
-  let pred = LinearRegressionPredict([[4.0]], fit.model);
-  assert.is_true(pred.ok)
-  assert.is_true(ApproxRelative(pred.value[0], 9.0, 1e-12))
-  assert.is_true(!LinearRegressionFit([[1.0], [1.0]], [1.0, 2.0]).ok)
-  assert.is_true(!LinearRegressionFit([[1.0], [2.0]], [1.0]).ok)
-  assert.is_true(!LinearRegressionPredict([[float.inf()]], fit.model).ok)
+test "linear_regression_predict_contract" {
+  let m = LinearRegressionModel { coefficients: [2.0], intercept: 1.0, n_features: 1 };
+  let p = LinearRegressionPredict([[4.0]],m);
+  assert.is_true(p.ok)
+  assert.is_true(ApproxRelative(p.value[0],9.0,1e-12))
+  assert.is_true(!LinearRegressionPredict([[float.inf()]],m).ok)
+  assert.is_true(!LinearRegressionPredict([[1.0,2.0]],m).ok)
+  let bad = LinearRegressionModel { coefficients: [float.nan()], intercept: 1.0, n_features: 1 };
+  assert.is_true(!LinearRegressionPredict([[4.0]],bad).ok)
+  let huge = LinearRegressionModel { coefficients: [1e308], intercept: 0.0, n_features: 1 };
+  assert.is_true(!LinearRegressionPredict([[1e308]],huge).ok)
 }
-test "logreg_softmax_and_errors" {
-  let probs = SoftmaxRow([1000.0, 1000.0, -1000.0]);
-  assert.equal(probs, [0.5, 0.5, 0.0])
-  assert.equal(UniqueSortedClasses([7, -2, 7, 3]), [-2, 3, 7])
-  assert.is_true(!LogRegFit([[1.0], [2.0]], [0, 0], 1.0, 5000, 1e-8).ok)
-  assert.is_true(!LogRegFit([[1.0], [2.0]], [0, 1], float.nan(), 5000, 1e-8).ok)
-  assert.is_true(!LogRegFit([[float.nan()], [2.0]], [0, 1], 1.0, 5000, 1e-8).ok)
+test "logreg_softmax_extreme_scores" {
+  assert.equal(SoftmaxRow([1000.0,1000.0,-1000.0]),[0.5,0.5,0.0])
 }
-test "pipeline_validation" {
-  assert.is_true(!RegressionPipelineFit([[float.nan()], [float.nan()]], [1.0, 2.0]).ok)
-  assert.is_true(!ClassificationPipelineFit([[1.0], [2.0]], [0], 1.0, 5000, 1e-8).ok)
-  assert.is_true(!ClassificationPipelineFit([[1.0], [2.0]], [0, 1], 1.0, 0, 1e-8).ok)
-  assert.is_true(!RegressionPipelinePredict([[1.0]], EmptyRegressionPipeline()).ok)
-  assert.is_true(!ClassificationPipelinePredict([[1.0]], EmptyClassificationPipeline()).ok)
+test "pipeline_invalid_state" {
+  assert.is_true(!RegressionPipelinePredict([[1.0]],EmptyRegressionPipeline()).ok)
+  assert.is_true(!ClassificationPipelinePredict([[1.0]],EmptyClassificationPipeline()).ok)
 }

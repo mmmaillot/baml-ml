@@ -1,13 +1,4 @@
-// Minimal Pipeline API (issue #7):
-// SimpleImputer (mean) -> StandardScaler -> LinearRegression or
-// LogisticRegression.
-// Keep the historical RegressionPipeline* and ClassificationPipeline* API.
-//
-// Fitted state is an explicit pipeline value holding the three fitted step
-// states. Preprocessing and prediction are separate named BAML functions so
-// later tickets can observe their execution, and downstream steps are skipped
-// when an upstream step fails so traces are not polluted by bogus calls on
-// empty inputs.
+// Inference-only implementation; training code is preserved at pre-inference-cleanup.
 
 class RegressionPipeline {
   imputer MeanImputer
@@ -15,17 +6,10 @@ class RegressionPipeline {
   model LinearRegressionModel
 }
 
-class RegressionPipelineFitResult {
-  ok bool
-  pipeline RegressionPipeline
-  error string
-}
-
 function EmptyRegressionPipeline() -> RegressionPipeline {
   RegressionPipeline { imputer: EmptyImputer(), scaler: EmptyScaler(), model: EmptyLinRegModel() }
 }
 
-// Shared impute-then-scale helper usable by both pipeline variants.
 function PipelinePreprocessSteps(x: float[][], imputer: MeanImputer, scaler: StandardScaler) -> MatrixResult {
   let err = "";
   if (imputer.n_features <= 0 || scaler.n_features != imputer.n_features) {
@@ -51,43 +35,6 @@ function PipelinePreprocessSteps(x: float[][], imputer: MeanImputer, scaler: Sta
   }
 }
 
-// Fit every step sequentially on the training data only: impute, then scale
-// the imputed matrix, then fit the regressor on the scaled matrix.
-function RegressionPipelineFit(x: float[][], y: float[]) -> RegressionPipelineFitResult {
-  let f1 = ImputerFit(x);
-  let err = f1.error;
-  let imp = EmptyImputer();
-  let sc = EmptyScaler();
-  let model = EmptyLinRegModel();
-  if (err == "") {
-    imp = f1.imputer;
-    let t1 = ImputerTransform(x, imp);
-    err = t1.error;
-    if (err == "") {
-      let f2 = ScalerFit(t1.x);
-      err = f2.error;
-      if (err == "") {
-        sc = f2.scaler;
-        let t2 = ScalerTransform(t1.x, sc);
-        err = t2.error;
-        if (err == "") {
-          let f3 = LinearRegressionFit(t2.x, y);
-          err = f3.error;
-          if (err == "") {
-            model = f3.model;
-          }
-        }
-      }
-    }
-  }
-  if (err == "") {
-    RegressionPipelineFitResult { ok: true, pipeline: RegressionPipeline { imputer: imp, scaler: sc, model: model }, error: "" }
-  } else {
-    RegressionPipelineFitResult { ok: false, pipeline: EmptyRegressionPipeline(), error: err }
-  }
-}
-
-// Named preprocessing entry point: impute then scale with the stored states.
 function RegressionPipelinePreprocess(x: float[][], pipeline: RegressionPipeline) -> MatrixResult {
   let err = "";
   if (pipeline.imputer.n_features <= 0 || pipeline.scaler.n_features != pipeline.imputer.n_features || pipeline.model.n_features != pipeline.imputer.n_features) {
@@ -108,7 +55,6 @@ function RegressionPipelinePreprocess(x: float[][], pipeline: RegressionPipeline
   }
 }
 
-// Named prediction entry point: preprocess, then predict with the stored model.
 function RegressionPipelinePredict(x: float[][], pipeline: RegressionPipeline) -> NumArrayResult {
   let p = RegressionPipelinePreprocess(x, pipeline);
   let err = p.error;
@@ -127,82 +73,16 @@ function RegressionPipelinePredict(x: float[][], pipeline: RegressionPipeline) -
   }
 }
 
-// Classification half of the Pipeline (issue #7): SimpleImputer (mean) ->
-// StandardScaler -> LogisticRegression, exposing predict and predict_proba
-// entry points.
-
 class ClassificationPipeline {
   imputer MeanImputer
   scaler StandardScaler
   model LogisticRegressionModel
 }
 
-class ClassificationPipelineFitResult {
-  ok bool
-  pipeline ClassificationPipeline
-  error string
-}
-
 function EmptyClassificationPipeline() -> ClassificationPipeline {
   ClassificationPipeline { imputer: EmptyImputer(), scaler: EmptyScaler(), model: EmptyLogRegModel() }
 }
 
-// Fail fast on an invalid label vector or invalid hyperparameters (same checks
-// as LogRegFit) before any imputation or scaling work runs.
-function ClassificationPipelineFit(x: float[][], y: int[], c: float, max_iter: int, tol: float) -> ClassificationPipelineFitResult {
-  let d0 = CheckMatrix(x);
-  let err = d0.error;
-  if (err == "" && y.length() != d0.rows) {
-    err = "classification_pipeline_fit: y length differs from row count of x";
-  }
-  if (err == "" && (!IsFinite(c) || c <= 0.0)) {
-    err = "classification_pipeline_fit: c must be finite and positive";
-  }
-  if (err == "" && (!IsFinite(tol) || tol <= 0.0)) {
-    err = "classification_pipeline_fit: tol must be finite and positive";
-  }
-  if (err == "" && max_iter < 1) {
-    err = "classification_pipeline_fit: max_iter must be >= 1";
-  }
-  if (err == "" && UniqueSortedClasses(y).length() < 2) {
-    err = "classification_pipeline_fit: need at least two distinct classes";
-  }
-  let imp = EmptyImputer();
-  let sc = EmptyScaler();
-  let model = EmptyLogRegModel();
-  if (err == "") {
-    let f1 = ImputerFit(x);
-    err = f1.error;
-    if (err == "") {
-      imp = f1.imputer;
-      let t1 = ImputerTransform(x, imp);
-      err = t1.error;
-      if (err == "") {
-        let f2 = ScalerFit(t1.x);
-        err = f2.error;
-        if (err == "") {
-          sc = f2.scaler;
-          let t2 = ScalerTransform(t1.x, sc);
-          err = t2.error;
-          if (err == "") {
-            let f3 = LogRegFit(t2.x, y, c, max_iter, tol);
-            err = f3.error;
-            if (err == "") {
-              model = f3.model;
-            }
-          }
-        }
-      }
-    }
-  }
-  if (err == "") {
-    ClassificationPipelineFitResult { ok: true, pipeline: ClassificationPipeline { imputer: imp, scaler: sc, model: model }, error: "" }
-  } else {
-    ClassificationPipelineFitResult { ok: false, pipeline: EmptyClassificationPipeline(), error: err }
-  }
-}
-
-// Named preprocessing entry point: impute then scale with the stored states.
 function ClassificationPipelinePreprocess(x: float[][], pipeline: ClassificationPipeline) -> MatrixResult {
   let err = "";
   if (pipeline.imputer.n_features <= 0 || pipeline.scaler.n_features != pipeline.imputer.n_features || pipeline.model.n_features != pipeline.imputer.n_features) {
@@ -223,8 +103,6 @@ function ClassificationPipelinePreprocess(x: float[][], pipeline: Classification
   }
 }
 
-// Named predict_proba entry point: preprocess, then compute class probabilities
-// with the stored model.
 function ClassificationPipelinePredictProba(x: float[][], pipeline: ClassificationPipeline) -> ProbaResult {
   let p = ClassificationPipelinePreprocess(x, pipeline);
   let err = p.error;
@@ -244,8 +122,6 @@ function ClassificationPipelinePredictProba(x: float[][], pipeline: Classificati
   }
 }
 
-// Named prediction entry point: preprocess, then predict class labels with the
-// stored model.
 function ClassificationPipelinePredict(x: float[][], pipeline: ClassificationPipeline) -> IntArrayResult {
   let p = ClassificationPipelinePreprocess(x, pipeline);
   let err = p.error;

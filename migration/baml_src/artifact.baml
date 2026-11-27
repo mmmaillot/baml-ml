@@ -86,7 +86,7 @@ function ArtifactClassification(a: FittedArtifact) -> ClassificationPipeline {
     weights = [zero,a.weights[0]];
     intercepts = [0.0,a.intercepts[0]];
   }
-  ClassificationPipeline { imputer: ArtifactImputer(a), scaler: ArtifactScaler(a), model: LogisticRegressionModel { classes: a.classes, weights: weights, intercepts: intercepts, n_features: a.features.length(), n_iter: 0, converged: true } }
+  ClassificationPipeline { imputer: ArtifactImputer(a), scaler: ArtifactScaler(a), model: LogisticRegressionModel { classes: a.classes, weights: weights, intercepts: intercepts, n_features: a.features.length() } }
 }
 
 // Public entry points retain validation on mutable artifact values.
