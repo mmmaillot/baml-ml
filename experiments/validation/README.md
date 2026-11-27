@@ -41,4 +41,17 @@ not a performance gate. Full benchmark campaigns remain manual.
 BAML_CLI=/absolute/path/to/baml-cli bash experiments/validation/run.sh /tmp/validation
 ```
 
-Results pending validation. No Rust code or new estimator.
+## Results
+
+[CI run 45937896928](https://github.com/mmmaillot/baml-ml/actions/runs/45937896928): all 24 cases passed. Median elapsed per pipeline invocation, three matched trials per variant:
+
+| Workload | Mode | Baseline | Candidate | Reduction |
+|---|---|---:|---:|---:|
+| 512 features, single | Off | 1537.67 µs | 1307.39 µs | 15.0% |
+| 512 features, single | Default | 2269.33 µs | 1883.69 µs | 17.0% |
+| 32 features, batch 256 | Off | 13.067 ms | 8.799 ms | 32.7% |
+| 32 features, batch 256 | Default | 17.958 ms | 11.618 ms | 35.3% |
+
+Default-mode CheckFiniteMatrix calls went from 2020 to zero for 1010 single predictions and from 220 to zero for 110 batch predictions (including warmups). IsFinite calls fell from 5,177,260 to 4,143,020 and from 3,710,410 to 1,908,170, respectively. All checksums matched exactly. [Native checks](https://github.com/mmmaillot/baml-ml/actions/runs/45937896570) and [semantic trace validation](https://github.com/mmmaillot/baml-ml/actions/runs/45937896678) passed on implementation commit a4d7314b11a91804cb87e0c86ba3db720c3d54e7. Shared-runner aggregate measurements, not individual latency percentiles.
+
+No Rust code or new estimator.
