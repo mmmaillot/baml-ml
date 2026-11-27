@@ -2,7 +2,7 @@
 
 A hyperobservable inference runtime for models trained with scikit-learn, built in [BAML](https://github.com/BoundaryML/baml).
 
-The goal is to reconstruct individual production predictions from preprocessing to output, not to replace the training ecosystem. Scikit-learn is the sole supported training-framework target for the first release. Training stays outside the runtime; fitted pipelines are exported as portable data-only artifacts. Import is planned, not yet implemented. Other training frameworks may be supported later. No LLMs or API keys required.
+The goal is to reconstruct individual production predictions from preprocessing to output, not to replace the training ecosystem. Scikit-learn is the sole supported training-framework target for the first release. Training stays outside the runtime; fitted pipelines are exported as portable data-only artifacts. An initial v1 importer and export adapter are under validation. Other training frameworks may be supported later. No LLMs or API keys required.
 
 [Architecture decision: inference-first](docs/architecture/inference-first.md).
 
@@ -14,6 +14,8 @@ The goal is to reconstruct individual production predictions from preprocessing 
 - Native profiling and selective semantic tracing, validated on an Iris pipeline
 
 Numerical parity against scikit-learn is tested on Iris and Diabetes, including missing values. The current implementation is in [migration/](migration/README.md), pinned to BAML 0.26.0.
+
+See the [scikit-learn fitted artifact contract](migration/artifacts/README.md) for the initial supported pipeline variants, export API and native inference entry points.
 
 ## Native observability
 
