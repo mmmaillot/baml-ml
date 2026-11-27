@@ -1,0 +1,90 @@
+{
+  "schema_version": 3,
+  "source": "scikit-learn",
+  "source_version": "1.8.0",
+  "features": [
+    "sepal length (cm)",
+    "sepal width (cm)",
+    "petal length (cm)",
+    "petal width (cm)"
+  ],
+  "input_kinds": [
+    "numeric",
+    "numeric",
+    "numeric",
+    "numeric"
+  ],
+  "steps": [
+    {
+      "kind": "simple_imputer",
+      "n_features_in": 4,
+      "n_features_out": 4,
+      "imputer": {
+        "strategy": "mean",
+        "value_kind": "numeric",
+        "statistics": [
+          5.8516778523489945,
+          3.057333333333334,
+          3.7738255033557073,
+          1.199333333333334
+        ],
+        "fill_strings": []
+      }
+    },
+    {
+      "kind": "standard_scaler",
+      "n_features_in": 4,
+      "n_features_out": 4,
+      "scaler": {
+        "means": [
+          5.8516778523489945,
+          3.057333333333334,
+          3.7738255033557078,
+          1.199333333333334
+        ],
+        "scales": [
+          0.8189915772335015,
+          0.43441096773549437,
+          1.7487670312977408,
+          0.7596926279021594
+        ]
+      }
+    }
+  ],
+  "estimator": {
+    "kind": "logistic_multinomial",
+    "n_features_in": 4,
+    "weights": [
+      [
+        -0.9759677450265591,
+        1.1721235329082373,
+        -1.9130700274013002,
+        -1.9138440375477306
+      ],
+      [
+        0.5351681508985234,
+        -0.3703994351204398,
+        -0.3813739003306593,
+        -0.7521154508776415
+      ],
+      [
+        0.4407995941280355,
+        -0.8017240977877975,
+        2.2944439277319604,
+        2.6659594884253726
+      ]
+    ],
+    "intercepts": [
+      -0.15190957563085195,
+      2.0342901927955523,
+      -1.8823806171647108
+    ],
+    "classes": [
+      0,
+      1,
+      2
+    ],
+    "nodes": []
+  },
+  "model_id": "468216e0a0f5401d0ee4da0b63237282715f3d7d30c2d2afebdd56944240b7c0"
+}

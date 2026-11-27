@@ -47,6 +47,7 @@ function RunBatch(raw_model: string, raw_input: string, operation: string, mode:
   // Read only the schema tag for dispatch; fitted state is decoded and validated once.
   let version = ReadArtifactVersion(raw_model, $trace = trace.timing());
   if (version == 2) { return RunTreeBatch(raw_model,raw_input,operation,mode,adaptive, $trace = trace.timing()); }
+  if (version == 3) { return RunPipelineBatch(raw_model,raw_input,operation,mode,adaptive, $trace = trace.timing()); }
   // Existing v1 decoding and validation are unchanged.
   let a = PrepareArtifact(raw_model, null, $trace = if (mode == ObservationMode.Full) { trace.span(inputs = false, output = false) } else { opts });
   let input = DecodeBatchInput(raw_input);
