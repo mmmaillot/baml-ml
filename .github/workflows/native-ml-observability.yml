@@ -4,7 +4,7 @@ on:
     paths:
       - 'experiments/native_ml_observability/**'
       - 'experiments/observability/probe.baml'
-      - 'migration/baml_src/**'
+      - 'baml_src/**'
       - '.github/workflows/native-ml-observability.yml'
   workflow_dispatch:
 permissions:

@@ -16,8 +16,8 @@ for sample in iris diabetes binary; do
     export HOME="$WORK/$sample-home" BAML_HOME="$WORK/$sample-home/baml"
     export XDG_CONFIG_HOME="$HOME/config" XDG_DATA_HOME="$HOME/data" XDG_CACHE_HOME="$HOME/cache"
     mkdir -p "$HOME"
-    cp "$ROOT"/migration/artifacts/fixtures/*.json "$PROJECT/artifacts/fixtures/"
-    for src in "$ROOT"/migration/baml_src/*.baml; do
+    cp "$ROOT"/artifacts/fixtures/*.json "$PROJECT/artifacts/fixtures/"
+    for src in "$ROOT"/baml_src/*.baml; do
       case "$(basename "$src")" in artifact_test.baml) ;; *_test.baml|test_*.baml|example_checks.baml|generated_examples.baml) continue;; esac
       cp "$src" "$PROJECT/baml_src/"
     done

@@ -32,7 +32,6 @@ jobs:
           "$cli" --version
           echo "BAML_CLI=$cli" >> "$GITHUB_ENV"
       - name: Native checks and fixed numerical references
-        working-directory: migration
         env:
           BAML_TELEMETRY: "off"
         run: |

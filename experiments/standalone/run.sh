@@ -8,13 +8,13 @@ HOST="$(realpath "$BAML_PACK_HOST")"
 OUT="$(realpath -m "$1")"
 mkdir -p "$OUT/dist" "$OUT/evidence"
 BIN="$OUT/dist/baml-ml"
-FIX="$ROOT/migration/artifacts/fixtures"
+FIX="$ROOT/artifacts/fixtures"
 # Build without source tests or fixture data in the binary.
 BUILD="$(mktemp -d)"
 trap 'rm -rf "$BUILD"' EXIT
 mkdir -p "$BUILD/baml_src"
-cp "$ROOT/migration/baml.toml" "$BUILD/"
-for src in "$ROOT"/migration/baml_src/*.baml; do
+cp "$ROOT/baml.toml" "$BUILD/"
+for src in "$ROOT"/baml_src/*.baml; do
   case "$(basename "$src")" in *_test.baml) continue;; esac
   cp "$src" "$BUILD/baml_src/"
 done

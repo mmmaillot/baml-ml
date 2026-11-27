@@ -2,9 +2,9 @@ name: Imported sklearn inference
 on:
   pull_request:
     paths:
-      - 'migration/artifacts/**'
-      - 'migration/baml_src/**'
-      - 'migration/baml.toml'
+      - 'artifacts/**'
+      - 'baml_src/**'
+      - 'baml.toml'
       - 'experiments/imported_inference/**'
       - '.github/workflows/imported-inference.yml'
   workflow_dispatch:
@@ -46,8 +46,8 @@ jobs:
           OMP_NUM_THREADS: "1"
         run: |
           python -m pip install scikit-learn==1.8.0
-          python migration/artifacts/generate_fixtures.py "$RUNNER_TEMP/generated-artifacts"
-          python migration/artifacts/check_export.py "$RUNNER_TEMP/generated-artifacts"
+          python artifacts/generate_fixtures.py "$RUNNER_TEMP/generated-artifacts"
+          python artifacts/check_export.py "$RUNNER_TEMP/generated-artifacts"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

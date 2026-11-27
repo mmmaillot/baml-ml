@@ -16,3 +16,5 @@ imported-inference-results/
 native-ml-observability-results/
 
 standalone-results/
+
+*.log

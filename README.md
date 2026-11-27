@@ -4,6 +4,10 @@ A hyperobservable inference runtime for models trained with scikit-learn, built 
 
 Export fitted pipelines as portable, versioned data-only artifacts; load and execute them natively in BAML. Reconstruct individual predictions from preprocessing to output. Training stays outside the runtime. No LLMs or API keys required.
 
+> **Observability should be a property of the runtime, not a responsibility of the developer.**
+
+As generated code and model fleets grow, consistent runtime observation complements tests and code review. BAML-ML explores this thesis for classical ML: semantic traces are part of inference, not bespoke instrumentation per pipeline. Hybrid BAML/LLM workflows are a possible use, not a prerequisite.
+
 ## Supported scope
 
 - Mean `SimpleImputer` and centered/scaled `StandardScaler`, in that order.
@@ -11,23 +15,23 @@ Export fitted pipelines as portable, versioned data-only artifacts; load and exe
 - `LogisticRegression`: binary sigmoid and multinomial softmax with ordered integer classes.
 - Exact three-step pipeline, with validated model and feature dimensions and feature order.
 
-See the [artifact contract](migration/artifacts/README.md) for precise restrictions and export instructions. Scikit-learn 1.8.0 is the validated reference version. Other training frameworks and estimator families are deferred.
+See the [artifact contract](artifacts/README.md) for precise restrictions and export instructions. Scikit-learn 1.8.0 is the validated reference version. Other training frameworks and estimator families are deferred.
 
 ## Model lifecycle
 
-Load or prepare a model once, then call its prediction methods for repeated single or batch requests in the same BAML execution. The loader owns and validates the parameter snapshot; every request still validates its inputs. See the [API examples](migration/artifacts/README.md#export-and-run).
+Load or prepare a model once, then call its prediction methods for repeated single or batch requests in the same BAML execution. The loader owns and validates the parameter snapshot; every request still validates its inputs. See the [API examples](artifacts/README.md#export-and-run).
 
 ## Standalone-first delivery
 
-The MVP is a native packaged executable for batch and edge inference. No inference SDK or serving framework. See the [standalone-first ADR](docs/architecture/standalone-first.md). Linux x86-64 packaging is under validation. See [standalone batch usage and build](experiments/standalone/README.md).
+The MVP is a native packaged executable for batch and edge inference. No inference SDK or serving framework. See the [standalone-first ADR](docs/architecture/standalone-first.md). Linux x86-64 packaging is [validated offline](https://github.com/mmmaillot/baml-ml/actions/runs/45958260690); the [CI binary artifact](https://github.com/mmmaillot/baml-ml/actions/runs/45958260690/artifacts/15179970292) is available. See [standalone batch usage and build](experiments/standalone/README.md).
 
 ## Run and validate
 
-The native runtime is pinned to BAML 0.26.0. Follow the [installation and test instructions](migration/README.md).
+The native runtime is pinned to BAML 0.26.0. Follow the [installation and test instructions](docs/development.md).
 
 ```sh
 export BAML_CLI=/absolute/path/to/baml-cli
-(cd migration && "$BAML_CLI" test --max-concurrency 1 --test-timeout 5m)
+"$BAML_CLI" test --max-concurrency 1 --test-timeout 5m
 bash experiments/imported_inference/run.sh /tmp/imported-inference
 bash experiments/native_ml_observability/run.sh /tmp/native-ml-observability
 ```
@@ -40,10 +44,10 @@ The loaded-model runtime uses native BAML trace options with stable semantic bou
 
 ## Roadmap
 
-1. Strengthen imported-model validation and reference coverage.
-2. Define inference observation policies, sensitive-data controls and retention.
-3. Package a standalone batch/edge executable; qualify Linux x86-64, macOS ARM64 and Linux ARM64.
-4. Benchmark standalone batch/edge workloads.
+1. Qualify native macOS ARM64 and Linux ARM64 packages ([#56](https://github.com/mmmaillot/baml-ml/issues/56)).
+2. Build a manual, reproducible batch/edge performance baseline ([#57](https://github.com/mmmaillot/baml-ml/issues/57)); no automatic performance gate.
+3. Extend estimator coverage selectively, starting with decision trees after the baseline.
+4. Improve sensitive-data controls and retention; evaluate deployment requirements.
 5. Consider numerical acceleration only when representative inference profiles justify it ([#20](https://github.com/mmmaillot/baml-ml/issues/20)).
 
 [Architecture decision](docs/architecture/inference-first.md).
@@ -58,6 +62,6 @@ The full pre-cleanup project (native training, old SDKs, numerical backends, ben
 - [Validation optimization](https://github.com/mmmaillot/baml-ml/tree/pre-inference-cleanup/experiments/validation/README.md)
 - [NumBam](https://github.com/mmmaillot/baml-ml/tree/pre-inference-cleanup/numbam/README.md)
 
-Full performance campaigns remain manual; the old harnesses are archived. The Apple Silicon benchmark runner remains deferred.
+Full performance campaigns remain manual; the old harnesses are archived. Apple Silicon is the intended local benchmark platform after packaging qualification.
 
 Experimental software. [Apache 2.0](LICENSE).

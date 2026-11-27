@@ -62,7 +62,7 @@ for mode in off default empty span; do
       prepare "$mode-$sample"
       mkdir -p baml_src
       # Exact copies of existing library sources; omit tests and generated fixtures.
-      for src in "$ROOT"/migration/baml_src/*.baml; do
+      for src in "$ROOT"/baml_src/*.baml; do
         case "$(basename "$src")" in *_test.baml|test_*.baml|example_checks.baml|generated_examples.baml) continue;; esac
         cp "$src" baml_src/
       done
