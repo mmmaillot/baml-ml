@@ -5,7 +5,7 @@ import numpy as np
 import sklearn
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.utils.validation import check_is_fitted
 from sklearn.tree import DecisionTreeClassifier
@@ -132,30 +132,31 @@ def _export_simple_imputer(step, width, col_kinds):
     stats = np.asarray(step.statistics_)
     if stats.shape != (width,):
         raise ValueError("unsupported imputer statistics shape")
-    if stats.dtype == np.float64:
-        if step.strategy in ("mean", "median", "most_frequent", "constant") and not np.isfinite(stats).all():
+    vals = stats.tolist()
+    if all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in vals):
+        arr = np.asarray(vals, dtype=np.float64)
+        if not np.isfinite(arr).all():
             raise ValueError("non-finite imputer statistics")
         if any(k != "numeric" for k in col_kinds):
             raise ValueError("numeric imputer on categorical input")
         return (
             dict(kind="simple_imputer", n_features_in=width, n_features_out=width,
                  imputer=dict(strategy=step.strategy, value_kind="numeric",
-                              statistics=stats.tolist(), fill_strings=[])),
+                              statistics=arr.tolist(), fill_strings=[])),
             width,
             list(col_kinds),
         )
-    if stats.dtype.kind in "OUS":
+    if all(isinstance(v, str) for v in vals):
         if step.strategy in ("mean", "median"):
             raise ValueError("unsupported imputer strategy for string statistics")
-        fills = [s if isinstance(s, str) else None for s in stats.tolist()]
-        if any(f is None or f == "" for f in fills):
+        if any(v == "" for v in vals):
             raise ValueError("unsupported imputer fill value")
         if any(k != "categorical" for k in col_kinds):
             raise ValueError("string imputer on numeric input")
         return (
             dict(kind="simple_imputer", n_features_in=width, n_features_out=width,
                  imputer=dict(strategy=step.strategy, value_kind="string",
-                              statistics=[], fill_strings=fills)),
+                              statistics=[], fill_strings=list(vals))),
             width,
             list(col_kinds),
         )
@@ -181,6 +182,57 @@ def _export_standard_scaler(step, width, col_kinds):
     )
 
 
+def _export_one_hot_encoder(step, width, col_kinds):
+    if step.n_features_in_ != width:
+        raise ValueError("unsupported dimensionality change")
+    if getattr(step, "sparse_output", getattr(step, "sparse", False)):
+        raise ValueError("sparse one-hot output unsupported")
+    if step.handle_unknown not in ("error", "ignore"):
+        raise ValueError("unsupported one-hot handle_unknown")
+    if step.drop not in (None, "first", "if_binary"):
+        raise ValueError("unsupported one-hot drop")
+    if getattr(step, "min_frequency", None) is not None or getattr(step, "max_categories", None) is not None:
+        raise ValueError("infrequent category grouping unsupported")
+    if getattr(step, "infrequent_categories", None) is not None:
+        raise ValueError("infrequent category mapping unsupported")
+    if step.dtype != np.float64:
+        raise ValueError("unsupported one-hot dtype")
+    if any(k != "categorical" for k in col_kinds):
+        raise ValueError("one-hot encoder on numeric input")
+    columns = []
+    n_out = 0
+    for cats in step.categories_:
+        cats = np.asarray(cats)
+        if cats.ndim != 1 or len(cats) == 0:
+            raise ValueError("invalid fitted categories")
+        if cats.dtype.kind in "iu":
+            if np.any(np.abs(cats.astype(np.int64)) >= 2**53):
+                raise ValueError("integer category outside exact float64 range")
+            columns.append(dict(kind="integer", strings=[], ints=[float(v) for v in cats.tolist()]))
+        elif cats.dtype.kind in "OUS":
+            vals = cats.tolist()
+            if any(not isinstance(v, str) for v in vals):
+                raise ValueError("non-string category in string column")
+            columns.append(dict(kind="string", strings=list(vals), ints=[]))
+        else:
+            raise ValueError("unsupported category dtype")
+        n = len(cats)
+        adj = 1 if (step.drop == "first" or (step.drop == "if_binary" and n == 2)) else 0
+        n_out += n - adj
+    fitted_out = getattr(step, "n_features_out_", None)
+    if fitted_out is None:
+        fitted_out = sum(int(v) for v in getattr(step, "_n_features_outs", [n_out]))
+    if n_out < width or n_out != fitted_out:
+        raise ValueError("one-hot output dimension mismatch")
+    return (
+        dict(kind="one_hot_encoder", n_features_in=width, n_features_out=n_out,
+             one_hot=dict(columns=columns, handle_unknown=step.handle_unknown,
+                          drop=step.drop)),
+        n_out,
+        ["numeric"] * n_out,
+    )
+
+
 def export_preprocessor(step, width, col_kinds):
     """Export one preprocessing step of a schema v3 pipeline.
 
@@ -190,6 +242,8 @@ def export_preprocessor(step, width, col_kinds):
         return _export_simple_imputer(step, width, col_kinds)
     if type(step) is StandardScaler:
         return _export_standard_scaler(step, width, col_kinds)
+    if type(step) is OneHotEncoder:
+        return _export_one_hot_encoder(step, width, col_kinds)
     raise ValueError("unsupported pipeline step")
 
 
@@ -197,7 +251,11 @@ def _infer_input_kinds(pre, n):
     if not pre:
         return ["numeric"] * n
     first = pre[0]
-    if type(first) is SimpleImputer and np.asarray(first.statistics_).dtype.kind in "OUS":
+    if type(first) is SimpleImputer:
+        vals = np.asarray(first.statistics_).tolist()
+        if all(isinstance(v, str) for v in vals):
+            return ["categorical"] * n
+    if type(first) is OneHotEncoder:
         return ["categorical"] * n
     return ["numeric"] * n
 

@@ -65,7 +65,7 @@ for model, feats, n_steps in v3_cases:
     assert a["model_id"] == hashlib.sha256(json.dumps({k: v for k, v in a.items() if k != "model_id"},
                                                        sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
 
-from sklearn.preprocessing import MinMaxScaler, KBinsDiscretizer
+from sklearn.preprocessing import MinMaxScaler, KBinsDiscretizer, OneHotEncoder
 from sklearn.svm import SVC
 for bad in (make_pipeline(MinMaxScaler(), LinearRegression()),
             make_pipeline(SimpleImputer(), KBinsDiscretizer(), LinearRegression()),
@@ -78,4 +78,47 @@ for bad in (make_pipeline(MinMaxScaler(), LinearRegression()),
         pass
     else:
         raise AssertionError("unsupported v3 pipeline exported")
+
+# #74: extended imputer strategies and dense OneHotEncoder contract.
+xcat = np.array([["red", "S"], ["green", "M"], ["blue", "L"], ["red", "M"],
+                 ["green", "L"], ["blue", "S"]], dtype=object)
+ycat = np.array([0, 1, 0, 1, 1, 0])
+for strategy, fill in (("median", None), ("most_frequent", None), ("constant", -1.0)):
+    model = make_pipeline(SimpleImputer(strategy=strategy, **({"fill_value": fill} if fill is not None else {})),
+                          StandardScaler(), LogisticRegression(max_iter=300))
+    model.fit(np.nan_to_num(x), yc)
+    a = export_pipeline_v3(model, ["a", "b"])
+    assert a["steps"][0]["imputer"]["strategy"] == strategy and a["steps"][0]["imputer"]["value_kind"] == "numeric"
+strimp = make_pipeline(SimpleImputer(strategy="most_frequent"), OneHotEncoder(sparse_output=False),
+                       LogisticRegression(max_iter=300)).fit(xcat, ycat)
+a = export_pipeline_v3(strimp, ["c", "s"])
+assert a["input_kinds"] == ["categorical", "categorical"]
+assert a["steps"][0]["imputer"]["value_kind"] == "string"
+assert a["steps"][1]["kind"] == "one_hot_encoder" and a["steps"][1]["n_features_out"] == 6
+assert a["estimator"]["n_features_in"] == 6
+for drop in (None, "first", "if_binary"):
+    a = export_pipeline_v3(make_pipeline(OneHotEncoder(drop=drop, sparse_output=False),
+                                          LogisticRegression(max_iter=300)).fit(xcat, ycat), ["c", "s"])
+    expected = 4 if drop == "first" else 6  # first drops one category per column; no binary column here
+    assert a["steps"][0]["n_features_out"] == expected
+for kwargs in (dict(sparse_output=True),  # sparse-only configuration
+               dict(sparse_output=False, min_frequency=2),
+               dict(sparse_output=False, max_categories=1),
+               dict(sparse_output=False, drop="last"),
+               dict(sparse_output=False, handle_unknown="infrequent_if_exist")):
+    try:
+        model = make_pipeline(OneHotEncoder(**kwargs), LogisticRegression(max_iter=300)).fit(xcat, ycat)
+        export_pipeline_v3(model, ["c", "s"])
+    except (ValueError, TypeError):
+        pass
+    else:
+        raise AssertionError("unsupported one-hot encoder exported")
+# One-hot on numeric input columns is rejected.
+try:
+    export_pipeline_v3(make_pipeline(OneHotEncoder(sparse_output=False),
+                                     LogisticRegression(max_iter=300)).fit(x, yc), ["a", "b"])
+except ValueError:
+    pass
+else:
+    raise AssertionError("one-hot on numeric input exported")
 print("Exporter contract and regenerated reference fixtures passed.")

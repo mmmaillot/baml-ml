@@ -17,7 +17,10 @@ function V3Fixture(name: string) -> string {
 }
 
 function V3Names() -> string[] {
-  ["v3-linear-nosteps", "v3-logreg-scaler", "v3-logreg-impute-scale", "v3-tree-impute", "v3-linreg-impute"]
+  ["v3-linear-nosteps", "v3-logreg-scaler", "v3-logreg-impute-scale", "v3-tree-impute", "v3-linreg-impute",
+   "v3-impute-median-scale-logreg", "v3-impute-most-frequent-tree", "v3-impute-constant-linreg",
+   "v3-strimpute-ohe-logreg", "v3-ohe-drop-first", "v3-ohe-if-binary", "v3-ohe-ignore-unseen",
+   "v3-ohe-error", "v3-ohe-int-categories"]
 }
 
 function Near(a: float, b: float) -> bool { Abs(a - b) < 1e-9 }
@@ -128,7 +131,7 @@ test "v3_rejects_malformed_artifacts_at_load" {
   assert.is_true(PipelineArtifactError(a) != "");
   a = DecodePipelineArtifact(base);
   let imp2 = a.steps[0].imputer;
-  if (imp2 != null) { imp2.strategy = "median"; }
+  if (imp2 != null) { imp2.strategy = "knn"; }
   assert.is_true(V3LoadFails(baml.json.stringify(a)));
   a = DecodePipelineArtifact(base);
   a.features[1] = a.features[0];

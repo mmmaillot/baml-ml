@@ -14,7 +14,7 @@ class BatchInputV3 {
 }
 
 class SimpleImputerStep {
-  strategy string // "mean" here; extended by follow-up stories
+  strategy string // "mean" | "median" | "most_frequent" | "constant"
   value_kind string // "numeric" | "string"
   statistics float[]
   fill_strings string[]
@@ -25,12 +25,27 @@ class ScalerStep {
   scales float[]
 }
 
+// One ordered fitted category list per input column. Integer categories are
+// stored as float64 (exact for |c| < 2^53, enforced at export/validation).
+class OneHotColumn {
+  kind string // "string" | "integer"
+  strings string[]
+  ints float[]
+}
+
+class OneHotEncoderStep {
+  columns OneHotColumn[]
+  handle_unknown string // "error" | "ignore"
+  drop string? // null (sklearn None) | "first" | "if_binary"
+}
+
 class PipelineStep {
-  kind string // "simple_imputer" | "standard_scaler"; extended by follow-up stories
+  kind string // "simple_imputer" | "standard_scaler" | "one_hot_encoder"; extended by follow-up stories
   n_features_in int
   n_features_out int
   imputer SimpleImputerStep?
   scaler ScalerStep?
+  one_hot OneHotEncoderStep?
 }
 
 class PipelineEstimator {
@@ -146,23 +161,81 @@ function PipelineEstimatorError(e: PipelineEstimator, n: int) -> string {
   "artifact: unsupported estimator"
 }
 
+function OneHotBlockSize(col: OneHotColumn, drop: string?) -> int {
+  let n = if (col.kind == "string") { col.strings.length() } else { col.ints.length() };
+  let adj = if (drop == "first" || (drop == "if_binary" && n == 2)) { 1 } else { 0 };
+  n - adj
+}
+
+function OneHotColumnError(col: OneHotColumn) -> string {
+  let n = if (col.kind == "string") { col.strings.length() } else { col.ints.length() };
+  if (col.kind != "string" && col.kind != "integer") { return "artifact: unsupported one-hot category kind"; }
+  if (n == 0) { return "artifact: empty one-hot categories"; }
+  if (col.kind == "string") {
+    if (col.ints.length() != 0) { return "artifact: malformed one-hot string categories"; }
+    for (let i = 0; i < n; i += 1) {
+      for (let k = 0; k < i; k += 1) {
+        if (col.strings[i] == col.strings[k]) { return "artifact: duplicate one-hot category"; }
+      }
+    }
+  } else {
+    if (col.strings.length() != 0) { return "artifact: malformed one-hot integer categories"; }
+    for (let i = 0; i < n; i += 1) {
+      if (!IsFinite(col.ints[i]) || col.ints[i] != col.ints[i].floor() || Abs(col.ints[i]) >= 9007199254740992.0) { return "artifact: invalid one-hot integer category"; }
+      for (let k = 0; k < i; k += 1) {
+        if (col.ints[i] == col.ints[k]) { return "artifact: duplicate one-hot category"; }
+      }
+    }
+  }
+  ""
+}
+
 function PipelineStepError(s: PipelineStep, n_in: int, kinds: string[]) -> string {
   if (s.n_features_in != n_in) { return "artifact: step input dimension mismatch"; }
   if (s.kind == "simple_imputer") {
     let imp = s.imputer;
-    if (imp == null || s.scaler != null) { return "artifact: malformed simple_imputer step"; }
-    if (imp.strategy != "mean" || imp.value_kind != "numeric") { return "artifact: unsupported imputer strategy"; }
-    if (imp.statistics.length() != n_in || imp.fill_strings.length() != 0) { return "artifact: invalid imputer dimensions"; }
-    for (let j = 0; j < n_in; j += 1) {
-      if (!IsFinite(imp.statistics[j])) { return "artifact: non-finite imputer statistic"; }
-      if (kinds[j] != "numeric") { return "artifact: numeric imputer on categorical input"; }
+    if (imp == null || s.scaler != null || s.one_hot != null) { return "artifact: malformed simple_imputer step"; }
+    if (imp.strategy != "mean" && imp.strategy != "median" && imp.strategy != "most_frequent" && imp.strategy != "constant") { return "artifact: unsupported imputer strategy"; }
+    if (imp.value_kind == "numeric") {
+      if (imp.statistics.length() != n_in || imp.fill_strings.length() != 0) { return "artifact: invalid imputer dimensions"; }
+      for (let j = 0; j < n_in; j += 1) {
+        if (!IsFinite(imp.statistics[j])) { return "artifact: non-finite imputer statistic"; }
+        if (kinds[j] != "numeric") { return "artifact: numeric imputer on categorical input"; }
+      }
+    } else if (imp.value_kind == "string") {
+      if (imp.strategy == "mean" || imp.strategy == "median") { return "artifact: unsupported imputer strategy for string statistics"; }
+      if (imp.statistics.length() != 0 || imp.fill_strings.length() != n_in) { return "artifact: invalid imputer dimensions"; }
+      for (let j = 0; j < n_in; j += 1) {
+        if (imp.fill_strings[j] == "") { return "artifact: empty imputer fill string"; }
+        if (kinds[j] != "categorical") { return "artifact: string imputer on numeric input"; }
+      }
+    } else {
+      return "artifact: unsupported imputer value kind";
     }
     if (s.n_features_out != n_in) { return "artifact: imputer must preserve feature count"; }
     return "";
   }
+  if (s.kind == "one_hot_encoder") {
+    let ohe = s.one_hot;
+    if (ohe == null || s.imputer != null || s.scaler != null) { return "artifact: malformed one_hot_encoder step"; }
+    if (ohe.columns.length() != n_in) { return "artifact: invalid one-hot dimensions"; }
+    if (ohe.handle_unknown != "error" && ohe.handle_unknown != "ignore") { return "artifact: unsupported one-hot handle_unknown"; }
+    if (ohe.drop != null && ohe.drop != "first" && ohe.drop != "if_binary") { return "artifact: unsupported one-hot drop"; }
+    let out = 0;
+    for (let j = 0; j < n_in; j += 1) {
+      let err = OneHotColumnError(ohe.columns[j]);
+      if (err != "") { return err; }
+      if (kinds[j] != "categorical") { return "artifact: one-hot encoder on numeric input"; }
+      let b = OneHotBlockSize(ohe.columns[j], ohe.drop);
+      if (b < 1) { return "artifact: one-hot block has zero width"; }
+      out = out + b;
+    }
+    if (s.n_features_out != out) { return "artifact: one-hot output dimension mismatch"; }
+    return "";
+  }
   if (s.kind == "standard_scaler") {
     let sc = s.scaler;
-    if (sc == null || s.imputer != null) { return "artifact: malformed standard_scaler step"; }
+    if (sc == null || s.imputer != null || s.one_hot != null) { return "artifact: malformed standard_scaler step"; }
     if (sc.means.length() != n_in || sc.scales.length() != n_in) { return "artifact: invalid scaler dimensions"; }
     for (let j = 0; j < n_in; j += 1) {
       if (!IsFinite(sc.means[j]) || !IsFinite(sc.scales[j]) || sc.scales[j] <= 0.0) { return "artifact: invalid scaler parameters"; }
@@ -189,7 +262,7 @@ function PipelineArtifactError(a: FittedPipelineArtifact) -> string {
   let kinds: string[] = [];
   for (let j = 0; j < n; j += 1) {
     let kind = InputKindAt(a, j);
-    if (kind != "numeric") { return "artifact: unsupported input kind"; }
+    if (kind != "numeric" && kind != "categorical") { return "artifact: unsupported input kind"; }
     kinds.push(kind);
   }
   let expected = n;
@@ -198,7 +271,12 @@ function PipelineArtifactError(a: FittedPipelineArtifact) -> string {
     let err = PipelineStepError(s, expected, kinds);
     if (err != "") { return err; }
     expected = s.n_features_out;
-    if (s.kind != "simple_imputer" && s.kind != "standard_scaler") { return "artifact: unsupported pipeline step kind"; }
+    if (s.kind == "one_hot_encoder") {
+      kinds = NumericKinds(expected);
+    } else if (s.kind != "simple_imputer" && s.kind != "standard_scaler") {
+      return "artifact: unsupported pipeline step kind";
+    }
+    // simple_imputer and standard_scaler preserve the column kinds.
   }
   PipelineEstimatorError(a.estimator, expected)
 }
@@ -294,7 +372,9 @@ function ValidatePipelineInput(cells: Cell[][], a: FittedPipelineArtifact) -> st
     for (let j = 0; j < cols; j += 1) {
       let c = cells[i][j];
       if (InputKindAt(a, j) == "categorical") {
-        if (c.kind == "number") { return "numeric value in categorical column " + j.to_string(); }
+        // Integer-coded categorical columns receive numbers; the consuming
+        // step (string imputer or one-hot encoder) enforces the exact type.
+        if (c.kind == "number" && !IsFinite(c.num)) { return "non-finite value in categorical column " + j.to_string(); }
       } else {
         if (c.kind == "string") { return "string value in numeric column " + j.to_string(); }
         if (c.kind == "number" && !IsFinite(c.num)) { return "non-finite value in numeric column " + j.to_string(); }
@@ -316,12 +396,30 @@ function CheckCellMatrixDims(cells: Cell[][], n: int) -> string {
 }
 
 // Internal: validated step state. Numeric imputation reuses the checked
-// float64 core; null cells are NaN and string cells are rejected.
+// float64 core (null cells are NaN, string cells are rejected); string
+// imputation replaces null cells with the fitted fill string.
 function ImputerStepCore(cells: Cell[][], imp: SimpleImputerStep) -> CellMatrixResult {
-  let n = imp.statistics.length();
+  let n = if (imp.value_kind == "numeric") { imp.statistics.length() } else { imp.fill_strings.length() };
   let err = CheckCellMatrixDims(cells, n);
+  let out: Cell[][] = [];
+  if (err == "" && imp.value_kind == "string") {
+    for (let i = 0; i < cells.length() && err == ""; i += 1) {
+      let row: Cell[] = [];
+      for (let j = 0; j < n; j += 1) {
+        let c = cells[i][j];
+        if (c.kind == "number") {
+          err = "imputer_transform: numeric value in string imputer";
+        } else if (c.kind == "null") {
+          row.push(Cell { kind: "string", num: 0.0, str: imp.fill_strings[j] });
+        } else {
+          row.push(c);
+        }
+      }
+      if (err == "") { out.push(row); }
+    }
+  }
   let x: float[][] = [];
-  if (err == "") {
+  if (err == "" && imp.value_kind == "numeric") {
     for (let i = 0; i < cells.length(); i += 1) {
       let row: float[] = [];
       for (let j = 0; j < n; j += 1) {
@@ -339,9 +437,9 @@ function ImputerStepCore(cells: Cell[][], imp: SimpleImputerStep) -> CellMatrixR
     }
   }
   let r = ImputerTransformCore(x, MeanImputer { means: imp.statistics, n_features: n }, validated_state = true);
-  if (err == "") { err = r.error; }
-  if (err == "") {
-    let out: Cell[][] = [];
+  if (err == "" && imp.value_kind == "numeric") { err = r.error; }
+  if (err == "" && imp.value_kind == "numeric") {
+    out = [];
     for (let i = 0; i < r.x.length(); i += 1) {
       let row: Cell[] = [];
       for (let j = 0; j < n; j += 1) {
@@ -349,6 +447,8 @@ function ImputerStepCore(cells: Cell[][], imp: SimpleImputerStep) -> CellMatrixR
       }
       out.push(row);
     }
+  }
+  if (err == "") {
     CellMatrixResult { ok: true, cells: out, error: "" }
   } else {
     CellMatrixResult { ok: false, cells: [], error: err }
@@ -394,6 +494,52 @@ function ScalerStepCore(cells: Cell[][], sc: ScalerStep) -> CellMatrixResult {
   }
 }
 
+// Internal: validated step state. Deterministic dense float64 expansion in
+// fitted category order. A dropped first category encodes as an all-zero
+// block; unseen categories follow handle_unknown (error rejects, ignore
+// emits all zeros), matching scikit-learn 1.8.0.
+function OneHotStepCore(cells: Cell[][], ohe: OneHotEncoderStep) -> CellMatrixResult {
+  let n = ohe.columns.length();
+  let err = CheckCellMatrixDims(cells, n);
+  let out: Cell[][] = [];
+  if (err == "") {
+    for (let i = 0; i < cells.length() && err == ""; i += 1) {
+      let row: Cell[] = [];
+      for (let j = 0; j < n && err == ""; j += 1) {
+        let col = ohe.columns[j];
+        let block = OneHotBlockSize(col, ohe.drop);
+        let idx = -1;
+        if (col.kind == "string" && cells[i][j].kind == "string") {
+          for (let k = 0; k < col.strings.length(); k += 1) {
+            if (cells[i][j].str == col.strings[k]) { idx = k; }
+          }
+        } else if (col.kind == "integer" && cells[i][j].kind == "number") {
+          for (let k = 0; k < col.ints.length(); k += 1) {
+            if (cells[i][j].num == col.ints[k]) { idx = k; }
+          }
+        }
+        if (idx < 0 && ohe.handle_unknown == "error") {
+          err = "one_hot_encoding: unseen category in column " + j.to_string();
+        } else {
+          // if_binary drops only when the original category count is two.
+          let cat_count = if (col.kind == "string") { col.strings.length() } else { col.ints.length() };
+          let drop_adj = if (ohe.drop == "first" || (ohe.drop == "if_binary" && cat_count == 2)) { 1 } else { 0 };
+          for (let k = 0; k < block; k += 1) {
+            let on = idx >= drop_adj && (idx - drop_adj) == k;
+            row.push(Cell { kind: "number", num: if (on) { 1.0 } else { 0.0 }, str: "" });
+          }
+        }
+      }
+      if (err == "") { out.push(row); }
+    }
+  }
+  if (err == "") {
+    CellMatrixResult { ok: true, cells: out, error: "" }
+  } else {
+    CellMatrixResult { ok: false, cells: [], error: err }
+  }
+}
+
 function StepOptions(opts: trace.Options, index: int, kind: string) -> trace.Options {
   opts.context(metadata = {
     "baml_ml.step_index": index,
@@ -413,6 +559,12 @@ function ObservedScaleStep(cells: Cell[][], state: TracePrivate<ScalerStep>) -> 
   r.cells
 }
 
+function ObservedOneHotEncode(cells: Cell[][], state: TracePrivate<OneHotEncoderStep>) -> Cell[][] throws InferenceFailure {
+  let r = OneHotStepCore(cells, state.value);
+  if (!r.ok) { throw InferenceFailure { stage: "one_hot_encoding", message: r.error }; }
+  r.cells
+}
+
 function RunPipelineSteps(cells: Cell[][], a: FittedPipelineArtifact, opts: trace.Options, exec: PipelineExecution) -> Cell[][] throws InferenceFailure {
   let cur = cells;
   for (let i = 0; i < a.steps.length(); i += 1) {
@@ -427,6 +579,10 @@ function RunPipelineSteps(cells: Cell[][], a: FittedPipelineArtifact, opts: trac
       let out = ObservedScaleStep(cur, TracePrivate<ScalerStep> { value: sc }, $trace = StepOptions(opts, i, s.kind));
       exec.scaled = CellsToFloatMatrix(out);
       cur = out;
+    } else if (s.kind == "one_hot_encoder") {
+      let ohe = s.one_hot;
+      if (ohe == null) { throw InferenceFailure { stage: "one_hot_encoding", message: "artifact: malformed one_hot_encoder step" }; }
+      cur = ObservedOneHotEncode(cur, TracePrivate<OneHotEncoderStep> { value: ohe }, $trace = StepOptions(opts, i, s.kind));
     } else {
       throw InferenceFailure { stage: "preprocessing", message: "artifact: unsupported pipeline step kind" };
     }

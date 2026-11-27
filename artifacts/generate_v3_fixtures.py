@@ -16,7 +16,7 @@ from sklearn.datasets import load_diabetes, load_iris
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.pipeline import Pipeline, make_pipeline
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.tree import DecisionTreeClassifier
 
 assert sklearn.__version__ == "1.8.0", sklearn.__version__
@@ -95,12 +95,78 @@ def build_fixtures():
         imp_lin, DIABETES_FEATURES, None,
         {"features": DIABETES_FEATURES, "rows": rows},
     )
+
+    # Extended numeric imputer strategies (#74).
+    med = make_pipeline(SimpleImputer(strategy="median"), StandardScaler(),
+                        LogisticRegression(max_iter=500)).fit(xi, yi)
+    fixtures["v3-impute-median-scale-logreg"] = (
+        med, IRIS_FEATURES, None, {"features": IRIS_FEATURES, "rows": [[None, 3.0, 1.3, 0.2], [6.1, 3.0, 4.9, 1.8]]},
+    )
+    mf_tree = make_pipeline(SimpleImputer(strategy="most_frequent"),
+                            DecisionTreeClassifier(max_depth=3, random_state=42)).fit(xi, yi)
+    fixtures["v3-impute-most-frequent-tree"] = (
+        mf_tree, IRIS_FEATURES, None, {"features": IRIS_FEATURES, "rows": [[None, 3.0, 1.3, 0.2], [6.1, 3.0, 4.9, 1.8]]},
+    )
+    const_lin = make_pipeline(SimpleImputer(strategy="constant", fill_value=-1.0),
+                              LinearRegression()).fit(xd2, yd2)
+    fixtures["v3-impute-constant-linreg"] = (
+        const_lin, DIABETES_FEATURES, None,
+        {"features": DIABETES_FEATURES, "rows": [[None] + [float(v) for v in xd2[0, 1:]], [float(v) for v in xd2[1]]]},
+    )
+
+    # Categorical data with a missing training cell (#74 string imputer + OHE).
+    colors = ["red", "green", "blue", "red", "green", "blue", "red", "green", "blue", "red", "green", "blue"]
+    sizes = ["S", "M", "L", "M", "L", "S", "S", "M", "L", "M", "L", "S"]
+    ycat = np.array([0, 1, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1])
+    xcat = np.array([[c, s] for c, s in zip(colors, sizes)], dtype=object)
+    xcat_miss = xcat.copy()
+    xcat_miss[0, 0] = np.nan
+    cat_features = ["color", "size"]
+    str_imp_ohe = make_pipeline(
+        SimpleImputer(strategy="most_frequent"), OneHotEncoder(sparse_output=False), LogisticRegression(max_iter=500)
+    ).fit(xcat_miss, ycat)
+    fixtures["v3-strimpute-ohe-logreg"] = (
+        str_imp_ohe, cat_features, ["categorical", "categorical"],
+        {"features": cat_features, "rows": [[None, "M"], ["blue", "L"], ["red", None]]},
+    )
+    ohe_drop = make_pipeline(OneHotEncoder(drop="first", sparse_output=False), LogisticRegression(max_iter=500)).fit(xcat, ycat)
+    fixtures["v3-ohe-drop-first"] = (
+        ohe_drop, cat_features, ["categorical", "categorical"],
+        {"features": cat_features, "rows": [["red", "S"], ["blue", "L"]]},
+    )
+    ohe_bin = make_pipeline(OneHotEncoder(drop="if_binary", sparse_output=False), LogisticRegression(max_iter=500)).fit(xcat, ycat)
+    fixtures["v3-ohe-if-binary"] = (
+        ohe_bin, cat_features, ["categorical", "categorical"],
+        {"features": cat_features, "rows": [["green", "M"], ["red", "S"]]},
+    )
+    ohe_ignore = make_pipeline(OneHotEncoder(handle_unknown="ignore", sparse_output=False),
+                               LogisticRegression(max_iter=500)).fit(xcat, ycat)
+    fixtures["v3-ohe-ignore-unseen"] = (
+        ohe_ignore, cat_features, ["categorical", "categorical"],
+        {"features": cat_features, "rows": [["purple", "XL"], ["red", "S"]]},
+    )
+    ohe_error = make_pipeline(OneHotEncoder(handle_unknown="error", sparse_output=False),
+                              LogisticRegression(max_iter=500)).fit(xcat, ycat)
+    fixtures["v3-ohe-error"] = (
+        ohe_error, cat_features, ["categorical", "categorical"],
+        {"features": cat_features, "rows": [["red", "S"], ["blue", "L"]]},
+    )
+    xint = np.array([[1, 2], [2, 3], [3, 1], [1, 3], [2, 1], [3, 2], [1, 1], [2, 2], [3, 3], [1, 2], [2, 3], [3, 1]],
+                    dtype=np.int64)
+    ohe_int = make_pipeline(OneHotEncoder(sparse_output=False), LogisticRegression(max_iter=500)).fit(xint, ycat)
+    fixtures["v3-ohe-int-categories"] = (
+        ohe_int, ["code_a", "code_b"], ["categorical", "categorical"],
+        {"features": ["code_a", "code_b"], "rows": [[1, 2], [3, 3]]},
+    )
     return fixtures
 
 
 def _batch_matrix(batch):
-    return np.array([[np.nan if v is None else float(v) for v in row] for row in batch["rows"]],
-                    dtype=np.float64)
+    has_string = any(isinstance(v, str) for row in batch["rows"] for v in row)
+    rows = [[np.nan if v is None else v for v in row] for row in batch["rows"]]
+    if has_string:
+        return np.array(rows, dtype=object)
+    return np.array(rows, dtype=np.float64)
 
 
 def main():
