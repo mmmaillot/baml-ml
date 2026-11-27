@@ -25,6 +25,22 @@ Load or prepare a model once, then call its prediction methods for repeated sing
 
 The MVP is a native packaged executable for batch and edge inference. No inference SDK or serving framework. See the [standalone-first ADR](docs/architecture/standalone-first.md). Linux x86-64 packaging is [validated offline](https://github.com/mmmaillot/baml-ml/actions/runs/45958260690); the [CI binary artifact](https://github.com/mmmaillot/baml-ml/actions/runs/45958260690/artifacts/15179970292) is available. See [standalone batch usage and build](experiments/standalone/README.md).
 
+## Batch and edge benchmark
+
+Median latency on a MacBook Pro (Apple M1 Pro, 32 GB), using the same fitted Iris model and identical batches for `predict-proba`. Each configuration had 15 measured runs after warmup.
+
+| Measurement | 1 row | 128 rows | 4,096 rows |
+|---|---:|---:|---:|
+| BAML process, telemetry off | 32.0 ms | 33.2 ms | 64.7 ms |
+| BAML process, default semantic mode | 110.6 ms | 111.7 ms | 148.9 ms |
+| Python process, scikit-learn | 898.3 ms | 895.0 ms | 895.4 ms |
+| BAML loaded model, telemetry off | 0.009 ms | 0.739 ms | 23.388 ms |
+| scikit-learn loaded model | 0.386 ms | 0.406 ms | 0.728 ms |
+
+Process timings include startup, model loading, JSON input and output, and shutdown. Loaded model timings cover inference after model loading and input decoding. On this workload, BAML finished sooner when each batch launched a process. With both models loaded, BAML was faster for one row and scikit-learn was faster for the two larger batches.
+
+The [full report](experiments/standalone_benchmark/m1-pro-2026-11-27.md) includes throughput, peak memory, recording sizes, probability parity and error handling. See the [reproduction instructions](experiments/standalone_benchmark/README.md).
+
 ## Run and validate
 
 The native runtime is pinned to BAML 0.26.0. Follow the [installation and test instructions](docs/development.md).
@@ -45,7 +61,7 @@ The loaded-model runtime uses native BAML trace options with stable semantic bou
 ## Roadmap
 
 1. Qualify native macOS ARM64 and Linux ARM64 packages ([#56](https://github.com/mmmaillot/baml-ml/issues/56)).
-2. Build a manual, reproducible batch/edge performance baseline ([#57](https://github.com/mmmaillot/baml-ml/issues/57)); no automatic performance gate.
+2. Establish a reproducible batch and edge performance baseline ([#57](https://github.com/mmmaillot/baml-ml/issues/57)). The first Apple Silicon results are [above](#batch-and-edge-benchmark).
 3. Extend estimator coverage selectively, starting with decision trees after the baseline.
 4. Improve sensitive-data controls and retention; evaluate deployment requirements.
 5. Consider numerical acceleration only when representative inference profiles justify it ([#20](https://github.com/mmmaillot/baml-ml/issues/20)).
@@ -61,7 +77,5 @@ The full pre-cleanup project (native training, old SDKs, numerical backends, ben
 - [Profiling](https://github.com/mmmaillot/baml-ml/tree/pre-inference-cleanup/experiments/profiling/README.md)
 - [Validation optimization](https://github.com/mmmaillot/baml-ml/tree/pre-inference-cleanup/experiments/validation/README.md)
 - [NumBam](https://github.com/mmmaillot/baml-ml/tree/pre-inference-cleanup/numbam/README.md)
-
-Full performance campaigns remain manual; the old harnesses are archived. Apple Silicon is the intended local benchmark platform after packaging qualification.
 
 Experimental software. [Apache 2.0](LICENSE).
