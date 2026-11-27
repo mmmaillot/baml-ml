@@ -2,9 +2,9 @@ name: Standalone Linux package
 on:
   pull_request:
     paths:
-      - 'migration/baml_src/**'
-      - 'migration/baml.toml'
-      - 'migration/artifacts/fixtures/**'
+      - 'baml_src/**'
+      - 'baml.toml'
+      - 'artifacts/fixtures/**'
       - 'experiments/standalone/**'
       - '.github/workflows/standalone-package.yml'
   workflow_dispatch:
