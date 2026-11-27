@@ -25,6 +25,8 @@ The example probes are defined in the native test file and use committed fitted 
 - linreg.baml, logistic.baml: fitted inference, including stable softmax.
 - pipeline.baml: checked preprocessing and prediction helpers.
 - loaded_model.baml, observation.baml: prepared model handles and semantic trace boundaries.
+- tree.baml, tree_artifact.baml: binary32 decision tree core and schema v2 artifact.
+- forest.baml, forest_artifact.baml: random forest traversal (mean of leaf probabilities) and schema v4 artifact.
 - batch.baml: standalone JSON batch entry point.
 - primitives.baml: shape and finite-value checks, dot product and native float predicates.
 - *_test.baml: imported-model parity, validation, numerical and inference contract tests.

@@ -42,4 +42,31 @@ for model in (make_pipeline(SimpleImputer(strategy="median"),StandardScaler(),Li
         pass
     else:
         raise AssertionError("unsupported pipeline exported")
+
+# Random forest export contract: v4 payload, one validated tree per estimator,
+# and strict rejection of unsupported variants.
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+yr = np.array([-3,2,7])
+forest = make_pipeline(SimpleImputer(),StandardScaler(),
+                       RandomForestClassifier(n_estimators=4,max_depth=2,random_state=42)).fit(x,yr)
+a = export_pipeline(forest, ["a","b"])
+assert a["schema_version"] == 4 and a["estimator_kind"] == "random_forest_classifier"
+assert a["n_features"] == 2 and a["classes"] == [-3,2,7] and len(a["trees"]) == 4
+assert a["model_id"] == hashlib.sha256(json.dumps({k: v for k, v in a.items() if k != "model_id"},
+                                                 sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
+for tree in a["trees"]:
+    assert tree["n_features"] == 2 and tree["classes"] == a["classes"]
+    for node in tree["nodes"]:
+        assert (node["probabilities"] != []) == (node["left"] == -1)
+multi = make_pipeline(SimpleImputer(),StandardScaler(),
+                      RandomForestClassifier(n_estimators=2,random_state=42)).fit(x, np.column_stack([yr, yr]))
+regressor = make_pipeline(SimpleImputer(),StandardScaler(),
+                          RandomForestRegressor(n_estimators=2,random_state=42)).fit(x, yr.astype(float))
+for model in (multi, regressor):
+    try:
+        export_pipeline(model, ["a","b"])
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("unsupported forest exported")
 print("Exporter contract and regenerated reference fixtures passed.")

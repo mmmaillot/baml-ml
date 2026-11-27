@@ -33,6 +33,10 @@ function PrepareShadowModel(raw: string) -> SelectiveModel {
         let tree = PrepareTreeArtifact(raw, $trace = trace.empty_span());
         return SelectiveTree(tree, PreparedTree(tree));
     }
+    if (version == 4) {
+        let forest = PrepareForestArtifact(raw, $trace = trace.empty_span());
+        return SelectiveForest(forest, PreparedForest(forest));
+    }
     let a = PrepareArtifact(raw, null, $trace = trace.empty_span());
     if (a.estimator_kind == "linear") {
         return SelectiveLinear(a, ArtifactRegression(a));

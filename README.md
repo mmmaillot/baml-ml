@@ -97,13 +97,13 @@ WHERE escalation.span_name = 'user.ShadowEscalatedRow'
   AND replay.span_name = 'user.RunSelectiveModel'
   AND stage.span_name IN ('user.ObservedImpute', 'user.ObservedScale',
       'user.ObservedLinear', 'user.ObservedDecisionScores', 'user.ObservedSoftmax',
-      'user.ObservedLabels', 'user.ObservedTreeTraversal')
+      'user.ObservedLabels', 'user.ObservedTreeTraversal', 'user.ObservedForestTraversal')
 ORDER BY row_index, stage, role
 ```
 
 ## How native hyperobservability looks in BAML
 
-Fitted model state is redacted declaratively on inference spans (`@trace.redact`) and captured once in `ModelLoaded` / `TreeModelLoaded` (lazily in `Adaptive` and `shadow`). Policies switch cleanly via native `trace.Options` ([`baml_src/observation.baml`](baml_src/observation.baml)):
+Fitted model state is redacted declaratively on inference spans (`@trace.redact`) and captured once in `ModelLoaded` / `TreeModelLoaded` / `ForestModelLoaded` (lazily in `Adaptive` and `shadow`). Policies switch cleanly via native `trace.Options` ([`baml_src/observation.baml`](baml_src/observation.baml)):
 
 ```baml
 class TracePrivate<T> {
@@ -130,10 +130,11 @@ Validated against **scikit-learn 1.8.0** for dense `float64` three-step `Pipelin
 - **`LinearRegression`** (schema v1): single-target dense regression (`predict`).
 - **`LogisticRegression`** (schema v1): binary sigmoid and multinomial softmax with sorted integer classes (`predict`, `predict-proba`).
 - **`DecisionTreeClassifier`** (schema v2): single-output dense classification with sorted integer classes and exact IEEE-754 `binary32` ties-to-even threshold rounding (`predict`, `predict-proba`, visited paths and leaves in `Full`).
+- **`RandomForestClassifier`** (schema v4): single-output dense forests reusing the binary32 tree core; `predict_proba` is the arithmetic mean of per-tree leaf probabilities (bit-exact sklearn parity) and `predict` is its argmax with first-class tie breaking (`predict`, `predict-proba`, per-row leaf IDs per tree in `Full`).
 - **Observation modes**: `Semantic` (default metadata-only spans), `Timing` (aggregate profiler), `Full` (all stage payloads + one-time model snapshot), `Adaptive` (selective row-level `Full` replay with lazy snapshot and `max_escalated_rows` cap), and `BAML_TELEMETRY=off`.
 - **Standalone CLI**: `predict` and same-family `shadow` (champion/challenger comparison with challenger inference-failure isolation).
 
-See the [artifact contract](artifacts/README.md), [tree inference ADR](docs/architecture/tree-inference.md), [observation contract v1](docs/architecture/observation-contract.md), and [adaptive & shadow ADR](docs/architecture/adaptive-shadow-observation.md) for exact restrictions and export instructions. Unsupported variants are explicitly rejected rather than silently approximated.
+See the [artifact contract](artifacts/README.md), [tree inference ADR](docs/architecture/tree-inference.md), [forest inference ADR](docs/architecture/forest-inference.md), [observation contract v1](docs/architecture/observation-contract.md), and [adaptive & shadow ADR](docs/architecture/adaptive-shadow-observation.md) for exact restrictions and export instructions. Unsupported variants are explicitly rejected rather than silently approximated.
 
 ## Benchmarks
 
@@ -189,12 +190,11 @@ bash experiments/native_ml_observability/run.sh /tmp/native-ml-observability
 
 ## Roadmap
 
-1. `RandomForestClassifier`: native ensemble traversal, sklearn probability-averaging parity, and semantic traces ([#72](https://github.com/mmmaillot/baml-ml/issues/72)).
-2. Arbitrary-length sequential pipeline contract (`schema_version = 3`) ([#73](https://github.com/mmmaillot/baml-ml/issues/73)).
-3. Extended `SimpleImputer` strategies (`median`, `most_frequent`, `constant`) and dense `OneHotEncoder` ([#74](https://github.com/mmmaillot/baml-ml/issues/74)).
-4. `ColumnTransformer` with heterogeneous numeric/categorical tabular inputs ([#75](https://github.com/mmmaillot/baml-ml/issues/75)).
-5. End-to-end heterogeneous pipelines + `RandomForestClassifier` with `Adaptive` / `shadow`, standalone packaging, and ADR ([#76](https://github.com/mmmaillot/baml-ml/issues/76)).
-6. Optional numerical acceleration only if measured inference profiles justify it ([#20](https://github.com/mmmaillot/baml-ml/issues/20), deferred).
+1. Arbitrary-length sequential pipeline contract (`schema_version = 3`) ([#73](https://github.com/mmmaillot/baml-ml/issues/73)).
+2. Extended `SimpleImputer` strategies (`median`, `most_frequent`, `constant`) and dense `OneHotEncoder` ([#74](https://github.com/mmmaillot/baml-ml/issues/74)).
+3. `ColumnTransformer` with heterogeneous numeric/categorical tabular inputs ([#75](https://github.com/mmmaillot/baml-ml/issues/75)).
+4. End-to-end heterogeneous pipelines + `RandomForestClassifier` with `Adaptive` / `shadow`, standalone packaging, and ADR ([#76](https://github.com/mmmaillot/baml-ml/issues/76)).
+5. Optional numerical acceleration only if measured inference profiles justify it ([#20](https://github.com/mmmaillot/baml-ml/issues/20), deferred).
 
 [Architecture decision](docs/architecture/inference-first.md).
 

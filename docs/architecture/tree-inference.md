@@ -6,7 +6,8 @@ probabilities; internal nodes store feature index, threshold and two child IDs.
 Only single-output dense DecisionTreeClassifier is supported. Input is rounded
 to binary32 after preprocessing. The schema tag is read for dispatch, then
 the fitted tree is decoded and validated once per prepared model. The checked
-public traversal remains available. No forests or training in the runtime.
+public traversal remains available. Random forests reuse this binary32 tree
+core under [schema v4](forest-inference.md); no training in the runtime.
 
 Semantic mode follows the existing metadata-only policy. Full records the
 artifact at load and one batch traversal span with ordered node IDs, leaf IDs,

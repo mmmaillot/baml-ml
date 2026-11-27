@@ -118,6 +118,7 @@ def verify_diffs(records, sql_rows, champion, challenger, operation):
     model_ids = {"champion": champion["model_id"], "challenger": challenger["model_id"]}
     kind = champion["estimator_kind"]
     tree = kind == "decision_tree_classifier"
+    forest = kind == "random_forest_classifier"
     root = one(records, "ShadowBatch")
     for key, value in (("champion_model_id", model_ids["champion"]),
                        ("challenger_model_id", model_ids["challenger"]),
@@ -127,7 +128,8 @@ def verify_diffs(records, sql_rows, champion, challenger, operation):
     parent = one(records, "ShadowEscalatedRow")
     assert parent["parent"] == root["id"]
     assert row_reasons(records, "ShadowEscalatedRow")[0][0] == 0
-    assert snapshot_ids(records, "TreeModelLoaded" if tree else "ModelLoaded") == [
+    load_span = ("ForestModelLoaded" if forest else "TreeModelLoaded" if tree else "ModelLoaded")
+    assert snapshot_ids(records, load_span) == [
         (model_ids[role], role) for role in model_ids
     ]
     main_passes = [span for span in named(records, "RunSelectiveModel") if span["parent"] == root["id"]]
@@ -148,6 +150,8 @@ def verify_diffs(records, sql_rows, champion, challenger, operation):
     stages = ["ObservedImpute", "ObservedScale"]
     if tree:
         stages.append("ObservedTreeTraversal")
+    elif forest:
+        stages.append("ObservedForestTraversal")
     elif kind == "linear":
         stages.append("ObservedLinear")
     else:
@@ -165,6 +169,14 @@ def verify_diffs(records, sql_rows, champion, challenger, operation):
             leaf = 1 if role == "champion" else 2
             assert traversal["paths"] == [[0, leaf]] and traversal["leaves"] == [leaf]
             assert traversal["probs"] == ([[0.5, 0.5]] if role == "champion" else [[0.0, 1.0]])
+        elif forest:
+            traversal = result["ObservedForestTraversal"]["output"]
+            if role == "champion":
+                assert traversal["probs"] == [[0.5, 0.5]] and traversal["labels"] == [-3]
+                assert traversal["leaves"] == [[1, 1]]
+            else:
+                assert traversal["probs"] == [[0.0, 1.0]] and traversal["labels"] == [7]
+                assert traversal["leaves"] == [[2, 2]]
         elif kind == "linear":
             assert result["ObservedLinear"]["output"]["value"] == ([0.0] if role == "champion" else [-1.0])
         else:
@@ -234,11 +246,21 @@ def verify_runtime(out, execute, query, repeat_probe, fixture, write_json, predi
 
     linear = {**logistic, "estimator_kind": "linear", "classes": []}
     tree = fixture("tree-smoke")
+    forest_tree = lambda threshold: dict(n_features=1, classes=[-3, 7],
+                                         nodes=[dict(tree["nodes"][0], threshold=threshold), *tree["nodes"][1:]])
+    forest = dict(schema_version=4, source="scikit-learn", source_version=tree["source_version"],
+                  estimator_kind="random_forest_classifier", features=["x"],
+                  imputer_kind="mean", scaler_kind="standard",
+                  imputer_means=[0.0], scaler_means=[0.0], scaler_scales=[1.0],
+                  classes=[-3, 7], n_features=1,
+                  trees=[dict(n_features=1, classes=[-3, 7], nodes=tree["nodes"]), forest_tree(1.0)])
     cases = [
         ("linear", linear, dict(linear, weights=[[-1.0]], intercepts=[1.0]), "predict"),
         ("logistic", dict(logistic, weights=[[1.0]], intercepts=[-2.0]),
          dict(logistic, weights=[[1.0]], intercepts=[0.0]), "predict-proba"),
         ("tree", tree, dict(tree, nodes=[dict(tree["nodes"][0], threshold=1.0), *tree["nodes"][1:]]),
+         "predict-proba"),
+        ("forest", forest, dict(forest, trees=[forest["trees"][0], forest_tree(-1.0)]),
          "predict-proba"),
     ]
     data = write_json(out / "shadow-mixed.json", dict(features=["x"], rows=[[None], [5], [1]]))

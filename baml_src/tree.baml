@@ -21,6 +21,25 @@ class TreeBatchResult {
   paths int[][]
 }
 
+class TreeRowTrace {
+  leaf int
+  path int[]
+}
+
+// Internal: state is validated and the row is already rounded to binary32.
+// Returns the leaf ID, plus ordered visited node IDs when capture_path is set.
+function TreeTraverse(row: float[], t: TreeClassifierState, capture_path: bool) -> TreeRowTrace {
+  let id = 0;
+  let path: int[] = [];
+  if (capture_path) { path.push(0); }
+  while (t.nodes[id].left != -1) {
+    let node = t.nodes[id];
+    id = if (row[node.feature] <= node.threshold) { node.left } else { node.right };
+    if (capture_path) { path.push(id); }
+  }
+  TreeRowTrace { leaf: id, path: path }
+}
+
 // Round f64 to IEEE-754 binary32 (nearest, ties to even), returned as f64.
 // Scale only by powers of two so no transcendental/log approximation enters
 // threshold semantics. Not a general numerical library or optimized kernel.
@@ -110,14 +129,10 @@ function TreePredictCore(x: float[][], t: TreeClassifierState, capture_path: boo
       if (!IsFinite(v)) { throw InferenceFailure { stage: "tree_traversal", message: "tree: float32 input overflow" }; }
       row.push(v);
     }
-    let id = 0;
+    let trace = TreeTraverse(row,t,capture_path);
+    let id = trace.leaf;
     let path: int[] = [];
-    if (capture_path) { path.push(0); }
-    while (t.nodes[id].left != -1) {
-      let node = t.nodes[id];
-      id = if (row[node.feature] <= node.threshold) { node.left } else { node.right };
-      if (capture_path) { path.push(id); }
-    }
+    if (capture_path) { path = trace.path; }
     let p: float[] = [];
     let best = 0;
     for (let k = 0; k < t.classes.length(); k += 1) {

@@ -157,6 +157,31 @@ for mode in semantic full timing off; do
     fi
   fi
 done
+# Forest smoke: every qualified native platform, all capture modes, no Python on target.
+for mode in semantic full timing off; do
+  CASE="$OUT/evidence/forest-$mode"
+  mkdir -p "$CASE/home" "$CASE/tmp"
+  cp "$FIX/forest-smoke.json" "$CASE/model.json"
+  printf '%s\n' '{"features":["x"],"rows":[[null],[-1],[2]]}' > "$CASE/input.json"
+  telemetry=medium
+  capture="$mode"
+  if [ "$mode" = off ]; then telemetry=off; capture=full; fi
+  run_case "$CASE" "$telemetry" predict --model model.json --input input.json --operation predict-proba --observation "$capture" --output-format json > "$CASE/output.json" 2> "$CASE/run.stderr"
+  jq -e '.schema_version==1 and .estimator_kind=="random_forest_classifier" and .classes==[-3,7] and .predictions==[[0.75,0.25],[0.75,0.25],[0.375,0.625]]' "$CASE/output.json"
+  if [ "$mode" = off ]; then
+    test -z "$(find "$CASE/home" -type f -name '*.btel' -print -quit)"
+  else
+    query spans "SELECT span_name, input_args, output_value FROM spans"
+    if [ "$mode" = full ]; then
+      jq -e '[.rows[]|select(.[0]=="user.ObservedForestTraversal")]|length==1 and .[0][2].leaves==[[1,1],[1,1],[1,2]] and .[0][2].probs==[[0.75,0.25],[0.75,0.25],[0.375,0.625]] and .[0][2].labels==[-3,-3,7]' "$CASE/spans.json"
+      jq -e '[.rows[]|select(.[0]=="user.ForestModelLoaded")]|length==1 and .[0][2]==null' "$CASE/spans.json"
+    elif [ "$mode" = semantic ]; then
+      jq -e '[.rows[]|select(.[0]=="user.ObservedForestTraversal")]|length==1 and .[0][1]==null and .[0][2]==null' "$CASE/spans.json"
+    else
+      jq -e '[.rows[]|select(.[0]=="user.ObservedForestTraversal")]|length==0' "$CASE/spans.json"
+    fi
+  fi
+done
 # Default metadata-only semantic mode, plus explicit native engine off.
 for mode in semantic timing off; do
   prepare_case "mode-$mode" iris
@@ -221,22 +246,25 @@ query spans "SELECT span_name, context_metadata['baml_ml.row_index'] FROM spans 
 jq -e '.rows==[["user.ShadowEscalatedRow",0]]' "$CASE/spans.json"
 # The generated CLI must accept both entry points with an omitted policy flag.
 for command in predict shadow; do
-  CASE="$OUT/evidence/default-policy-$command"
-  mkdir -p "$CASE/home" "$CASE/tmp"
-  cp "$FIX/tree-smoke.json" "$CASE/model.json"
-  printf '%s\n' '{"features":["x"],"rows":[[null],[1]]}' > "$CASE/input.json"
-  if [ "$command" = predict ]; then
-    args=(predict --model model.json --observation adaptive)
-    replay=EscalatedRow
-  else
-    args=(shadow --champion model.json --challenger model.json)
-    replay=ShadowEscalatedRow
-  fi
-  run_case "$CASE" medium "${args[@]}" --input input.json --output-format json \
-    > "$CASE/output.json" 2> "$CASE/run.stderr"
-  jq -e '.predictions==[-3,7]' "$CASE/output.json"
-  query spans "SELECT context_metadata['baml_ml.row_index'] FROM spans WHERE span_name = 'user.$replay'"
-  jq -e '.rows==[[0]]' "$CASE/spans.json"
+  for model_case in tree forest; do
+    CASE="$OUT/evidence/default-policy-$command-$model_case"
+    mkdir -p "$CASE/home" "$CASE/tmp"
+    cp "$FIX/$model_case-smoke.json" "$CASE/model.json"
+    printf '%s\n' '{"features":["x"],"rows":[[null],[1]]}' > "$CASE/input.json"
+    if [ "$model_case" = tree ]; then expected='[-3,7]'; else expected='[-3,-3]'; fi
+    if [ "$command" = predict ]; then
+      args=(predict --model model.json --observation adaptive)
+      replay=EscalatedRow
+    else
+      args=(shadow --champion model.json --challenger model.json)
+      replay=ShadowEscalatedRow
+    fi
+    run_case "$CASE" medium "${args[@]}" --input input.json --output-format json \
+      > "$CASE/output.json" 2> "$CASE/run.stderr"
+    jq -e --argjson e "$expected" '.predictions==$e' "$CASE/output.json"
+    query spans "SELECT context_metadata['baml_ml.row_index'] FROM spans WHERE span_name = 'user.$replay'"
+    jq -e '.rows==[[0]]' "$CASE/spans.json"
+  done
 done
 echo "Packed adaptive and shadow passed"
 tar -czf "$OUT/baml-ml-$PLATFORM.tar.gz" -C "$OUT/dist" baml-ml LICENSE SHA256SUMS

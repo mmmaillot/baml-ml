@@ -9,6 +9,11 @@ pickle/joblib execution, optimizer, or training dependency in the runtime.
 - LogisticRegression with sorted signed integer classes: binary sigmoid
   (one coefficient row) or multinomial softmax (one row per class).
   OvR/liblinear and legacy explicit binary multinomial semantics are rejected.
+- DecisionTreeClassifier (schema v2) and RandomForestClassifier (schema v4):
+  single-output dense trees only. A forest carries shared `n_features`, sorted
+  integer `classes` and one validated tree per estimator; `predict_proba` is
+  the arithmetic mean of leaf probabilities across trees and `predict` is its
+  argmax with first-class tie breaking.
 - Exact three-step pipeline: mean SimpleImputer (NaN, no indicators),
   StandardScaler (center and scale), then supported estimator. No feature
   expansion, dropped columns, sparse or multi-output support.
