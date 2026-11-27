@@ -108,7 +108,7 @@ function PrepareTreeModel(raw: string, observation: ObservationMode = Observatio
   BuildLoadedTree(a,observation)
 }
 function LoadTreeModel(path: string, observation: ObservationMode = ObservationMode.Semantic) -> LoadedTreeModel {
-  PrepareTreeModel(baml.fs.read(path),observation)
+  PrepareTreeModel(baml.fs.read(path), observation = observation)
 }
 function RunTreeBatch(raw_model: string, raw_input: string, operation: string, mode: ObservationMode) -> BatchOutput {
   let opts = ObservationOptions(mode);
