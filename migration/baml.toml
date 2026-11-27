@@ -1,2 +1,6 @@
 [package]
-name = "baml-ml-migration"
+name = "baml-ml"
+
+# Pack keeps local recording policy native, with explicit engine-wide off.
+[pack.env_var_names]
+BAML_TELEMETRY = "BAML_TELEMETRY"
