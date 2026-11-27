@@ -2,6 +2,8 @@
 
 The repository root is the inference-only BAML 0.26.0 package. Historical training and numerical experiments are archived at [pre-inference-cleanup](https://github.com/mmmaillot/baml-ml/tree/pre-inference-cleanup).
 
+For the trunk-based development workflow, Kanban issue lifecycle, and pre-push checks (for both humans and coding agents), see [AGENTS.md](../AGENTS.md).
+
 ## Install the pinned toolchain
 
 Download the official [BAML 0.26.0 release](https://github.com/BoundaryML/baml/releases/tag/baml-language-0.26.0). Linux CI verifies the SHA-256 sidecar for the x86-64 archive before extraction; see [native checks](../.github/workflows/native-checks.yml). Set BAML_CLI to the absolute path of the extracted executable.

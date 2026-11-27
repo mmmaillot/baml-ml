@@ -1,5 +1,13 @@
 name: Standalone packages
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'baml_src/**'
+      - 'baml.toml'
+      - 'artifacts/fixtures/**'
+      - 'experiments/standalone/**'
+      - '.github/workflows/standalone-package.yml'
   pull_request:
     paths:
       - 'baml_src/**'

@@ -1,5 +1,14 @@
 name: Imported sklearn inference
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'artifacts/**'
+      - 'baml_src/**'
+      - 'baml.toml'
+      - 'experiments/imported_inference/**'
+      - 'experiments/tree_traversal/**'
+      - '.github/workflows/imported-inference.yml'
   pull_request:
     paths:
       - 'artifacts/**'

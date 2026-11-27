@@ -1,5 +1,12 @@
 name: Native ML observability
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'experiments/native_ml_observability/**'
+      - 'experiments/observability/probe.baml'
+      - 'baml_src/**'
+      - '.github/workflows/native-ml-observability.yml'
   pull_request:
     paths:
       - 'experiments/native_ml_observability/**'
