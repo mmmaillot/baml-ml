@@ -159,11 +159,11 @@ for error in malformed wrong-order ragged empty nonnumeric invalid-model wrong-o
   args=(predict --model model.json --input input.json --output-format json)
   case "$error" in
     malformed) printf '{' > "$CASE/input.json";;
-    wrong-order) jq '.features|=reverse' "$CASE/input.json" > "$CASE/tmp"; mv "$CASE/tmp" "$CASE/input.json";;
-    ragged) jq '.rows[1]=[1]' "$CASE/input.json" > "$CASE/tmp"; mv "$CASE/tmp" "$CASE/input.json";;
-    empty) jq '.rows=[]' "$CASE/input.json" > "$CASE/tmp"; mv "$CASE/tmp" "$CASE/input.json";;
-    nonnumeric) jq '.rows[0][0]="1"' "$CASE/input.json" > "$CASE/tmp"; mv "$CASE/tmp" "$CASE/input.json";;
-    invalid-model) jq '.schema_version=2' "$CASE/model.json" > "$CASE/tmp"; mv "$CASE/tmp" "$CASE/model.json";;
+    wrong-order) jq '.features|=reverse' "$CASE/input.json" > "$CASE/mutation.json"; mv "$CASE/mutation.json" "$CASE/input.json";;
+    ragged) jq '.rows[1]=[1]' "$CASE/input.json" > "$CASE/mutation.json"; mv "$CASE/mutation.json" "$CASE/input.json";;
+    empty) jq '.rows=[]' "$CASE/input.json" > "$CASE/mutation.json"; mv "$CASE/mutation.json" "$CASE/input.json";;
+    nonnumeric) jq '.rows[0][0]="1"' "$CASE/input.json" > "$CASE/mutation.json"; mv "$CASE/mutation.json" "$CASE/input.json";;
+    invalid-model) jq '.schema_version=2' "$CASE/model.json" > "$CASE/mutation.json"; mv "$CASE/mutation.json" "$CASE/model.json";;
     wrong-operation) args+=(--operation fit);;
   esac
   rc=0
