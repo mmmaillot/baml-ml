@@ -1,7 +1,0 @@
-[package]
-name = "numbam-interop"
-
-[generator.rust]
-output_type = "rust"
-naming_convention = "preserve-case"
-output_dir = "gen"

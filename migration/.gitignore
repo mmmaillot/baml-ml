@@ -1,6 +1,3 @@
 .baml/
 __pycache__/
-
-/gen/
-/host_tests/generated/
-/*.log
+*.log
