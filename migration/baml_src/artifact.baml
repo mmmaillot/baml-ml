@@ -109,5 +109,20 @@ function PredictImportedLabels(x: float[][], features: string[], a: FittedArtifa
   if (err == "") { err = ArtifactFeatureError(a,features); }
   if (err == "" && a.estimator_kind == "linear") { err = "artifact: expected logistic estimator"; }
   if (err != "") { return IntArrayResult { ok: false, value: [], error: err }; }
-  ClassificationPipelinePredict(x,ArtifactClassification(a))
+  // sklearn predicts from decision scores, not rounded probabilities.
+  // This also preserves binary score == 0 -> first class.
+  let p = ArtifactClassification(a);
+  let t = ClassificationPipelinePreprocess(x,p);
+  if (!t.ok) { return IntArrayResult { ok: false, value: [], error: t.error }; }
+  let labels: int[] = [];
+  for (let i = 0; i < t.value.length(); i += 1) {
+    let scores = ModelRowLogits(t.value[i],p.model);
+    let best = 0;
+    for (let k = 0; k < scores.length(); k += 1) {
+      if (!IsFinite(scores[k])) { return IntArrayResult { ok: false, value: [], error: "artifact: non-finite decision score" }; }
+      if (scores[k] > scores[best]) { best = k; }
+    }
+    labels.push(a.classes[best]);
+  }
+  IntArrayResult { ok: true, value: labels, error: "" }
 }
