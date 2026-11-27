@@ -48,7 +48,7 @@ function ArtifactError(a: FittedArtifact) -> string {
       } else { return "artifact: unsupported estimator"; }
     }
     for (let i = 1; i < a.classes.length(); i += 1) {
-      if (a.classes[i] <= a.classes[i-1]) { return "artifact: invalid class order"; }
+      if (a.classes[i] <= a.classes[i - 1]) { return "artifact: invalid class order"; }
     }
   }
   for (let i = 0; i < a.weights.length(); i += 1) {
