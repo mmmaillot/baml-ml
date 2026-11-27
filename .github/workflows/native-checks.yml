@@ -1,0 +1,41 @@
+name: Native BAML checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DO_NOT_TRACK: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install verified BAML CLI 0.26.0
+        run: |
+          set -euo pipefail
+          dest="$RUNNER_TEMP/observability-baml"
+          mkdir -p "$dest/toolchain"
+          base="https://github.com/BoundaryML/baml/releases/download/baml-language-0.26.0"
+          archive="baml-language-0.26.0-x86_64-unknown-linux-gnu.tar.gz"
+          for asset in "$archive" "$archive.sha256"; do
+            curl --proto '=https' --tlsv1.2 --retry 3 --fail --silent --show-error --location "$base/$asset" --output "$dest/$asset"
+          done
+          (cd "$dest"; sha256sum --check --strict "$archive.sha256")
+          tar -C "$dest/toolchain" -xzf "$dest/$archive"
+          cli="$(find "$dest/toolchain" -type f -name baml-cli -print -quit)"
+          test -n "$cli"
+          chmod +x "$cli"
+          "$cli" --version
+          echo "BAML_CLI=$cli" >> "$GITHUB_ENV"
+      - name: Native checks and fixed numerical references
+        working-directory: migration
+        env:
+          BAML_TELEMETRY: "off"
+        run: |
+          set -euo pipefail
+          "$BAML_CLI" check
+          "$BAML_CLI" test --max-concurrency 1 --test-timeout 5m
