@@ -51,10 +51,18 @@ prepare_case() {
 }
 query() {
   (
-    cd "$CASE"
+    # Packed hosts record under HOME/.baml/btel, while the development
+    # query command resolves its index from a project root, not HOME.
+    # This manifest is created by the analyzer AFTER the offline execution.
+    printf '[package]\nname = "packed-recording-analysis"\n' > "$CASE/home/baml.toml"
+    cd "$CASE/home"
+    find .baml -type f -name '*.btel' -print >&2
     env -i PATH="$PATH" HOME="$CASE/home" DO_NOT_TRACK=1 \
-      "$CLI" local recordings query --output-format json "$2"
-  ) > "$CASE/$1.json" 2> "$CASE/$1.stderr"
+      "$CLI" local recordings query --project-dir "$CASE/home" --output-format json "$2"
+  ) > "$CASE/$1.json" 2> "$CASE/$1.stderr" || { cat "$CASE/$1.stderr"; return 1; }
+  if ! jq -e '.outcome.source_missing == false' "$CASE/$1.json" >/dev/null; then
+    cat "$CASE/$1.stderr"; find "$CASE/home" -type f; return 1
+  fi
 }
 for sample in iris diabetes binary; do
   for operation in predict predict-proba; do
