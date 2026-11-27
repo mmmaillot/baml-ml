@@ -56,7 +56,10 @@ done
 
 # Independent recording: one factory load, two single predictions and a batch.
 (
-  cd "$WORK/iris"
+  # Isolate project-local recordings too; HOME alone does not isolate BTEL.
+  mkdir -p "$WORK/repeat-project"
+  cp -R "$WORK/iris/baml_src" "$WORK/iris/artifacts" "$WORK/iris/baml.toml" "$WORK/repeat-project/"
+  cd "$WORK/repeat-project"
   export HOME="$WORK/repeat-home" BAML_HOME="$WORK/repeat-home/baml"
   export XDG_CONFIG_HOME="$HOME/config" XDG_DATA_HOME="$HOME/data" XDG_CACHE_HOME="$HOME/cache"
   mkdir -p "$HOME" "$OUT/repeat"
