@@ -260,7 +260,7 @@ for mode in predict adaptive shadow; do
     near(if $mode=="shadow" then .predictions else .predictions end; $oracle[0]["v3-ct-hetero-forest"].predict_proba) and
     (if $mode=="shadow" then .summary.challenger_ok and .summary.triggers.missing_input==2 and .summary.triggered_rows==2 else true end)
   ' "$CASE/output.json" || { cat "$CASE/output.json"; exit 1; }
-  query spans "SELECT span_name, parent_span_id, context_metadata['baml_ml.step_index'], context_metadata['baml_ml.step_kind'], context_metadata['baml_ml.branch_name'], context_metadata['baml_ml.shadow_role'], context_metadata['baml_ml.row_index'] FROM spans ORDER BY start_time"
+  query spans "SELECT span_id, parent_span_id, span_name, status, duration, input_args, output_value, error_value, context_metadata['baml_ml.model_id'], context_metadata['baml_ml.step_index'], context_metadata['baml_ml.step_kind'], context_metadata['baml_ml.branch_name'], context_metadata['baml_ml.shadow_role'], context_metadata['baml_ml.row_index'], context_metadata['baml_ml.escalated'], context_metadata['baml_ml.trigger_reasons'] FROM spans ORDER BY start_time"
   if [ "$mode" = predict ]; then
     jq -e '
       def rows($n): [.rows[]|select(.[0]==("user."+$n))];
