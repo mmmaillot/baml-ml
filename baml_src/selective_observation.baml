@@ -315,6 +315,44 @@ function SelectiveTree(a: FittedTreeArtifact, p: PreparedTreePipeline) -> Select
     }
 }
 
+function SelectiveForest(a: FittedForestArtifact, p: PreparedForestPipeline) -> SelectiveModel {
+    SelectiveModel {
+        model_id: a.model_id,
+        schema_version: a.schema_version,
+        source_version: a.source_version,
+        estimator_kind: a.estimator_kind,
+        features: a.features,
+        classes: a.classes,
+        guard: SnapshotGuard { captured: false },
+        snapshot_fn: (opts: trace.Options) -> void {
+            ForestModelLoaded(a, $trace = opts);
+        },
+        run_fn: (
+            x: float[][],
+            operation: string,
+            mode: ObservationMode,
+            signals: AdaptiveRowSignals[]?,
+        ) -> SelectivePrediction {
+            let opts = ObservationOptions(mode);
+            let scaled = PreparedPreprocess(x, p.imputer, p.scaler, opts);
+            let r = ObservedForestTraversal(
+                scaled,
+                TracePrivate<ForestClassifierState> { value: p.forest },
+                mode == ObservationMode.Full,
+                $trace = opts,
+            );
+            if (signals != null) {
+                CollectClassificationSignals(signals, x, scaled, r.probs, r.labels);
+            }
+            SelectivePrediction {
+                values: [],
+                labels: r.labels,
+                probabilities: r.probs,
+            }
+        },
+    }
+}
+
 function AdaptiveLinear(model: SelectiveModel, policy: AdaptivePolicy) -> LoadedLinearModel {
     let opts = SelectiveContext(model, trace.empty_span(), "");
     LoadedLinearModel {

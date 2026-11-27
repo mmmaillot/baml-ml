@@ -28,7 +28,7 @@ challenger overflow.
 The [Semantic Model Diff query](semantic-diff.sql) joins stage spans through
 each model replay to its shared row span, then orders the pairs by row, stage
 and role. The experiment checks exact input, imputed and scaled values plus
-the final estimator details for linear, logistic and tree fixtures.
+the final estimator details for linear, logistic, tree and forest fixtures.
 These small fixtures deliberately vary fitted parameters to make each expected
 difference calculable independently. The storage benchmark uses the same
 Iris artifact in both roles to keep the trigger rates fixed.

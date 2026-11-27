@@ -8,6 +8,7 @@ on:
       - 'baml.toml'
       - 'experiments/imported_inference/**'
       - 'experiments/tree_traversal/**'
+      - 'experiments/forest_traversal/**'
       - '.github/workflows/imported-inference.yml'
   pull_request:
     paths:
@@ -16,6 +17,7 @@ on:
       - 'baml.toml'
       - 'experiments/imported_inference/**'
       - 'experiments/tree_traversal/**'
+      - 'experiments/forest_traversal/**'
       - '.github/workflows/imported-inference.yml'
   workflow_dispatch:
 permissions:
@@ -70,6 +72,10 @@ jobs:
           (cd "$project"; "$BAML_CLI" run TreeOracleProbe --output-format json)
           python artifacts/generate_tree_pipeline.py "$project"
           (cd "$project"; "$BAML_CLI" run TreePipelineOracleProbe --output-format json)
+          python experiments/forest_traversal/generate_oracle.py "$project/forest-oracle.json"
+          (cd "$project"; "$BAML_CLI" run ForestOracleProbe --output-format json)
+          python artifacts/generate_forest_pipeline.py "$project"
+          (cd "$project"; "$BAML_CLI" run ForestPipelineOracleProbe --output-format json)
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -4,7 +4,7 @@ BAML 0.26.0 uses native trace options and local BTEL recordings for selective re
 
 ## Policy
 
-Pass `policy: AdaptivePolicy? = null` to the linear, logistic or tree model loader or preparer. Adaptive mode uses `DefaultAdaptivePolicy()` when no policy is supplied. The loader validates and copies an explicit policy before decoding the model or batch JSON. The other modes reject a supplied policy. The packed `predict --observation adaptive` and `shadow` commands accept a partial JSON override with `--policy path.json`.
+Pass `policy: AdaptivePolicy? = null` to the linear, logistic, tree or forest model loader or preparer. Adaptive mode uses `DefaultAdaptivePolicy()` when no policy is supplied. The loader validates and copies an explicit policy before decoding the model or batch JSON. The other modes reject a supplied policy. The packed `predict --observation adaptive` and `shadow` commands accept a partial JSON override with `--policy path.json`.
 
 | Field | Default | Signal or constraint |
 | --- | --- | --- |
@@ -31,7 +31,7 @@ Compatibility checks precede inference. Artifacts must have the same schema and 
 
 ## Native span hierarchy
 
-- Adaptive load emits `ModelLoaded` or `TreeModelLoaded` as a metadata-only span. Each prediction call has a metadata-only `RunAdaptive` parent covering feature validation, the `RunSelectiveModel` main pass and any replay. A failed feature check records a failed parent with no numerical payload. The first call on a handle with a row to replay emits one Full load span tagged `baml_ml.lazy_snapshot = true`. Each `EscalatedRow` is a child of its prediction call and groups the Full stage spans for one input row.
+- Adaptive load emits `ModelLoaded`, `TreeModelLoaded` or `ForestModelLoaded` as a metadata-only span. Each prediction call has a metadata-only `RunAdaptive` parent covering feature validation, the `RunSelectiveModel` main pass and any replay. A failed feature check records a failed parent with no numerical payload. The first call on a handle with a row to replay emits one Full load span tagged `baml_ml.lazy_snapshot = true`. Each `EscalatedRow` is a child of its prediction call and groups the Full stage spans for one input row.
 - An `AdaptiveSummary` child appears when any row triggers, including with a zero cap. It carries `baml_ml.triggered_rows`, `baml_ml.escalated_rows`, `baml_ml.capped` and `baml_ml.triggers.<reason>` counters for the whole batch.
 - `ShadowBatch` is the shadow operation span. It carries `baml_ml.champion_model_id`, `baml_ml.challenger_model_id`, `baml_ml.estimator_kind` and `baml_ml.operation`. It contains metadata-only model loads and main inference spans. The first scheduled replay adds one Full snapshot per model. Each `ShadowEscalatedRow` contains a pair of `RunSelectiveModel` spans with Full `Observed*` children. The two sides share a row index and can be joined by span IDs.
 - Row scopes add `baml_ml.row_index`, `baml_ml.trigger_reasons` and `baml_ml.escalated = true`. Model-scoped children inherit the existing identity, schema, source and contract metadata. Shadow scopes also inherit `baml_ml.shadow_role` as `champion` or `challenger`. Row and model replay wrappers omit their own input and output payloads. Full stage spans record the stage data with fitted state redacted. The lazy load span captures the fitted artifact itself.

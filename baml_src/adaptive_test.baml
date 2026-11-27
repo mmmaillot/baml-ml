@@ -207,6 +207,9 @@ test "adaptive_policy_rejected_before_decoding_model_or_batch" {
     let tree = PrepareTreeModel("{", policy = policy) catch (e) {
         let failure: AdaptivePolicyError => null,
     };
+    let forest = PrepareForestModel("{", policy = policy) catch (e) {
+        let failure: AdaptivePolicyError => null,
+    };
     let batch = RunBatch(
         "{",
         "{",
@@ -219,6 +222,7 @@ test "adaptive_policy_rejected_before_decoding_model_or_batch" {
     assert.equal(linear, null);
     assert.equal(logistic, null);
     assert.equal(tree, null);
+    assert.equal(forest, null);
     assert.equal(batch, null);
 
     policy.max_escalated_rows = -1;

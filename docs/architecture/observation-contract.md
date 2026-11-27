@@ -1,10 +1,10 @@
 # Native inference observation contract v1
 
-This contract covers loaded LinearRegression, LogisticRegression and DecisionTreeClassifier models. The checked stateless helper API and caller instrumentation have their own trace settings. The original observation modes were validated in [CI run 45953941508](https://github.com/mmmaillot/baml-ml/actions/runs/45953941508).
+This contract covers loaded LinearRegression, LogisticRegression, DecisionTreeClassifier and RandomForestClassifier models. The checked stateless helper API and caller instrumentation have their own trace settings. The original observation modes were validated in [CI run 45953941508](https://github.com/mmmaillot/baml-ml/actions/runs/45953941508).
 
 ## Native capture modes
 
-Pass `observation = ObservationMode.Semantic` (default), `Full`, `Timing` or `Adaptive` to the linear, logistic or tree loader or preparer. The selected mode and policy are fixed for that loaded handle.
+Pass `observation = ObservationMode.Semantic` (default), `Full`, `Timing` or `Adaptive` to the linear, logistic, tree or forest loader or preparer. The selected mode and policy are fixed for that loaded handle.
 
 | Mode | Runtime semantic spans | Values | Aggregate profiler |
 |---|---|---|---|
@@ -44,8 +44,8 @@ model_id is the artifact identity supplied by its exporter, not authentication.
 
 | Semantic span | Full inputs | Full output |
 |---|---|---|
-| PrepareArtifact | None (raw JSON suppressed) | None; errors on invalid preparation |
-| ModelLoaded / TreeModelLoaded | Validated fitted artifact | void |
+| PrepareArtifact / PrepareTreeArtifact / PrepareForestArtifact | None (raw JSON suppressed) | None; errors on invalid preparation |
+| ModelLoaded / TreeModelLoaded / ForestModelLoaded | Validated fitted artifact | void |
 | PredictLoadedLinear / PredictLoadedProba / PredictLoadedLabels | Model ID, ordered feature names and input rows | Existing result object on success |
 | ObservedImpute | Raw rows | Imputed rows |
 | ObservedScale | Imputed rows | Standardized rows |
@@ -54,6 +54,7 @@ model_id is the artifact identity supplied by its exporter, not authentication.
 | ObservedSoftmax | Decision score matrix | Probabilities |
 | ObservedLabels | Decision score matrix, ordered classes | Integer labels |
 | ObservedTreeTraversal | Standardized rows | Probabilities, labels, visited nodes and leaves |
+| ObservedForestTraversal | Standardized rows | Averaged probabilities, labels, per-row leaf IDs per tree |
 
 Prediction stages are children of the prediction span; intermediate helper
 functions are timing-only by default. Label-only inference in Timing, Semantic and Full skips softmax. Adaptive and shadow compute probabilities in memory for trigger evaluation and keep the label replay stages faithful to the requested operation. Binary decision scores are [0,z] (the second score is sklearn's
@@ -75,7 +76,8 @@ including feature order errors that occur before the main pass. It carries stage
 returns the existing ok:false result with the original error text. Thus the
 semantic span is a failure even though the public method returns normally.
 Stages include input_validation, imputation, standardization,
-linear_prediction, decision_scores and softmax. Later stages are not called
+linear_prediction, decision_scores, softmax, tree_traversal and
+forest_traversal. Later stages are not called
 after a failed stage. Full captures error values; Semantic captures status
 without payload; Timing relies on native outcome counters.
 Malformed JSON, unsupported or invalid artifact state fail in PrepareArtifact;
