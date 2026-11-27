@@ -1,15 +1,6 @@
 name: BAML language migration
 
 on:
-  pull_request:
-    paths:
-      - 'migration/**'
-      - '.github/workflows/baml-migration.yml'
-  push:
-    branches: [main]
-    paths:
-      - 'migration/**'
-      - '.github/workflows/baml-migration.yml'
   workflow_dispatch:
 
 permissions:

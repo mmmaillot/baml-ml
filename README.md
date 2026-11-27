@@ -43,9 +43,13 @@ bash experiments/native_ml_observability/run.sh /tmp/native-ml-observability
 bash experiments/native_benchmark/run.sh /tmp/native-benchmark
 ```
 
+## Validation policy
+
+Native checks run automatically; full performance, scaling and historical differential campaigns are manual workflows. A reproducible Apple Silicon benchmark runner is deferred; see the scaling protocol.
+
 ## Next
 
-- Characterize scaling with distinct inputs, larger feature dimensions and batches.
+- [Scaling results](experiments/scaling/README.md): near-linear feature scaling, batching plateau and ~8.9 kB marginal storage per distinct 32-feature prediction with spans and index.
 - Profile numerical hotspots before choosing any native acceleration.
 - [NumBam](numbam/README.md): experimental Rust numerical backend, deferred pending measured need ([#20](https://github.com/mmmaillot/baml-ml/issues/20)).
 - [Native backend and embedded runtime design](docs/architecture/numerical-backends.md).
