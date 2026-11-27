@@ -1,0 +1,54 @@
+name: Imported sklearn inference
+on:
+  pull_request:
+    paths:
+      - 'migration/artifacts/**'
+      - 'migration/baml_src/artifact*.baml'
+      - 'experiments/imported_inference/**'
+      - '.github/workflows/imported-inference.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DO_NOT_TRACK: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install verified BAML CLI 0.26.0
+        run: |
+          set -euo pipefail
+          dest="$RUNNER_TEMP/observability-baml"
+          mkdir -p "$dest/toolchain"
+          base="https://github.com/BoundaryML/baml/releases/download/baml-language-0.26.0"
+          archive="baml-language-0.26.0-x86_64-unknown-linux-gnu.tar.gz"
+          for asset in "$archive" "$archive.sha256"; do
+            curl --proto '=https' --tlsv1.2 --retry 3 --fail --silent --show-error --location "$base/$asset" --output "$dest/$asset"
+          done
+          (cd "$dest"; sha256sum --check --strict "$archive.sha256")
+          tar -C "$dest/toolchain" -xzf "$dest/$archive"
+          cli="$(find "$dest/toolchain" -type f -name baml-cli -print -quit)"
+          test -n "$cli"
+          chmod +x "$cli"
+          "$cli" --version
+          echo "BAML_CLI=$cli" >> "$GITHUB_ENV"
+      - name: Validate imported inference traces
+        run: bash experiments/imported_inference/run.sh imported-inference-results
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify actual sklearn export adapter
+        env:
+          OPENBLAS_NUM_THREADS: "1"
+          OMP_NUM_THREADS: "1"
+        run: |
+          python -m pip install scikit-learn==1.8.0
+          python migration/artifacts/generate_fixtures.py "$RUNNER_TEMP/generated-artifacts"
+          python migration/artifacts/check_export.py "$RUNNER_TEMP/generated-artifacts"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: imported-inference-evidence
+          path: imported-inference-results/
