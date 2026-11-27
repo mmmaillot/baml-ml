@@ -1,6 +1,6 @@
 # Architecture decision: inference-first ML runtime
 
-Status: accepted, 2026-11-27. Supersedes the training-first expansion of the original MVP and the acceleration priorities in #42. Existing implementations and evidence are retained.
+Status: accepted, 2026-11-27. Supersedes the training-first expansion of the original MVP and the acceleration priorities in #42. Existing training implementations and historical evidence are archived at [pre-inference-cleanup](https://github.com/mmmaillot/baml-ml/tree/pre-inference-cleanup).
 
 ## Context and evidence
 
@@ -22,12 +22,12 @@ specifically for models trained with scikit-learn. Scikit-learn is the only trai
   its parameters and preprocessing state. No requirement to trace individual
   training operations. Training metadata, metrics and provenance may accompany
   the artifact; they do not need to be recorded by the runtime.
-- Keep existing BAML training implementations as reference/experimental
-  controls. No new solvers, integrated Fit API, Rust training backend or training-performance work in the product scope.
+- Archive existing BAML training implementations as reference/experimental
+  controls at the checkpoint tag, outside the active runtime. No new solvers, integrated Fit API, Rust training backend or training-performance work in the product scope.
 - Inference, preprocessing, validation, error semantics and trace boundaries
   remain explicit in BAML. No LLM dependency.
 - Use a versioned, portable, data-only artifact contract. First support
-  mean imputation, standard scaling, linear regression and multinomial
+  mean imputation, standard scaling, linear regression and binary/multinomial
   logistic regression, with feature order and class order, dimensions,
   numeric precision and provenance explicitly defined. Reject unsupported
   variants rather than silently approximate them. Do not execute pickle or
@@ -58,7 +58,7 @@ specifically for models trained with scikit-learn. Scikit-learn is the only trai
    the measured benefit justifies the conversion and integration costs.
 
 The first milestone is portable imported-model inference and reproducible
-traces for supported scikit-learn estimators, not training interoperability across every estimator. Additional framework adapters may be added later; they are not MVP requirements. Existing
-full numerical and performance campaigns remain manual; lightweight
-native regression checks stay automatic. Apple Silicon benchmark runner
+traces for supported scikit-learn estimators, not training interoperability across every estimator. Additional framework adapters may be added later; they are not MVP requirements. Historical full numerical and performance campaigns are archived; future
+imported-model campaigns remain manual; lightweight native regression checks
+stay automatic. Apple Silicon benchmark runner
 remains deferred.

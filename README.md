@@ -2,76 +2,53 @@
 
 A hyperobservable inference runtime for models trained with scikit-learn, built in [BAML](https://github.com/BoundaryML/baml).
 
-The goal is to reconstruct individual production predictions from preprocessing to output, not to replace the training ecosystem. Scikit-learn is the sole supported training-framework target for the first release. Training stays outside the runtime; fitted pipelines are exported as portable data-only artifacts. An initial v1 importer and export adapter are under validation. Other training frameworks may be supported later. No LLMs or API keys required.
+Export fitted pipelines as portable, versioned data-only artifacts; load and execute them natively in BAML. Reconstruct individual predictions from preprocessing to output. Training stays outside the runtime. No LLMs or API keys required.
 
-[Architecture decision: inference-first](docs/architecture/inference-first.md).
+## Supported scope
 
-## Implemented
+- Mean `SimpleImputer` and centered/scaled `StandardScaler`, in that order.
+- Single-target dense float64 `LinearRegression`.
+- `LogisticRegression`: binary sigmoid and multinomial softmax with ordered integer classes.
+- Exact three-step pipeline, with validated model and feature dimensions and feature order.
 
-- Mean imputation and standard scaling
-- Linear regression (OLS) and multinomial logistic regression (L2)
-- Classification and regression pipelines
-- Native profiling and selective semantic tracing, validated on an Iris pipeline
+See the [artifact contract](migration/artifacts/README.md) for precise restrictions and export instructions. Scikit-learn 1.8.0 is the validated reference version. Other training frameworks and estimator families are deferred.
 
-Numerical parity against scikit-learn is tested on Iris and Diabetes, including missing values. The current implementation is in [migration/](migration/README.md), pinned to BAML 0.26.0.
+## Run and validate
 
-See the [scikit-learn fitted artifact contract](migration/artifacts/README.md) for the initial supported pipeline variants, export API and native inference entry points.
-
-## Native observability
-
-Four declarative span directives expose the actual input, imputed values, standardized values, model parameters and predicted probabilities, together with the call hierarchy and durations. Default profiling aggregates function invocations without recording each intermediate value.
-
-See [native ML observability](experiments/native_ml_observability/README.md) for verified payloads, typed NaN, structured errors and storage measurements.
-
-## Historical native performance baseline
-
-Native Iris workloads, medians of four trials on a shared CI runner ([raw evidence and protocol](experiments/native_benchmark/README.md)):
-
-| Workload | Off | Default | Empty span | Selective span |
-|---|---:|---:|---:|---:|
-| Single prediction | 16.0 µs | 23.0 µs | 24.8 µs | 35.6 µs |
-| Batch of 30 | 227 µs | 308 µs | 313 µs | 388 µs |
-| Training (120 rows) | 238 ms | 299 ms | 289 ms | 291 ms |
-
-Single inference throughput ranges from 62,522 predictions/s without tracing to 28,123/s with selective spans. The latter adds approximately 373 bytes of BTEL and 1,247 bytes of SQL index per repeated prediction. CAS marginal growth was zero for repeated identical inputs. The SQL index is created during querying.
-
-These are aggregate timings for small, repeated workloads, not production latency percentiles or a controlled comparison with scikit-learn.
-
-## Run
-
-Follow the [pinned CLI installation and native test instructions](migration/README.md). To reproduce the native experiments with the verified CLI:
+The native runtime is pinned to BAML 0.26.0. Follow the [installation and test instructions](migration/README.md).
 
 ```sh
 export BAML_CLI=/absolute/path/to/baml-cli
+(cd migration && "$BAML_CLI" test --max-concurrency 1 --test-timeout 5m)
+bash experiments/imported_inference/run.sh /tmp/imported-inference
 bash experiments/native_ml_observability/run.sh /tmp/native-ml-observability
-bash experiments/native_benchmark/run.sh /tmp/native-benchmark
 ```
 
-## Validation policy
+[Imported inference CI](https://github.com/mmmaillot/baml-ml/actions/runs/45940061227) validated the exporter and three independent fitted artifacts (Iris binary/multiclass and Diabetes), including missing inputs and semantic traces. The cleanup retains these checks.
 
-Native checks run automatically; full performance, scaling and historical differential campaigns are manual workflows. A reproducible Apple Silicon benchmark runner is deferred; see the scaling protocol.
+## Native observability
+
+Selective semantic spans capture the model identity, inputs, imputed and standardized values, model parameters and predictions with parent IDs and durations. Default profiling aggregates calls; empty spans omit payloads. [Native ML observability evidence](experiments/native_ml_observability/README.md).
 
 ## Roadmap
 
-1. Versioned model artifact contract, scikit-learn export and native import for the existing pipelines.
-2. Inference observation contract, capture policies and storage/privacy evaluation.
-3. Standalone or embedded inference interface and packaging.
-4. Targeted numerical acceleration only if representative inference profiles justify it.
+1. Strengthen imported-model validation and reference coverage.
+2. Define inference observation policies, sensitive-data controls and retention.
+3. Establish standalone or embedded packaging.
+4. Consider numerical acceleration only when representative inference profiles justify it ([#20](https://github.com/mmmaillot/baml-ml/issues/20)).
 
-Existing BAML training is retained as a reference only. Integrated training, Rust training backends and additional framework adapters are outside the first-release scope.
+[Architecture decision](docs/architecture/inference-first.md).
 
-## Experimental evidence
+## Historical checkpoint
 
-- [Scaling results](experiments/scaling/README.md): near-linear feature scaling, batching plateau and ~8.9 kB marginal storage per distinct 32-feature prediction with spans and index.
-- [Hotspot analysis](experiments/profiling/README.md): inference is dominated by checks and preprocessing; training has larger coarse-grained numerical kernel opportunities. Training optimization is no longer a product priority.
-- [Inference validation optimization](experiments/validation/README.md): 15–35% lower measured loop time with exact checksum parity; redundant full finite-matrix scans eliminated.
-- [NumBam](numbam/README.md): experimental Rust numerical backend, deferred pending measured inference need ([#20](https://github.com/mmmaillot/baml-ml/issues/20)).
-- [Historical native backend design](docs/architecture/numerical-backends.md), subject to the inference-first decision.
+The full pre-cleanup project (native training, old SDKs, numerical backends, benchmarks and evidence) is preserved at [pre-inference-cleanup](https://github.com/mmmaillot/baml-ml/tree/pre-inference-cleanup), commit `d87488f68d7ebc4025a9c8199131c4468f0f4982`. These are historical experiments, not active code or current imported-runtime performance claims.
 
-## Historical MVP
+- [Native baseline](https://github.com/mmmaillot/baml-ml/tree/pre-inference-cleanup/experiments/native_benchmark/README.md)
+- [Scaling](https://github.com/mmmaillot/baml-ml/tree/pre-inference-cleanup/experiments/scaling/README.md)
+- [Profiling](https://github.com/mmmaillot/baml-ml/tree/pre-inference-cleanup/experiments/profiling/README.md)
+- [Validation optimization](https://github.com/mmmaillot/baml-ml/tree/pre-inference-cleanup/experiments/validation/README.md)
+- [NumBam](https://github.com/mmmaillot/baml-ml/tree/pre-inference-cleanup/numbam/README.md)
 
-The original toolchain and Collector-based experiments are preserved at [v0.1.0](https://github.com/mmmaillot/baml-ml/tree/v0.1.0). See the [historical benchmark report](docs/benchmarks/report.md) and [implementation notes](docs/implementation.md). Those results are not the current native baseline.
+Full performance campaigns remain manual; the old harnesses are archived. The Apple Silicon benchmark runner remains deferred.
 
-Experimental software, not a production-ready replacement for scikit-learn.
-
-[Apache 2.0](LICENSE).
+Experimental software. [Apache 2.0](LICENSE).

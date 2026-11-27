@@ -3,7 +3,8 @@ on:
   pull_request:
     paths:
       - 'migration/artifacts/**'
-      - 'migration/baml_src/artifact*.baml'
+      - 'migration/baml_src/**'
+      - 'migration/baml.toml'
       - 'experiments/imported_inference/**'
       - '.github/workflows/imported-inference.yml'
   workflow_dispatch:

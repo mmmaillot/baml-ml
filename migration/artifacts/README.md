@@ -67,6 +67,4 @@ cd ..
 bash experiments/imported_inference/run.sh /tmp/imported-inference
 ```
 
-Initial implementation; CI evidence pending. No new estimator, inference
-packaging or benchmark speed claim. Full differential and performance
-campaigns remain manual.
+[CI run 45940061227](https://github.com/mmmaillot/baml-ml/actions/runs/45940061227) validated all three imported reference models, the exporter and semantic trace reconstruction before cleanup. Full differential and performance campaigns remain manual. No packaging or imported-runtime benchmark claim.

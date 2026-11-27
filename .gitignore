@@ -1,11 +1,10 @@
 __pycache__/
 *.py[cod]
 .venv/
-node_modules/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
-baml_client/
+.baml/
 *.sqlite
 *.sqlite3
 *.db
@@ -13,5 +12,5 @@ baml_client/
 *.sqlite-shm
 .DS_Store
 .env
-benchmarks/results/
-numbam/target/
+imported-inference-results/
+native-ml-observability-results/

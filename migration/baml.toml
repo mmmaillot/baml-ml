@@ -1,7 +1,2 @@
 [package]
 name = "baml-ml-migration"
-
-[generator.python]
-output_type = "python/pydantic"
-naming_convention = "preserve-case"
-output_dir = "gen"
