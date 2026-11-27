@@ -29,9 +29,22 @@ It is provenance, not a signature; the loader currently validates nonempty
 identity, not the digest or origin. Feature names passed to the prediction
 API must equal artifact order; the caller must correctly associate values
 with names. For arrays trained without names, exporter names are caller
-provided. Loading and validation are separate from training. The public
-prediction wrappers currently revalidate mutable artifact parameters on each
-call; immutable loaded state is a future performance improvement.
+provided. Loading and validation are separate from inference. Prefer LoadLinearModel or
+LoadLogisticModel: decode, validate and normalize once, then reuse the model's
+callable prediction methods for each request. PrepareLinearModel and
+PrepareLogisticModel accept raw JSON strings. Invalid artifacts fail during
+preparation, not during the first prediction. Feature order, input shape,
+non-finite inputs and arithmetic overflow remain checked per request.
+
+BAML classes and arrays are mutable reference values. The factories decode
+fresh data and return closures owning the validated state; no captured model
+parameters, pipeline, or feature arrays are returned. The callable fields of
+the returned handle can themselves be reassigned, but do not expose captured
+arrays. This is API-level isolation, not a language-wide immutable type or
+security boundary: internal trusted helpers are not supported public APIs.
+The existing checked stateless PredictImported* wrappers remain available for
+caller-owned mutable artifacts. Handles are live within a single BAML engine
+execution; cross-process persistence and host SDK/packaging are not provided.
 
 ## Export and run
 
@@ -55,9 +68,17 @@ tests read the committed JSON files and compare prediction values. The trace
 probe checks intermediate values, model identity, hierarchy and predictions
 for all three cases against independent references.
 
-From migration, use ReadFittedArtifact(path) then PredictImportedLinear,
-PredictImportedProba or PredictImportedLabels with rows, ordered names and
-artifact. Native example probes: ImportedIrisProbe, ImportedDiabetesProbe,
+From migration, the preferred API is:
+
+```baml
+let model = LoadLogisticModel("artifacts/fixtures/iris.json");
+let names = ["sepal length (cm)","sepal width (cm)","petal length (cm)","petal width (cm)"];
+let single = model.predict_proba([[5.1,3.5,1.4,0.2]],names);
+let batch = model.predict_proba([[5.1,3.5,1.4,0.2],[6.1,3.0,4.9,1.8]],names);
+let labels = model.predict([[5.1,3.5,1.4,0.2]],names);
+```
+
+For linear regression use LoadLinearModel and model.predict(rows,names). Native example probes: ImportedIrisProbe, ImportedDiabetesProbe,
 ImportedBinaryProbe.
 
 ```sh
@@ -68,3 +89,5 @@ bash experiments/imported_inference/run.sh /tmp/imported-inference
 ```
 
 [CI run 45940061227](https://github.com/mmmaillot/baml-ml/actions/runs/45940061227) validated all three imported reference models, the exporter and semantic trace reconstruction before cleanup. Full differential and performance campaigns remain manual. No packaging or imported-runtime benchmark claim.
+
+The repeated-call profiler check requires one decode, artifact validation and conversion for three predictions in the same execution. This is a lifecycle test, not a performance benchmark.

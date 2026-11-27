@@ -114,15 +114,20 @@ function PredictImportedLabels(x: float[][], features: string[], a: FittedArtifa
   let p = ArtifactClassification(a);
   let t = ClassificationPipelinePreprocess(x,p);
   if (!t.ok) { return IntArrayResult { ok: false, value: [], error: t.error }; }
+  LabelsFromScores(t.value,p.model)
+}
+
+// Shared sklearn decision-score semantics; caller has validated model and input.
+function LabelsFromScores(x: float[][], model: LogisticRegressionModel) -> IntArrayResult {
   let labels: int[] = [];
-  for (let i = 0; i < t.value.length(); i += 1) {
-    let scores = ModelRowLogits(t.value[i],p.model);
+  for (let i = 0; i < x.length(); i += 1) {
+    let scores = ModelRowLogits(x[i],model);
     let best = 0;
     for (let k = 0; k < scores.length(); k += 1) {
       if (!IsFinite(scores[k])) { return IntArrayResult { ok: false, value: [], error: "artifact: non-finite decision score" }; }
       if (scores[k] > scores[best]) { best = k; }
     }
-    labels.push(a.classes[best]);
+    labels.push(model.classes[best]);
   }
   IntArrayResult { ok: true, value: labels, error: "" }
 }

@@ -52,12 +52,12 @@ function LogRegPredictProba(x: float[][], model: LogisticRegressionModel) -> Pro
 }
 
 // Internal only: finite_input is true after successful preprocessing.
-function LogRegPredictProbaCore(x: float[][], model: LogisticRegressionModel, finite_input: bool) -> ProbaResult {
+function LogRegPredictProbaCore(x: float[][], model: LogisticRegressionModel, finite_input: bool, validated_state: bool = false) -> ProbaResult {
   let err = "";
-  if (model.n_features <= 0 || model.classes.length() < 2 || model.weights.length() != model.classes.length() || model.intercepts.length() != model.classes.length()) {
+  if (!validated_state && (model.n_features <= 0 || model.classes.length() < 2 || model.weights.length() != model.classes.length() || model.intercepts.length() != model.classes.length())) {
     err = "logreg_predict_proba: invalid fitted model state";
   }
-  if (err == "") {
+  if (!validated_state && err == "") {
     for (let k = 0; k < model.weights.length() && err == ""; k += 1) {
       if (model.weights[k].length() != model.n_features) {
         err = "logreg_predict_proba: invalid fitted model state";
