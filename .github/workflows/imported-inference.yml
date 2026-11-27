@@ -6,6 +6,7 @@ on:
       - 'baml_src/**'
       - 'baml.toml'
       - 'experiments/imported_inference/**'
+      - 'experiments/tree_traversal/**'
       - '.github/workflows/imported-inference.yml'
   workflow_dispatch:
 permissions:
@@ -48,6 +49,16 @@ jobs:
           python -m pip install scikit-learn==1.8.0
           python artifacts/generate_fixtures.py "$RUNNER_TEMP/generated-artifacts"
           python artifacts/check_export.py "$RUNNER_TEMP/generated-artifacts"
+      - name: Verify native tree traversal against independent sklearn oracle
+        env:
+          BAML_TELEMETRY: "off"
+        run: |
+          set -euo pipefail
+          project="$RUNNER_TEMP/tree-oracle-project"
+          mkdir -p "$project"
+          cp -R baml_src baml.toml "$project/"
+          python experiments/tree_traversal/generate_oracle.py "$project/tree-oracle.json"
+          (cd "$project"; "$BAML_CLI" run TreeOracleProbe --output-format json)
       - uses: actions/upload-artifact@v4
         if: always()
         with:
