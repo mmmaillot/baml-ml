@@ -1,10 +1,5 @@
 name: Native BAML scaling
 on:
-  pull_request:
-    paths:
-      - 'experiments/scaling/**'
-      - 'migration/baml_src/**'
-      - '.github/workflows/native-scaling.yml'
   workflow_dispatch:
 permissions:
   contents: read
