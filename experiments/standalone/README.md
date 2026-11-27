@@ -28,6 +28,8 @@ sandbox-exec (a deprecated platform tool), not a portable sandbox guarantee.
 ```sh
 ./baml-ml predict --model model.json --input data.json --output-format json > predictions.json
 ./baml-ml predict --model model.json --input data.json --operation predict-proba --observation full --output-format json
+./baml-ml predict --model model.json --input data.json --observation adaptive --policy policy.json --output-format json
+./baml-ml shadow --champion model.json --challenger next.json --input data.json --output-format json
 BAML_TELEMETRY=off ./baml-ml predict --model model.json --input data.json --output-format json
 ```
 
@@ -47,7 +49,9 @@ A failed job exits nonzero; stdout is only a usable result on exit zero.
 Use shell redirection rather than a second file-writing API. No output file
 atomicity guarantee from shell redirection; use a temporary file if needed.
 
-Observation defaults to semantic, full and timing are explicit options.
+Observation defaults to semantic. Full, timing and adaptive are explicit options.
+Shadow returns the champion predictions and a compact comparison summary.
+See the [adaptive and shadow contract](../../docs/architecture/adaptive-shadow-observation.md).
 Native global off is BAML_TELEMETRY=off. Packed runtime writes its local
 recordings under the user home rather than the project source. No remote
 credentials are embedded; avoid supplying Boundary credentials for local-only

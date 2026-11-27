@@ -33,18 +33,19 @@ function BatchRows(input: BatchInput) -> float[][] {
 function ParseObservationMode(value: string) -> ObservationMode {
   if (value == "semantic") { return ObservationMode.Semantic; }
   if (value == "full") { return ObservationMode.Full; }
+  if (value == "adaptive") { return ObservationMode.Adaptive; }
   if (value == "timing") { return ObservationMode.Timing; }
-  throw baml.errors.InvalidArgument { message: "observation must be semantic, full or timing; set BAML_TELEMETRY=off to disable recording" };
+  throw baml.errors.InvalidArgument { message: "observation must be semantic, full, timing or adaptive; set BAML_TELEMETRY=off to disable recording" };
 }
 
-function RunBatch(raw_model: string, raw_input: string, operation: string, mode: ObservationMode) -> BatchOutput {
+function RunBatch(raw_model: string, raw_input: string, operation: string, mode: ObservationMode, policy: AdaptivePolicy? = null) -> BatchOutput {
   if (operation != "predict" && operation != "predict-proba") {
     throw baml.errors.InvalidArgument { message: "operation must be predict or predict-proba" };
   }
   let opts = ObservationOptions(mode);
   // Read only the schema tag for dispatch; fitted state is decoded and validated once.
   let version = ReadArtifactVersion(raw_model, $trace = trace.timing());
-  if (version == 2) { return RunTreeBatch(raw_model,raw_input,operation,mode, $trace = trace.timing()); }
+  if (version == 2) { return RunTreeBatch(raw_model,raw_input,operation,mode, policy = policy, $trace = trace.timing()); }
   // Existing v1 decoding and validation are unchanged.
   let a = PrepareArtifact(raw_model, null, $trace = if (mode == ObservationMode.Full) { trace.span(inputs = false, output = false) } else { opts });
   let input = DecodeBatchInput(raw_input);
@@ -53,12 +54,12 @@ function RunBatch(raw_model: string, raw_input: string, operation: string, mode:
     if (operation != "predict") {
       throw baml.errors.InvalidArgument { message: "predict-proba requires logistic regression" };
     }
-    let m = BuildLoadedLinear(a,mode);
+    let m = BuildLoadedLinear(a,mode, policy = policy);
     let r = m.predict(rows,input.features);
     if (!r.ok) { throw baml.errors.InvalidArgument { message: r.error }; }
     return BatchOutput { schema_version: 1, model_id: a.model_id, estimator_kind: a.estimator_kind, operation: operation, classes: [], predictions: r.value };
   }
-  let m = BuildLoadedLogistic(a,mode);
+  let m = BuildLoadedLogistic(a,mode, policy = policy);
   if (operation == "predict-proba") {
     let r = m.predict_proba(rows,input.features);
     if (!r.ok) { throw baml.errors.InvalidArgument { message: r.error }; }
@@ -71,7 +72,16 @@ function RunBatch(raw_model: string, raw_input: string, operation: string, mode:
 
 /// Run a fitted sklearn pipeline on a JSON batch. Use --output-format json.
 /// Output is written by the native pack host to stdout; redirect to a file.
-function predict(model: string, input: string, operation: string = "predict", observation: string = "semantic") -> BatchOutput {
+function predict(model: string, input: string, operation: string = "predict", observation: string = "semantic", policy: string = "") -> BatchOutput {
   let mode = ParseObservationMode(observation);
-  RunBatch(baml.fs.read(model), baml.fs.read(input), operation, mode)
+  if (policy != "" && mode != ObservationMode.Adaptive) {
+    throw AdaptivePolicyError { message: "policy requires adaptive observation" };
+  }
+  let overrides = if (policy == "") { null } else { ReadAdaptivePolicy(policy) };
+  RunBatch(baml.fs.read(model), baml.fs.read(input), operation, mode, policy = overrides)
+}
+
+/// Compare same-family fitted pipelines. Predictions on stdout come from the champion.
+function shadow(champion: string, challenger: string, input: string, operation: string = "predict", policy: string = "") -> ShadowOutput {
+  RunShadow(baml.fs.read(champion), baml.fs.read(challenger), baml.fs.read(input), operation, ReadAdaptivePolicy(policy))
 }

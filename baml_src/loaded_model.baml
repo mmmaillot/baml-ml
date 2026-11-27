@@ -40,20 +40,22 @@ function PrepareArtifact(raw: string, expected_linear: bool?) -> FittedArtifact 
   a
 }
 
-function PrepareLinearModel(raw: string, observation: ObservationMode = ObservationMode.Semantic) -> LoadedLinearModel {
+function PrepareLinearModel(raw: string, observation: ObservationMode = ObservationMode.Semantic, policy: AdaptivePolicy? = null) -> LoadedLinearModel {
   // Do not record raw artifact text or repeat the decoded output.
   let opts = ObservationOptions(observation);
   let a = PrepareArtifact(raw, true, $trace = if (observation == ObservationMode.Full) { trace.span(inputs = false, output = false) } else { opts });
-  BuildLoadedLinear(a, observation)
+  BuildLoadedLinear(a, observation, policy = policy)
 }
 
 // Internal: caller owns the freshly decoded and validated artifact.
-function BuildLoadedLinear(a: FittedArtifact, observation: ObservationMode) -> LoadedLinearModel {
+function BuildLoadedLinear(a: FittedArtifact, observation: ObservationMode, policy: AdaptivePolicy? = null) -> LoadedLinearModel {
+  let adaptive = ResolveAdaptivePolicy(observation, policy);
   let p = ArtifactRegression(a);
   let names = a.features;
   let id = a.model_id;
   let model_opts = ModelObservation(observation,id,a.schema_version,a.source_version);
   ModelLoaded(a, $trace = model_opts);
+  if (adaptive != null) { return AdaptiveLinear(SelectiveLinear(a, p), adaptive); }
   let state = TracePrivate<RegressionPipeline> { value: p };
   LoadedLinearModel {
     predict_fn: (x: float[][], features: string[]) -> NumArrayResult {
@@ -64,19 +66,21 @@ function BuildLoadedLinear(a: FittedArtifact, observation: ObservationMode) -> L
   }
 }
 
-function PrepareLogisticModel(raw: string, observation: ObservationMode = ObservationMode.Semantic) -> LoadedLogisticModel {
+function PrepareLogisticModel(raw: string, observation: ObservationMode = ObservationMode.Semantic, policy: AdaptivePolicy? = null) -> LoadedLogisticModel {
   let opts = ObservationOptions(observation);
   let a = PrepareArtifact(raw, false, $trace = if (observation == ObservationMode.Full) { trace.span(inputs = false, output = false) } else { opts });
-  BuildLoadedLogistic(a, observation)
+  BuildLoadedLogistic(a, observation, policy = policy)
 }
 
 // Internal: caller owns the freshly decoded and validated artifact.
-function BuildLoadedLogistic(a: FittedArtifact, observation: ObservationMode) -> LoadedLogisticModel {
+function BuildLoadedLogistic(a: FittedArtifact, observation: ObservationMode, policy: AdaptivePolicy? = null) -> LoadedLogisticModel {
+  let adaptive = ResolveAdaptivePolicy(observation, policy);
   let p = ArtifactClassification(a);
   let names = a.features;
   let id = a.model_id;
   let model_opts = ModelObservation(observation,id,a.schema_version,a.source_version);
   ModelLoaded(a, $trace = model_opts);
+  if (adaptive != null) { return AdaptiveClassifier(SelectiveLogistic(a, p), adaptive); }
   let state = TracePrivate<ClassificationPipeline> { value: p };
   LoadedLogisticModel {
     proba_fn: (x: float[][], features: string[]) -> ProbaResult {
@@ -92,12 +96,12 @@ function BuildLoadedLogistic(a: FittedArtifact, observation: ObservationMode) ->
   }
 }
 
-function LoadLinearModel(path: string, observation: ObservationMode = ObservationMode.Semantic) -> LoadedLinearModel {
-  PrepareLinearModel(baml.fs.read(path), observation = observation)
+function LoadLinearModel(path: string, observation: ObservationMode = ObservationMode.Semantic, policy: AdaptivePolicy? = null) -> LoadedLinearModel {
+  PrepareLinearModel(baml.fs.read(path), observation = observation, policy = policy)
 }
 
-function LoadLogisticModel(path: string, observation: ObservationMode = ObservationMode.Semantic) -> LoadedLogisticModel {
-  PrepareLogisticModel(baml.fs.read(path), observation = observation)
+function LoadLogisticModel(path: string, observation: ObservationMode = ObservationMode.Semantic, policy: AdaptivePolicy? = null) -> LoadedLogisticModel {
+  PrepareLogisticModel(baml.fs.read(path), observation = observation, policy = policy)
 }
 
 // Internal execution helpers. Model ID is an explicit argument for tracing.

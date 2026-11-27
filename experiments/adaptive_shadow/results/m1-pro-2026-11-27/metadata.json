@@ -1,0 +1,41 @@
+{
+  "timestamp_utc": "2026-11-27T19:06:20.067913+00:00",
+  "base_commit": "7e8b2960912cfdf2230f76c7ff9a59597cc562c4",
+  "machine": {
+    "system": "Darwin",
+    "release": "27.2.0",
+    "arch": "arm64",
+    "os_version": "27.2.1",
+    "os_build": "26B131",
+    "cpu": "Apple M1 Pro",
+    "model": "MacBookPro18,3",
+    "cores": 10,
+    "ram_bytes": 34359738368
+  },
+  "baml": "baml-cli 0.26.0",
+  "cli_sha256": "8ebf57eff3d39cd7364661409716dc751fa4f22babac9e74d26c4adc918386e7",
+  "host_sha256": "02bb1e9efe121d8a6135841aef858080b5adad8d11332c57b5d5c0c2f81a1306",
+  "binary_sha256": "2e0a320c558e17ef1aa9f7791c1d68f379b5d622b9ccffd8dec189812346d52f",
+  "binary_bytes": 34703058,
+  "python": "3.12.1",
+  "rows_per_batch": 4096,
+  "seed": 42,
+  "trials_after_warmup": 7,
+  "runtime_source_sha256": {
+    "adaptive.baml": "d973cb5507805bb61ba69d0ddd56d2be648bbae27201838ea25612b5b18910f6",
+    "artifact.baml": "9855b6b9fb70c011b2f8f82cee37651c8f8810e2c568ea4ecae48399e03fc259",
+    "batch.baml": "2882ec8a74d9b96f5235883663ea162c79408fdf979ba640aa1aba4852c1e0fe",
+    "imputer.baml": "a07c6bcb5285f4c2a319923610075de12b27555f981c7e54b93f419efbf0e3d1",
+    "linreg.baml": "d25dd8f7eca3d6ae42296971afa31e466a00dfd7027900c3696edf4549de2ffa",
+    "loaded_model.baml": "531294299a68ec7593474074a5b2fa8754ed7cea8ecb34be59ee1849ab56f2bd",
+    "logistic.baml": "33cabf07236ff1042c6f106b11c5e787de6cd0de2356bef2a8e8ad98d2543dea",
+    "observation.baml": "96c004662471486d4ae80c8939904f90db55de520d0641b458d0279028446eb4",
+    "pipeline.baml": "bbccec3bbe53363e51223f054c3416014c3fe2f24974d6016058aa384d030387",
+    "primitives.baml": "9816f9a65164437188cb9798a3be643a87821d274e6d4c647a036b7757ea1639",
+    "scaler.baml": "d07f07cd5a8fc4b5df594897a6b4071db1132d57abad96895dcc5b0f128cf12a",
+    "selective_observation.baml": "f1f028217aaa9432746235d2131b0b97403210e77473f824a8b32add975af88e",
+    "shadow.baml": "389db54d0ed98fa5905bcdfe9f8e574071871f3319e253693d875f996b33f820",
+    "tree.baml": "5400e7c255f4505be559d86a5d43f7d699b28da5d6bed3969883dcbe52ef2f75",
+    "tree_artifact.baml": "5638d2cfadc1451207c42a77deccd3329c9dbccdc69a10905e7395711c18ae57"
+  }
+}

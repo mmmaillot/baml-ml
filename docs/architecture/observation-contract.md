@@ -1,28 +1,28 @@
 # Native inference observation contract v1
 
-Status: validated in [CI run 45953941508](https://github.com/mmmaillot/baml-ml/actions/runs/45953941508). Applies to loaded
-LinearRegression and LogisticRegression models, not the legacy checked
-stateless helper API or arbitrary caller instrumentation.
+This contract covers loaded LinearRegression, LogisticRegression and DecisionTreeClassifier models. The checked stateless helper API and caller instrumentation have their own trace settings. The original observation modes were validated in [CI run 45953941508](https://github.com/mmmaillot/baml-ml/actions/runs/45953941508).
 
 ## Native capture modes
 
-Pass observation = ObservationMode.Semantic (default), Full, or Timing
-to LoadLinearModel, LoadLogisticModel, PrepareLinearModel or PrepareLogisticModel.
-Policy is fixed for that loaded handle.
+Pass `observation = ObservationMode.Semantic` (default), `Full`, `Timing` or `Adaptive` to the linear, logistic or tree loader or preparer. The selected mode and policy are fixed for that loaded handle.
 
 | Mode | Runtime semantic spans | Values | Aggregate profiler |
 |---|---|---|---|
 | Timing | No | No | Yes |
 | Semantic | Yes | No | Yes |
 | Full | Yes | Inputs, outputs and typed errors | Yes |
+| Adaptive | Yes | Selected rows and a lazy model snapshot | Yes |
 | BAML_TELEMETRY=off | No | No | No |
 
-The first three use native trace.Options (timing, empty_span, span) at the
-runtime's call sites. BAML_TELEMETRY=off is the engine-wide native override.
+Each mode uses native `trace.Options` at the runtime call sites. BAML_TELEMETRY=off is the engine-wide native override.
 Semantic is deliberately the default: explicit opt-in to numerical payloads.
 A caller's root, manually traced calls, or other application code can still
 capture values; these modes are not global privacy controls. No custom
 telemetry emitter, collector, exporter or storage layer is introduced.
+Adaptive and the same-family `shadow` command share a deterministic trigger
+policy, with exact prediction parity and recorded row replays verified in
+the standalone experiment. [Adaptive and shadow ADR](adaptive-shadow-observation.md)
+· [Measured evidence](../../experiments/adaptive_shadow/README.md)
 
 ```baml
 let model = LoadLogisticModel("model.json", observation = ObservationMode.Full);
@@ -45,7 +45,7 @@ model_id is the artifact identity supplied by its exporter, not authentication.
 | Semantic span | Full inputs | Full output |
 |---|---|---|
 | PrepareArtifact | None (raw JSON suppressed) | None; errors on invalid preparation |
-| ModelLoaded | Validated fitted artifact | void |
+| ModelLoaded / TreeModelLoaded | Validated fitted artifact | void |
 | PredictLoadedLinear / PredictLoadedProba / PredictLoadedLabels | Model ID, ordered feature names and input rows | Existing result object on success |
 | ObservedImpute | Raw rows | Imputed rows |
 | ObservedScale | Imputed rows | Standardized rows |
@@ -53,10 +53,10 @@ model_id is the artifact identity supplied by its exporter, not authentication.
 | ObservedDecisionScores | Standardized rows | Decision score matrix |
 | ObservedSoftmax | Decision score matrix | Probabilities |
 | ObservedLabels | Decision score matrix, ordered classes | Integer labels |
+| ObservedTreeTraversal | Standardized rows | Probabilities, labels, visited nodes and leaves |
 
 Prediction stages are children of the prediction span; intermediate helper
-functions are timing-only by default. Label-only inference does not perform
-softmax. Binary decision scores are [0,z] (the second score is sklearn's
+functions are timing-only by default. Label-only inference in Timing, Semantic and Full skips softmax. Adaptive and shadow compute probabilities in memory for trigger evaluation and keep the label replay stages faithful to the requested operation. Binary decision scores are [0,z] (the second score is sklearn's
 decision function); multiclass scores follow artifact class order.
 
 Prepared pipeline/parameter arguments are wrapped in a native @trace.redact
@@ -95,4 +95,4 @@ The contract does not include drift computation, dashboards, a collector,
 per-request sampling, remote export, retention, access control or
 cross-process model lifetime. A production deployment must explicitly
 evaluate root/caller trace policies, local storage and data handling before
-enabling full capture on real inputs. No performance claim until measured.
+enabling selective or full capture on real inputs.

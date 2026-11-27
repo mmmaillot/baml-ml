@@ -1,0 +1,662 @@
+{
+  "adaptive": {
+    "healthy": {
+      "rows": [],
+      "snapshots": []
+    },
+    "mixed": {
+      "rows": [
+        [
+          1,
+          "missing_input,low_margin"
+        ],
+        [
+          2,
+          "extreme_zscore"
+        ],
+        [
+          3,
+          "low_margin"
+        ]
+      ],
+      "snapshots": [
+        [
+          "adaptive-binary",
+          null
+        ]
+      ]
+    },
+    "capped": {
+      "rows": [
+        [
+          1,
+          "missing_input,low_margin"
+        ]
+      ],
+      "snapshots": [
+        [
+          "adaptive-binary",
+          null
+        ]
+      ]
+    },
+    "zero-cap": {
+      "rows": [],
+      "snapshots": []
+    },
+    "repeated_handle": {
+      "rows": [
+        [
+          1,
+          "missing_input,low_margin"
+        ],
+        [
+          2,
+          "extreme_zscore"
+        ],
+        [
+          3,
+          "low_margin"
+        ],
+        [
+          0,
+          "low_margin"
+        ]
+      ],
+      "snapshots": [
+        [
+          "adaptive-binary",
+          null
+        ]
+      ]
+    }
+  },
+  "shadow": {
+    "linear": {
+      "row_index": 0,
+      "traces": {
+        "challenger": {
+          "ObservedImpute": {
+            "inputs": {
+              "x": [
+                [
+                  {
+                    "$float": "NaN"
+                  }
+                ]
+              ],
+              "state": {
+                "value": {
+                  "$redacted": "declared"
+                }
+              }
+            },
+            "output": {
+              "ok": true,
+              "x": [
+                [
+                  2.0
+                ]
+              ],
+              "error": ""
+            }
+          },
+          "ObservedLinear": {
+            "inputs": {
+              "x": [
+                [
+                  2.0
+                ]
+              ],
+              "state": {
+                "value": {
+                  "$redacted": "declared"
+                }
+              }
+            },
+            "output": {
+              "ok": true,
+              "value": [
+                -1.0
+              ],
+              "error": ""
+            }
+          },
+          "ObservedScale": {
+            "inputs": {
+              "x": [
+                [
+                  2.0
+                ]
+              ],
+              "state": {
+                "value": {
+                  "$redacted": "declared"
+                }
+              }
+            },
+            "output": {
+              "ok": true,
+              "x": [
+                [
+                  2.0
+                ]
+              ],
+              "error": ""
+            }
+          }
+        },
+        "champion": {
+          "ObservedImpute": {
+            "inputs": {
+              "x": [
+                [
+                  {
+                    "$float": "NaN"
+                  }
+                ]
+              ],
+              "state": {
+                "value": {
+                  "$redacted": "declared"
+                }
+              }
+            },
+            "output": {
+              "ok": true,
+              "x": [
+                [
+                  0.0
+                ]
+              ],
+              "error": ""
+            }
+          },
+          "ObservedLinear": {
+            "inputs": {
+              "x": [
+                [
+                  0.0
+                ]
+              ],
+              "state": {
+                "value": {
+                  "$redacted": "declared"
+                }
+              }
+            },
+            "output": {
+              "ok": true,
+              "value": [
+                0.0
+              ],
+              "error": ""
+            }
+          },
+          "ObservedScale": {
+            "inputs": {
+              "x": [
+                [
+                  0.0
+                ]
+              ],
+              "state": {
+                "value": {
+                  "$redacted": "declared"
+                }
+              }
+            },
+            "output": {
+              "ok": true,
+              "x": [
+                [
+                  0.0
+                ]
+              ],
+              "error": ""
+            }
+          }
+        }
+      },
+      "summary": {
+        "total_rows": 3,
+        "triggered_rows": 3,
+        "escalated_rows": 1,
+        "capped": true,
+        "label_disagreements": 0,
+        "max_score_delta": 17.0,
+        "triggers": {
+          "missing_input": 1,
+          "extreme_zscore": 1,
+          "low_margin": 0,
+          "label_disagreement": 0,
+          "score_delta": 3
+        },
+        "challenger_ok": true,
+        "challenger_error": null
+      }
+    },
+    "logistic": {
+      "row_index": 0,
+      "traces": {
+        "challenger": {
+          "ObservedDecisionScores": {
+            "inputs": {
+              "x": [
+                [
+                  2.0
+                ]
+              ],
+              "state": {
+                "value": {
+                  "$redacted": "declared"
+                }
+              }
+            },
+            "output": [
+              [
+                0.0,
+                2.0
+              ]
+            ]
+          },
+          "ObservedImpute": {
+            "inputs": {
+              "x": [
+                [
+                  {
+                    "$float": "NaN"
+                  }
+                ]
+              ],
+              "state": {
+                "value": {
+                  "$redacted": "declared"
+                }
+              }
+            },
+            "output": {
+              "ok": true,
+              "x": [
+                [
+                  2.0
+                ]
+              ],
+              "error": ""
+            }
+          },
+          "ObservedScale": {
+            "inputs": {
+              "x": [
+                [
+                  2.0
+                ]
+              ],
+              "state": {
+                "value": {
+                  "$redacted": "declared"
+                }
+              }
+            },
+            "output": {
+              "ok": true,
+              "x": [
+                [
+                  2.0
+                ]
+              ],
+              "error": ""
+            }
+          },
+          "ObservedSoftmax": {
+            "inputs": {
+              "scores": [
+                [
+                  0.0,
+                  2.0
+                ]
+              ]
+            },
+            "output": {
+              "ok": true,
+              "probs": [
+                [
+                  0.11920292202211755,
+                  0.8807970779778823
+                ]
+              ],
+              "error": ""
+            }
+          }
+        },
+        "champion": {
+          "ObservedDecisionScores": {
+            "inputs": {
+              "x": [
+                [
+                  0.0
+                ]
+              ],
+              "state": {
+                "value": {
+                  "$redacted": "declared"
+                }
+              }
+            },
+            "output": [
+              [
+                0.0,
+                -2.0
+              ]
+            ]
+          },
+          "ObservedImpute": {
+            "inputs": {
+              "x": [
+                [
+                  {
+                    "$float": "NaN"
+                  }
+                ]
+              ],
+              "state": {
+                "value": {
+                  "$redacted": "declared"
+                }
+              }
+            },
+            "output": {
+              "ok": true,
+              "x": [
+                [
+                  0.0
+                ]
+              ],
+              "error": ""
+            }
+          },
+          "ObservedScale": {
+            "inputs": {
+              "x": [
+                [
+                  0.0
+                ]
+              ],
+              "state": {
+                "value": {
+                  "$redacted": "declared"
+                }
+              }
+            },
+            "output": {
+              "ok": true,
+              "x": [
+                [
+                  0.0
+                ]
+              ],
+              "error": ""
+            }
+          },
+          "ObservedSoftmax": {
+            "inputs": {
+              "scores": [
+                [
+                  0.0,
+                  -2.0
+                ]
+              ]
+            },
+            "output": {
+              "ok": true,
+              "probs": [
+                [
+                  0.8807970779778823,
+                  0.11920292202211755
+                ]
+              ],
+              "error": ""
+            }
+          }
+        }
+      },
+      "summary": {
+        "total_rows": 3,
+        "triggered_rows": 3,
+        "escalated_rows": 1,
+        "capped": true,
+        "label_disagreements": 1,
+        "max_score_delta": 0.7615941559557647,
+        "triggers": {
+          "missing_input": 1,
+          "extreme_zscore": 1,
+          "low_margin": 1,
+          "label_disagreement": 1,
+          "score_delta": 2
+        },
+        "challenger_ok": true,
+        "challenger_error": null
+      }
+    },
+    "tree": {
+      "row_index": 0,
+      "traces": {
+        "challenger": {
+          "ObservedImpute": {
+            "inputs": {
+              "x": [
+                [
+                  {
+                    "$float": "NaN"
+                  }
+                ]
+              ],
+              "state": {
+                "value": {
+                  "$redacted": "declared"
+                }
+              }
+            },
+            "output": {
+              "ok": true,
+              "x": [
+                [
+                  2.0
+                ]
+              ],
+              "error": ""
+            }
+          },
+          "ObservedScale": {
+            "inputs": {
+              "x": [
+                [
+                  2.0
+                ]
+              ],
+              "state": {
+                "value": {
+                  "$redacted": "declared"
+                }
+              }
+            },
+            "output": {
+              "ok": true,
+              "x": [
+                [
+                  2.0
+                ]
+              ],
+              "error": ""
+            }
+          },
+          "ObservedTreeTraversal": {
+            "inputs": {
+              "x": [
+                [
+                  2.0
+                ]
+              ],
+              "state": {
+                "value": {
+                  "$redacted": "declared"
+                }
+              },
+              "capture_path": true
+            },
+            "output": {
+              "labels": [
+                7
+              ],
+              "probs": [
+                [
+                  0.0,
+                  1.0
+                ]
+              ],
+              "leaves": [
+                2
+              ],
+              "paths": [
+                [
+                  0,
+                  2
+                ]
+              ]
+            }
+          }
+        },
+        "champion": {
+          "ObservedImpute": {
+            "inputs": {
+              "x": [
+                [
+                  {
+                    "$float": "NaN"
+                  }
+                ]
+              ],
+              "state": {
+                "value": {
+                  "$redacted": "declared"
+                }
+              }
+            },
+            "output": {
+              "ok": true,
+              "x": [
+                [
+                  0.0
+                ]
+              ],
+              "error": ""
+            }
+          },
+          "ObservedScale": {
+            "inputs": {
+              "x": [
+                [
+                  0.0
+                ]
+              ],
+              "state": {
+                "value": {
+                  "$redacted": "declared"
+                }
+              }
+            },
+            "output": {
+              "ok": true,
+              "x": [
+                [
+                  0.0
+                ]
+              ],
+              "error": ""
+            }
+          },
+          "ObservedTreeTraversal": {
+            "inputs": {
+              "x": [
+                [
+                  0.0
+                ]
+              ],
+              "state": {
+                "value": {
+                  "$redacted": "declared"
+                }
+              },
+              "capture_path": true
+            },
+            "output": {
+              "labels": [
+                -3
+              ],
+              "probs": [
+                [
+                  0.5,
+                  0.5
+                ]
+              ],
+              "leaves": [
+                1
+              ],
+              "paths": [
+                [
+                  0,
+                  1
+                ]
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "total_rows": 3,
+        "triggered_rows": 3,
+        "escalated_rows": 1,
+        "capped": true,
+        "label_disagreements": 2,
+        "max_score_delta": 0.5,
+        "triggers": {
+          "missing_input": 1,
+          "extreme_zscore": 1,
+          "low_margin": 2,
+          "label_disagreement": 2,
+          "score_delta": 2
+        },
+        "challenger_ok": true,
+        "challenger_error": null
+      }
+    }
+  },
+  "shadow_challenger_failure": {
+    "status": "user_error",
+    "metadata": {
+      "baml.ctx.baml_version": "0.26.0",
+      "baml_ml.challenger_isolated": true,
+      "baml_ml.challenger_model_id": "overflow-challenger",
+      "baml_ml.champion_model_id": "overflow-champion",
+      "baml_ml.contract_version": 1,
+      "baml_ml.estimator_kind": "linear",
+      "baml_ml.model_id": "overflow-challenger",
+      "baml_ml.operation": "predict",
+      "baml_ml.shadow_role": "challenger"
+    },
+    "error": {
+      "stage": "linear_prediction",
+      "message": "linreg_predict: prediction is not finite"
+    },
+    "snapshots": [
+      [
+        "overflow-champion",
+        "champion"
+      ],
+      [
+        "overflow-challenger",
+        "challenger"
+      ]
+    ]
+  }
+}
