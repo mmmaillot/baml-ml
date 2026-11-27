@@ -44,7 +44,7 @@ arrays. This is API-level isolation, not a language-wide immutable type or
 security boundary: internal trusted helpers are not supported public APIs.
 The existing checked stateless PredictImported* wrappers remain available for
 caller-owned mutable artifacts. Handles are live within a single BAML engine
-execution; cross-process persistence and host SDK/packaging are not provided.
+execution; cross-process persistence and host SDKs are not provided. The standalone executable loads one model per batch job.
 
 ## Export and run
 
@@ -55,8 +55,8 @@ To regenerate independent references (manual):
 
 ```sh
 python -m pip install scikit-learn==1.8.0
-python migration/artifacts/generate_fixtures.py /tmp/generated-artifacts
-python migration/artifacts/check_export.py /tmp/generated-artifacts
+python artifacts/generate_fixtures.py /tmp/generated-artifacts
+python artifacts/check_export.py /tmp/generated-artifacts
 ```
 
 The committed fixtures use seed 42, 80/20 split (stratified for classification),
@@ -68,7 +68,7 @@ tests read the committed JSON files and compare prediction values. The trace
 probe checks intermediate values, model identity, hierarchy and predictions
 for all three cases against independent references.
 
-From migration, the preferred API is:
+From the repository root, the preferred API is:
 
 ```baml
 let model = LoadLogisticModel("artifacts/fixtures/iris.json");
@@ -82,16 +82,14 @@ For linear regression use LoadLinearModel and model.predict(rows,names). Native 
 ImportedBinaryProbe.
 
 ```sh
-cd migration
 "$BAML_CLI" test --max-concurrency 1 --test-timeout 5m
-cd ..
 bash experiments/imported_inference/run.sh /tmp/imported-inference
 ```
 
-[CI run 45940061227](https://github.com/mmmaillot/baml-ml/actions/runs/45940061227) validated all three imported reference models, the exporter and semantic trace reconstruction before cleanup. Full differential and performance campaigns remain manual. No packaging or imported-runtime benchmark claim.
+[CI run 45940061227](https://github.com/mmmaillot/baml-ml/actions/runs/45940061227) validated all three imported reference models, the exporter and semantic trace reconstruction before cleanup. Full differential and performance campaigns remain manual. Standalone Linux packaging is separately validated; no imported-runtime performance claim.
 
 The repeated-call profiler check requires one decode, artifact validation and conversion for three predictions in the same execution. This is a lifecycle test, not a performance benchmark.
 
 ## Observation policy
 
-The loaded model API defaults to metadata-only semantic spans. Pass `observation = ObservationMode.Full` when numerical payload capture is appropriate or `ObservationMode.Timing` for aggregate profiling. See the [native observation contract](../../docs/architecture/observation-contract.md) for precise span names, error semantics, model correlation and privacy limitations.
+The loaded model API defaults to metadata-only semantic spans. Pass `observation = ObservationMode.Full` when numerical payload capture is appropriate or `ObservationMode.Timing` for aggregate profiling. See the [native observation contract](../docs/architecture/observation-contract.md) for precise span names, error semantics, model correlation and privacy limitations.
