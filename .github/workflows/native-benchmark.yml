@@ -1,11 +1,5 @@
 name: Native BAML performance
 on:
-  pull_request:
-    paths:
-      - 'experiments/native_benchmark/**'
-      - 'experiments/native_ml_observability/iris_fixture.baml'
-      - 'migration/baml_src/**'
-      - '.github/workflows/native-benchmark.yml'
   workflow_dispatch:
 permissions:
   contents: read
