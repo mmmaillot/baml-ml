@@ -32,7 +32,7 @@ bash experiments/native_ml_observability/run.sh /tmp/native-ml-observability
 
 ## Native observability
 
-Selective semantic spans capture the model identity, inputs, imputed and standardized values, model parameters and predictions with parent IDs and durations. Default profiling aggregates calls; empty spans omit payloads. [Native ML observability evidence](experiments/native_ml_observability/README.md).
+The loaded-model runtime uses native BAML trace options with stable semantic boundaries and inherited model identity. Metadata-only semantic spans are the default; Full captures intermediate values and a one-time load artifact, Timing uses aggregate profiling, and the engine-wide off setting disables telemetry. See the [observation contract v1](docs/architecture/observation-contract.md) and [historical native ML observability evidence](experiments/native_ml_observability/README.md).
 
 ## Roadmap
 

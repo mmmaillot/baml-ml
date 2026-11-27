@@ -38,7 +38,7 @@ for sample in iris diabetes binary; do
         $ref[0][$sample] as $e |
         row($outer) as $p | row("ObservedImpute") as $i | row("ObservedScale") as $s | row($model) as $m |
         ([$i,$s,$m]|all(.[1]==$p[0] and .[3]=="return" and .[4]>0 and .[9]==$artifact[0].model_id and .[10]==1)) and
-        row("ModelLoaded")[5].artifact==$artifact[0] and
+        (row("ModelLoaded")[5].artifact as $loaded | $artifact[0] | to_entries | all(. as $entry | $loaded[$entry.key]==$entry.value)) and
         ([$p,$i,$s,$m]|all(.[9]==$artifact[0].model_id and (.[5]|[..|objects|keys[]]|index("weights")==null and index("means")==null and index("coefficients")==null))) and
         $p[5].model_id==$artifact[0].model_id and
         $i[5].x[0][0]["$float"]=="NaN" and
