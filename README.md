@@ -13,6 +13,10 @@ Export fitted pipelines as portable, versioned data-only artifacts; load and exe
 
 See the [artifact contract](migration/artifacts/README.md) for precise restrictions and export instructions. Scikit-learn 1.8.0 is the validated reference version. Other training frameworks and estimator families are deferred.
 
+## Model lifecycle
+
+Load or prepare a model once, then call its prediction methods for repeated single or batch requests in the same BAML execution. The loader owns and validates the parameter snapshot; every request still validates its inputs. See the [API examples](migration/artifacts/README.md#export-and-run).
+
 ## Run and validate
 
 The native runtime is pinned to BAML 0.26.0. Follow the [installation and test instructions](migration/README.md).
