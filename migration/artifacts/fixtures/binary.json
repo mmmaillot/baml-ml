@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "source": "scikit-learn",
+  "source_version": "1.8.0",
+  "features": [
+    "sepal length (cm)",
+    "sepal width (cm)",
+    "petal length (cm)",
+    "petal width (cm)"
+  ],
+  "imputer_kind": "mean",
+  "scaler_kind": "standard",
+  "estimator_kind": "logistic_binary",
+  "imputer_means": [
+    5.454430379746837,
+    3.0825,
+    2.8649999999999998,
+    0.7875000000000002
+  ],
+  "scaler_means": [
+    5.454430379746837,
+    3.0825,
+    2.8649999999999998,
+    0.7875000000000002
+  ],
+  "scaler_scales": [
+    0.6161975065582525,
+    0.48445201000718346,
+    1.4260171808221669,
+    0.5541604009670844
+  ],
+  "weights": [
+    [
+      0.8928966618806846,
+      -1.0321226043990495,
+      1.4386426995101669,
+      1.4403781228912316
+    ]
+  ],
+  "intercepts": [
+    0.1725838633459222
+  ],
+  "classes": [
+    0,
+    1
+  ],
+  "model_id": "1df28bb77fb169b2cd1a1ed11b6860ed81cc86108d5139f5cf48d15000f91fad"
+}
