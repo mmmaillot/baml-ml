@@ -9,14 +9,8 @@ on:
       - 'experiments/imported_inference/**'
       - 'experiments/tree_traversal/**'
       - '.github/workflows/imported-inference.yml'
+  # Required checks must run on every PR: keep paths filters on push only.
   pull_request:
-    paths:
-      - 'artifacts/**'
-      - 'baml_src/**'
-      - 'baml.toml'
-      - 'experiments/imported_inference/**'
-      - 'experiments/tree_traversal/**'
-      - '.github/workflows/imported-inference.yml'
   workflow_dispatch:
 permissions:
   contents: read
