@@ -16,11 +16,16 @@ function EmptyImputer() -> MeanImputer {
 }
 
 function ImputerTransform(x: float[][], imputer: MeanImputer) -> ImputerTransformResult {
+  ImputerTransformCore(x, imputer)
+}
+
+// Internal: validated_state is reserved for factory-owned prepared models.
+function ImputerTransformCore(x: float[][], imputer: MeanImputer, validated_state: bool = false) -> ImputerTransformResult {
   let err = "";
-  if (imputer.n_features <= 0 || imputer.means.length() != imputer.n_features) {
+  if (!validated_state && (imputer.n_features <= 0 || imputer.means.length() != imputer.n_features)) {
     err = "imputer_transform: invalid fitted imputer state";
   }
-  if (err == "") {
+  if (!validated_state && err == "") {
     for (let j = 0; j < imputer.means.length() && err == ""; j += 1) {
       if (!IsFinite(imputer.means[j])) {
         err = "imputer_transform: fitted imputer contains non-finite means";

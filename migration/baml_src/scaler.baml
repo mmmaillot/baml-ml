@@ -21,12 +21,12 @@ function ScalerTransform(x: float[][], scaler: StandardScaler) -> ScalerTransfor
 }
 
 // Internal only: skip the finite scan after successful imputation.
-function ScalerTransformCore(x: float[][], scaler: StandardScaler, finite_input: bool) -> ScalerTransformResult {
+function ScalerTransformCore(x: float[][], scaler: StandardScaler, finite_input: bool, validated_state: bool = false) -> ScalerTransformResult {
   let err = "";
-  if (scaler.n_features <= 0 || scaler.means.length() != scaler.n_features || scaler.scales.length() != scaler.n_features) {
+  if (!validated_state && (scaler.n_features <= 0 || scaler.means.length() != scaler.n_features || scaler.scales.length() != scaler.n_features)) {
     err = "scaler_transform: invalid fitted scaler state";
   }
-  if (err == "") {
+  if (!validated_state && err == "") {
     for (let j = 0; j < scaler.n_features && err == ""; j += 1) {
       if (!IsFinite(scaler.means[j])) {
         err = "scaler_transform: fitted scaler contains non-finite means";

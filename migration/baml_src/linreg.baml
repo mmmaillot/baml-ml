@@ -11,14 +11,19 @@ function EmptyLinRegModel() -> LinearRegressionModel {
 }
 
 function LinearRegressionPredict(x: float[][], model: LinearRegressionModel) -> NumArrayResult {
+  LinearRegressionPredictCore(x, model, false)
+}
+
+// Internal: successful scaling provides finite input; loaded state is validated once.
+function LinearRegressionPredictCore(x: float[][], model: LinearRegressionModel, finite_input: bool, validated_state: bool = false) -> NumArrayResult {
   let err = "";
-  if (model.n_features <= 0 || model.coefficients.length() != model.n_features) {
+  if (!validated_state && (model.n_features <= 0 || model.coefficients.length() != model.n_features)) {
     err = "linreg_predict: invalid fitted model state";
   }
-  if (err == "" && !IsFinite(model.intercept)) {
+  if (!validated_state && err == "" && !IsFinite(model.intercept)) {
     err = "linreg_predict: fitted model contains non-finite parameters";
   }
-  if (err == "") {
+  if (!validated_state && err == "") {
     for (let j = 0; j < model.n_features && err == ""; j += 1) {
       if (!IsFinite(model.coefficients[j])) {
         err = "linreg_predict: fitted model contains non-finite parameters";
@@ -27,7 +32,7 @@ function LinearRegressionPredict(x: float[][], model: LinearRegressionModel) -> 
   }
   let out: float[] = [];
   if (err == "") {
-    let d = CheckFiniteMatrix(x);
+    let d = if (finite_input) { CheckMatrix(x) } else { CheckFiniteMatrix(x) };
     err = d.error;
     if (err == "" && d.cols != model.n_features) {
       err = "linreg_predict: feature count differs from fitted model";
