@@ -1,0 +1,27 @@
+name: Pre-cleanup checkpoint tag
+on:
+  push:
+    branches: [ops/tag-pre-inference-cleanup]
+permissions:
+  contents: write
+jobs:
+  checkpoint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: d87488f68d7ebc4025a9c8199131c4468f0f4982
+          fetch-depth: 0
+      - name: Create immutable checkpoint
+        run: |
+          set -euo pipefail
+          tag=pre-inference-cleanup
+          target=d87488f68d7ebc4025a9c8199131c4468f0f4982
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+            git fetch origin "refs/tags/$tag:refs/tags/$tag"
+            test "$(git rev-parse "$tag^{commit}")" = "$target"
+          else
+            git tag "$tag" "$target"
+            git push origin "refs/tags/$tag"
+          fi
+          git ls-remote --tags origin "refs/tags/$tag"
