@@ -1,8 +1,8 @@
 # baml-ml
 
-A classical ML inference runtime with native semantic observability, built in [BAML](https://github.com/BoundaryML/baml).
+A hyperobservable inference runtime for models trained with scikit-learn, built in [BAML](https://github.com/BoundaryML/baml).
 
-The goal is to reconstruct individual production predictions from preprocessing to output, not to replace the training ecosystem. Training with existing ML tools and importing portable model artifacts is the new direction, not yet an implemented import feature. No LLMs or API keys required.
+The goal is to reconstruct individual production predictions from preprocessing to output, not to replace the training ecosystem. Scikit-learn is the sole supported training-framework target for the first release. Training stays outside the runtime; fitted pipelines are exported as portable data-only artifacts. Import is planned, not yet implemented. Other training frameworks may be supported later. No LLMs or API keys required.
 
 [Architecture decision: inference-first](docs/architecture/inference-first.md).
 
@@ -51,12 +51,12 @@ Native checks run automatically; full performance, scaling and historical differ
 
 ## Roadmap
 
-1. Versioned model artifact contract, external export and native import for the existing pipelines.
+1. Versioned model artifact contract, scikit-learn export and native import for the existing pipelines.
 2. Inference observation contract, capture policies and storage/privacy evaluation.
 3. Standalone or embedded inference interface and packaging.
 4. Targeted numerical acceleration only if representative inference profiles justify it.
 
-Existing BAML training is retained as a reference, but new solvers and training optimization are not priorities.
+Existing BAML training is retained as a reference only. Integrated training, Rust training backends and additional framework adapters are outside the first-release scope.
 
 ## Experimental evidence
 
