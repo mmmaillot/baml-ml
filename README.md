@@ -58,7 +58,7 @@ bash experiments/native_ml_observability/run.sh /tmp/native-ml-observability
 
 The loaded-model runtime uses native BAML trace options with stable semantic boundaries and inherited model identity. Metadata-only semantic spans are the default; Full captures intermediate values and a one-time load artifact, Timing uses aggregate profiling, and the engine-wide off setting disables telemetry. See the [observation contract v1](docs/architecture/observation-contract.md) and [historical native ML observability evidence](experiments/native_ml_observability/README.md).
 
-Adaptive replays only selected rows in Full. The packed `shadow` command compares same-family models and returns the champion predictions. On an Apple M1 Pro, a 4,096-row Iris batch with 52 anomalies used **84% fewer BTEL and CAS bytes combined** in Adaptive than in Full (171 kB vs 1,078 kB), with a median wall time of **242 ms vs 162 ms**. [Adaptive and shadow contract](docs/architecture/adaptive-shadow-observation.md) · [Benchmark and SQL evidence](experiments/adaptive_shadow/results/m1-pro-2026-11-27/report.md)
+Adaptive replays only selected rows in Full. The packed `shadow` command compares same-family models and returns the champion predictions. On an Apple M1 Pro, a 4,096-row Iris batch with 52 anomalies used **84% fewer BTEL and CAS bytes combined** in Adaptive than in Full (172 kB vs 1,078 kB), with a median wall time of **238 ms vs 159 ms**. [Adaptive and shadow contract](docs/architecture/adaptive-shadow-observation.md) · [Benchmark and SQL evidence](experiments/adaptive_shadow/results/m1-pro-2026-11-27/report.md)
 
 ## Roadmap
 

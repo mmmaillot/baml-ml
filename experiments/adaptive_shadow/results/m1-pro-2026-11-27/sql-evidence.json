@@ -2,6 +2,7 @@
   "adaptive": {
     "healthy": {
       "rows": [],
+      "summary": null,
       "snapshots": []
     },
     "mixed": {
@@ -19,6 +20,18 @@
           "low_margin"
         ]
       ],
+      "summary": {
+        "triggered_rows": 3,
+        "escalated_rows": 3,
+        "capped": false,
+        "triggers": {
+          "missing_input": 1,
+          "extreme_zscore": 1,
+          "low_margin": 2,
+          "label_disagreement": 0,
+          "score_delta": 0
+        }
+      },
       "snapshots": [
         [
           "adaptive-binary",
@@ -33,6 +46,18 @@
           "missing_input,low_margin"
         ]
       ],
+      "summary": {
+        "triggered_rows": 3,
+        "escalated_rows": 1,
+        "capped": true,
+        "triggers": {
+          "missing_input": 1,
+          "extreme_zscore": 1,
+          "low_margin": 2,
+          "label_disagreement": 0,
+          "score_delta": 0
+        }
+      },
       "snapshots": [
         [
           "adaptive-binary",
@@ -42,26 +67,74 @@
     },
     "zero-cap": {
       "rows": [],
+      "summary": {
+        "triggered_rows": 3,
+        "escalated_rows": 0,
+        "capped": true,
+        "triggers": {
+          "missing_input": 1,
+          "extreme_zscore": 1,
+          "low_margin": 2,
+          "label_disagreement": 0,
+          "score_delta": 0
+        }
+      },
       "snapshots": []
     },
     "repeated_handle": {
-      "rows": [
-        [
-          1,
-          "missing_input,low_margin"
-        ],
-        [
-          2,
-          "extreme_zscore"
-        ],
-        [
-          3,
-          "low_margin"
-        ],
-        [
-          0,
-          "low_margin"
-        ]
+      "calls": [
+        {
+          "rows": [],
+          "summary": null
+        },
+        {
+          "rows": [
+            [
+              1,
+              "missing_input,low_margin"
+            ],
+            [
+              2,
+              "extreme_zscore"
+            ],
+            [
+              3,
+              "low_margin"
+            ]
+          ],
+          "summary": {
+            "triggered_rows": 3,
+            "escalated_rows": 3,
+            "capped": false,
+            "triggers": {
+              "missing_input": 1,
+              "extreme_zscore": 1,
+              "low_margin": 2,
+              "label_disagreement": 0,
+              "score_delta": 0
+            }
+          }
+        },
+        {
+          "rows": [
+            [
+              0,
+              "low_margin"
+            ]
+          ],
+          "summary": {
+            "triggered_rows": 1,
+            "escalated_rows": 1,
+            "capped": false,
+            "triggers": {
+              "missing_input": 0,
+              "extreme_zscore": 0,
+              "low_margin": 1,
+              "label_disagreement": 0,
+              "score_delta": 0
+            }
+          }
+        }
       ],
       "snapshots": [
         [
@@ -69,6 +142,16 @@
           null
         ]
       ]
+    },
+    "invalid_feature_order": {
+      "status": "user_error",
+      "metadata": {
+        "baml.ctx.baml_version": "0.26.0",
+        "baml_ml.contract_version": 1,
+        "baml_ml.model_id": "adaptive-binary",
+        "baml_ml.schema_version": 1,
+        "baml_ml.source_version": "1.8.0"
+      }
     }
   },
   "shadow": {
@@ -642,7 +725,9 @@
       "baml_ml.estimator_kind": "linear",
       "baml_ml.model_id": "overflow-challenger",
       "baml_ml.operation": "predict",
-      "baml_ml.shadow_role": "challenger"
+      "baml_ml.schema_version": 1,
+      "baml_ml.shadow_role": "challenger",
+      "baml_ml.source_version": "1.8.0"
     },
     "error": {
       "stage": "linear_prediction",

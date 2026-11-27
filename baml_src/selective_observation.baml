@@ -92,6 +92,8 @@ function EscalationOptions(row: Escalation) -> trace.Options {
     )
 }
 
+function AdaptiveSummary() -> void {}
+
 function RunAdaptive(
     model: SelectiveModel,
     x: float[][],
@@ -113,17 +115,31 @@ function RunAdaptive(
         operation,
         ObservationMode.Semantic,
         signals = signals,
-        $trace = SelectiveContext(model, trace.empty_span(), ""),
+        $trace = trace.empty_span(),
     );
     let evaluation = EvaluateTriggers(policy, signals);
+    if (evaluation.triggered_rows > 0) {
+        AdaptiveSummary(
+            $trace = trace.empty_span().context(metadata = {
+                "baml_ml.triggered_rows": evaluation.triggered_rows,
+                "baml_ml.escalated_rows": evaluation.escalated_rows,
+                "baml_ml.capped": evaluation.capped,
+                "baml_ml.triggers.missing_input": evaluation.triggers.missing_input,
+                "baml_ml.triggers.extreme_zscore": evaluation.triggers.extreme_zscore,
+                "baml_ml.triggers.low_margin": evaluation.triggers.low_margin,
+                "baml_ml.triggers.label_disagreement": evaluation.triggers.label_disagreement,
+                "baml_ml.triggers.score_delta": evaluation.triggers.score_delta,
+            }),
+        );
+    }
     if (evaluation.escalated_rows > 0) {
-        CaptureLazySnapshot(model, $trace = SelectiveContext(model, trace.context(), ""));
+        CaptureLazySnapshot(model);
         for (let row in evaluation.rows) {
             EscalatedRow(
                 model,
                 x[row.row_index],
                 operation,
-                $trace = SelectiveContext(model, EscalationOptions(row), ""),
+                $trace = EscalationOptions(row),
             );
         }
     }
@@ -300,9 +316,10 @@ function SelectiveTree(a: FittedTreeArtifact, p: PreparedTreePipeline) -> Select
 }
 
 function AdaptiveLinear(model: SelectiveModel, policy: AdaptivePolicy) -> LoadedLinearModel {
+    let opts = SelectiveContext(model, trace.empty_span(), "");
     LoadedLinearModel {
         predict_fn: (x: float[][], features: string[]) -> NumArrayResult {
-            let r = RunAdaptive(model, x, features, "predict", policy) catch (e) {
+            let r = RunAdaptive(model, x, features, "predict", policy, $trace = opts) catch (e) {
                 let f: InferenceFailure => {
                     return NumArrayResult {
                         ok: false,
@@ -321,9 +338,10 @@ function AdaptiveLinear(model: SelectiveModel, policy: AdaptivePolicy) -> Loaded
 }
 
 function AdaptiveClassifier(model: SelectiveModel, policy: AdaptivePolicy) -> LoadedLogisticModel {
+    let opts = SelectiveContext(model, trace.empty_span(), "");
     LoadedLogisticModel {
         labels_fn: (x: float[][], features: string[]) -> IntArrayResult {
-            let r = RunAdaptive(model, x, features, "predict", policy) catch (e) {
+            let r = RunAdaptive(model, x, features, "predict", policy, $trace = opts) catch (e) {
                 let f: InferenceFailure => {
                     return IntArrayResult {
                         ok: false,
@@ -339,7 +357,14 @@ function AdaptiveClassifier(model: SelectiveModel, policy: AdaptivePolicy) -> Lo
             }
         },
         proba_fn: (x: float[][], features: string[]) -> ProbaResult {
-            let r = RunAdaptive(model, x, features, "predict-proba", policy) catch (e) {
+            let r = RunAdaptive(
+                model,
+                x,
+                features,
+                "predict-proba",
+                policy,
+                $trace = opts,
+            ) catch (e) {
                 let f: InferenceFailure => {
                     return ProbaResult {
                         ok: false,

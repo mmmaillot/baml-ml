@@ -70,7 +70,8 @@ to it; cross-recording retention and indexing policy is not implemented.
 ## Failure semantics
 
 Prediction calls raise a typed InferenceFailure inside the traced semantic
-boundary. It carries stage and message. The public closure catches it and
+boundary. Adaptive records this status on the per-call `RunAdaptive` span,
+including feature order errors that occur before the main pass. It carries stage and message. The public closure catches it and
 returns the existing ok:false result with the original error text. Thus the
 semantic span is a failure even though the public method returns normally.
 Stages include input_validation, imputation, standardization,

@@ -41,15 +41,15 @@ function PrepareArtifact(raw: string, expected_linear: bool?) -> FittedArtifact 
 }
 
 function PrepareLinearModel(raw: string, observation: ObservationMode = ObservationMode.Semantic, policy: AdaptivePolicy? = null) -> LoadedLinearModel {
+  let adaptive = ResolveAdaptivePolicy(observation, policy);
   // Do not record raw artifact text or repeat the decoded output.
   let opts = ObservationOptions(observation);
   let a = PrepareArtifact(raw, true, $trace = if (observation == ObservationMode.Full) { trace.span(inputs = false, output = false) } else { opts });
-  BuildLoadedLinear(a, observation, policy = policy)
+  BuildLoadedLinear(a, observation, adaptive)
 }
 
-// Internal: caller owns the freshly decoded and validated artifact.
-function BuildLoadedLinear(a: FittedArtifact, observation: ObservationMode, policy: AdaptivePolicy? = null) -> LoadedLinearModel {
-  let adaptive = ResolveAdaptivePolicy(observation, policy);
+// Internal: caller owns the validated artifact and resolved policy.
+function BuildLoadedLinear(a: FittedArtifact, observation: ObservationMode, adaptive: AdaptivePolicy?) -> LoadedLinearModel {
   let p = ArtifactRegression(a);
   let names = a.features;
   let id = a.model_id;
@@ -67,14 +67,14 @@ function BuildLoadedLinear(a: FittedArtifact, observation: ObservationMode, poli
 }
 
 function PrepareLogisticModel(raw: string, observation: ObservationMode = ObservationMode.Semantic, policy: AdaptivePolicy? = null) -> LoadedLogisticModel {
+  let adaptive = ResolveAdaptivePolicy(observation, policy);
   let opts = ObservationOptions(observation);
   let a = PrepareArtifact(raw, false, $trace = if (observation == ObservationMode.Full) { trace.span(inputs = false, output = false) } else { opts });
-  BuildLoadedLogistic(a, observation, policy = policy)
+  BuildLoadedLogistic(a, observation, adaptive)
 }
 
-// Internal: caller owns the freshly decoded and validated artifact.
-function BuildLoadedLogistic(a: FittedArtifact, observation: ObservationMode, policy: AdaptivePolicy? = null) -> LoadedLogisticModel {
-  let adaptive = ResolveAdaptivePolicy(observation, policy);
+// Internal: caller owns the validated artifact and resolved policy.
+function BuildLoadedLogistic(a: FittedArtifact, observation: ObservationMode, adaptive: AdaptivePolicy?) -> LoadedLogisticModel {
   let p = ArtifactClassification(a);
   let names = a.features;
   let id = a.model_id;

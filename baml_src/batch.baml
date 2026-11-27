@@ -42,10 +42,11 @@ function RunBatch(raw_model: string, raw_input: string, operation: string, mode:
   if (operation != "predict" && operation != "predict-proba") {
     throw baml.errors.InvalidArgument { message: "operation must be predict or predict-proba" };
   }
+  let adaptive = ResolveAdaptivePolicy(mode, policy);
   let opts = ObservationOptions(mode);
   // Read only the schema tag for dispatch; fitted state is decoded and validated once.
   let version = ReadArtifactVersion(raw_model, $trace = trace.timing());
-  if (version == 2) { return RunTreeBatch(raw_model,raw_input,operation,mode, policy = policy, $trace = trace.timing()); }
+  if (version == 2) { return RunTreeBatch(raw_model,raw_input,operation,mode,adaptive, $trace = trace.timing()); }
   // Existing v1 decoding and validation are unchanged.
   let a = PrepareArtifact(raw_model, null, $trace = if (mode == ObservationMode.Full) { trace.span(inputs = false, output = false) } else { opts });
   let input = DecodeBatchInput(raw_input);
@@ -54,12 +55,12 @@ function RunBatch(raw_model: string, raw_input: string, operation: string, mode:
     if (operation != "predict") {
       throw baml.errors.InvalidArgument { message: "predict-proba requires logistic regression" };
     }
-    let m = BuildLoadedLinear(a,mode, policy = policy);
+    let m = BuildLoadedLinear(a,mode,adaptive);
     let r = m.predict(rows,input.features);
     if (!r.ok) { throw baml.errors.InvalidArgument { message: r.error }; }
     return BatchOutput { schema_version: 1, model_id: a.model_id, estimator_kind: a.estimator_kind, operation: operation, classes: [], predictions: r.value };
   }
-  let m = BuildLoadedLogistic(a,mode, policy = policy);
+  let m = BuildLoadedLogistic(a,mode,adaptive);
   if (operation == "predict-proba") {
     let r = m.predict_proba(rows,input.features);
     if (!r.ok) { throw baml.errors.InvalidArgument { message: r.error }; }

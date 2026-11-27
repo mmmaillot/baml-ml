@@ -46,6 +46,31 @@ def row_reasons(records, name):
     return [(tagged(row, "row_index"), tagged(row, "trigger_reasons")) for row in escalations]
 
 
+def adaptive_calls(records):
+    calls = []
+    for root in named(records, "RunAdaptive"):
+        children = [span for span in records if span["parent"] == root["id"]]
+        assert payload_free(root)
+        assert tagged(root, "model_id")
+        rows = row_reasons(children, "EscalatedRow")
+        summaries = named(children, "AdaptiveSummary")
+        assert len(summaries) <= 1
+        summary = None
+        if summaries:
+            span = summaries[0]
+            assert payload_free(span)
+            summary = {key: tagged(span, key) for key in ("triggered_rows", "escalated_rows", "capped")}
+            summary["triggers"] = {
+                reason: tagged(span, f"triggers.{reason}") for reason in
+                ("missing_input", "extreme_zscore", "low_margin", "label_disagreement", "score_delta")
+            }
+            assert summary["escalated_rows"] == len(rows)
+        calls.append({"rows": rows, "summary": summary})
+    assert sum(len(call["rows"]) for call in calls) == len(named(records, "EscalatedRow"))
+    assert sum(call["summary"] is not None for call in calls) == len(named(records, "AdaptiveSummary"))
+    return calls
+
+
 def verify_adaptive_batch(records, expected, model_id, operation):
     names = ["ObservedImpute", "ObservedScale", "ObservedDecisionScores",
              "ObservedLabels" if operation == "predict" else "ObservedSoftmax"]
@@ -58,8 +83,9 @@ def verify_adaptive_batch(records, expected, model_id, operation):
     else:
         assert not snapshot_ids(records, "ModelLoaded")
         assert len(named(records, "ModelLoaded")) == 1
+    root = one(records, "RunAdaptive")
     main = one(records, "RunSelectiveModel")
-    assert payload_free(main)
+    assert main["parent"] == root["id"] and payload_free(main)
     for name in names:
         calls = named(records, name)
         assert len(calls) == 1 + len(rows), name
@@ -175,8 +201,14 @@ def verify_runtime(out, execute, query, repeat_probe, fixture, write_json, predi
         assert result["predictions"] == ([1] if name == "healthy" else [1, 0, 1, 0, 1])
         records = spans(query(f"adaptive-{name}"))
         verify_adaptive_batch(records, expected, logistic["model_id"], "predict")
-        adaptive[name] = {"rows": row_reasons(records, "EscalatedRow"),
-                          "snapshots": snapshot_ids(records, "ModelLoaded")}
+        summary = None if name == "healthy" else {
+            "triggered_rows": 3, "escalated_rows": len(expected), "capped": len(expected) < 3,
+            "triggers": {"missing_input": 1, "extreme_zscore": 1, "low_margin": 2,
+                         "label_disagreement": 0, "score_delta": 0},
+        }
+        calls = adaptive_calls(records)
+        assert calls == [{"rows": expected, "summary": summary}]
+        adaptive[name] = {**calls[0], "snapshots": snapshot_ids(records, "ModelLoaded")}
 
     outputs, records = repeat_probe(model)
     assert [row["value"] for row in outputs] == [[1], [1, 0, 1, 0, 1], [0]]
@@ -184,8 +216,17 @@ def verify_runtime(out, execute, query, repeat_probe, fixture, write_json, predi
     assert row_reasons(records, "EscalatedRow") == [*mixed_reasons, (0, "low_margin")]
     assert snapshot_ids(records, "ModelLoaded") == [(logistic["model_id"], None)]
     assert len(named(records, "ModelLoaded")) == 2
-    adaptive["repeated_handle"] = {"rows": row_reasons(records, "EscalatedRow"),
-                                   "snapshots": snapshot_ids(records, "ModelLoaded")}
+    calls = adaptive_calls(records)
+    assert [call["rows"] for call in calls] == [[], mixed_reasons, [(0, "low_margin")]]
+    adaptive["repeated_handle"] = {"calls": calls, "snapshots": snapshot_ids(records, "ModelLoaded")}
+    bad_features = write_json(out / "adaptive-wrong-features.json", dict(features=["y"], rows=[[2]]))
+    execute("adaptive-wrong-features", predict(model, bad_features, "adaptive"), expected_exit=1)
+    records = spans(query("adaptive-wrong-features"))
+    failure = one(records, "RunAdaptive")
+    assert failure["status"] == "user_error" and payload_free(failure)
+    assert tagged(failure, "model_id") == logistic["model_id"]
+    assert not named(records, "RunSelectiveModel")
+    adaptive["invalid_feature_order"] = {"status": failure["status"], "metadata": failure["metadata"]}
     _, sizes = execute("adaptive-off", predict(model, mixed, "adaptive"), telemetry="off")
     assert not any(sizes[f"{kind}_bytes"] for kind in ("btel", "cas"))
     execute("invalid-policy", predict(model, healthy, "adaptive", invalid_policy), expected_exit=1)
@@ -201,6 +242,8 @@ def verify_runtime(out, execute, query, repeat_probe, fixture, write_json, predi
          "predict-proba"),
     ]
     data = write_json(out / "shadow-mixed.json", dict(features=["x"], rows=[[None], [5], [1]]))
+    result, _ = execute("shadow-default-policy", shadow(model, model, data, None, "predict"))
+    assert result["summary"]["challenger_ok"] and result["summary"]["escalated_rows"] == 2
     sql = (HERE / "semantic-diff.sql").read_text()
     diffs = {}
     for name, champion, challenger, operation in cases:
@@ -228,6 +271,8 @@ def verify_runtime(out, execute, query, repeat_probe, fixture, write_json, predi
     failure = one(records, "ShadowChallengerFailed")
     assert failure["parent"] == one(records, "ShadowBatch")["id"]
     assert failure["status"] != "return" and tagged(failure, "challenger_isolated") is True
+    assert tagged(failure, "schema_version") == linear["schema_version"]
+    assert tagged(failure, "source_version") == linear["source_version"]
     assert failure["error"]["error"]["stage"] == summary["challenger_error"]["stage"]
     assert not named(records, "ShadowEscalatedRow")
     snapshots = snapshot_ids(records, "ModelLoaded")

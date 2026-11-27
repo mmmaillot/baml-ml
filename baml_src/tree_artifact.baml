@@ -86,8 +86,8 @@ function PreparedTree(a: FittedTreeArtifact) -> PreparedTreePipeline {
     tree: TreeClassifierState { n_features: n, classes: a.classes, nodes: a.nodes }
   }
 }
-function BuildLoadedTree(a: FittedTreeArtifact, observation: ObservationMode, policy: AdaptivePolicy? = null) -> LoadedTreeModel {
-  let adaptive = ResolveAdaptivePolicy(observation, policy);
+// Internal: caller owns the validated artifact and resolved policy.
+function BuildLoadedTree(a: FittedTreeArtifact, observation: ObservationMode, adaptive: AdaptivePolicy?) -> LoadedTreeModel {
   let names = a.features;
   let id = a.model_id;
   let model_opts = ModelObservation(observation,id,a.schema_version,a.source_version);
@@ -112,19 +112,20 @@ function BuildLoadedTree(a: FittedTreeArtifact, observation: ObservationMode, po
   }
 }
 function PrepareTreeModel(raw: string, observation: ObservationMode = ObservationMode.Semantic, policy: AdaptivePolicy? = null) -> LoadedTreeModel {
+  let adaptive = ResolveAdaptivePolicy(observation, policy);
   let opts = ObservationOptions(observation);
   let a = PrepareTreeArtifact(raw, $trace = if (observation == ObservationMode.Full) { trace.span(inputs = false, output = false) } else { opts });
-  BuildLoadedTree(a,observation, policy = policy)
+  BuildLoadedTree(a,observation,adaptive)
 }
 function LoadTreeModel(path: string, observation: ObservationMode = ObservationMode.Semantic, policy: AdaptivePolicy? = null) -> LoadedTreeModel {
   PrepareTreeModel(baml.fs.read(path), observation = observation, policy = policy)
 }
-function RunTreeBatch(raw_model: string, raw_input: string, operation: string, mode: ObservationMode, policy: AdaptivePolicy? = null) -> BatchOutput {
+function RunTreeBatch(raw_model: string, raw_input: string, operation: string, mode: ObservationMode, adaptive: AdaptivePolicy?) -> BatchOutput {
   let opts = ObservationOptions(mode);
   let a = PrepareTreeArtifact(raw_model, $trace = if (mode == ObservationMode.Full) { trace.span(inputs = false, output = false) } else { opts });
   let input = DecodeBatchInput(raw_input);
   let rows = BatchRows(input);
-  let m = BuildLoadedTree(a,mode, policy = policy);
+  let m = BuildLoadedTree(a,mode,adaptive);
   if (operation == "predict-proba") {
     let r = m.predict_proba(rows,input.features);
     if (!r.ok) { throw baml.errors.InvalidArgument { message: r.error }; }

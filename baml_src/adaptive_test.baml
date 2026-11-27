@@ -195,3 +195,41 @@ test "adaptive_regression_score_boundary_and_snapshot_guard" {
     assert.is_true(guard.claim());
     assert.is_true(!guard.claim())
 }
+
+test "adaptive_policy_rejected_before_decoding_model_or_batch" {
+    let policy = DefaultAdaptivePolicy();
+    let linear = PrepareLinearModel("{", policy = policy) catch (e) {
+        let failure: AdaptivePolicyError => null,
+    };
+    let logistic = PrepareLogisticModel("{", policy = policy) catch (e) {
+        let failure: AdaptivePolicyError => null,
+    };
+    let tree = PrepareTreeModel("{", policy = policy) catch (e) {
+        let failure: AdaptivePolicyError => null,
+    };
+    let batch = RunBatch(
+        "{",
+        "{",
+        "predict",
+        ObservationMode.Semantic,
+        policy = policy,
+    ) catch (e) {
+        let failure: AdaptivePolicyError => null,
+    };
+    assert.equal(linear, null);
+    assert.equal(logistic, null);
+    assert.equal(tree, null);
+    assert.equal(batch, null);
+
+    policy.max_escalated_rows = -1;
+    let invalid = RunBatch(
+        "{",
+        "{",
+        "predict",
+        ObservationMode.Adaptive,
+        policy = policy,
+    ) catch (e) {
+        let failure: AdaptivePolicyError => null,
+    };
+    assert.equal(invalid, null)
+}

@@ -130,8 +130,9 @@ def predict(model, data, mode, policy=None, operation="predict-proba"):
 
 
 def shadow(champion, challenger, data, policy, operation):
+    flags = ["--policy", policy] if policy is not None else []
     return ("shadow", "--champion", champion, "--challenger", challenger, "--input", data,
-            "--operation", operation, "--policy", policy, "--output-format", "json")
+            "--operation", operation, *flags, "--output-format", "json")
 
 
 def benchmark_inputs(out):
@@ -190,6 +191,14 @@ def benchmark(binary, cli, out, trials):
                            f"WHERE span_name = 'user.{prefix}EscalatedRow' ORDER BY start_time")
                     rows = trace_query(cli, case, sql)
                     assert [row[0] for row in rows] == triggered[name][:64], (name, mode, rows)
+                    if mode == "adaptive":
+                        sql = """SELECT context_metadata['baml_ml.triggered_rows'],
+                            context_metadata['baml_ml.escalated_rows'],
+                            context_metadata['baml_ml.capped']
+                            FROM spans WHERE span_name = 'user.AdaptiveSummary'"""
+                        k = len(triggered[name])
+                        expected = [[k, min(k, 64), k > 64]] if k else []
+                        assert trace_query(cli, case, sql) == expected
         print(f"Benchmark trial {trial}/{trials}" if trial else "Benchmark warmup", flush=True)
     return samples
 

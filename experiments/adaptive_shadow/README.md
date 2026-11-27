@@ -20,8 +20,10 @@ A seven-run campaign on Apple M1 Pro is available with its raw samples and SQL r
 The first command writes the report, toolchain and runtime hashes, raw samples
 and SQL evidence. It asserts prediction parity and checks that zero, sparse
 and capped anomalies replay exactly the expected indices. Dedicated native
-queries verify the healthy and mixed plans, repeated calls on one loaded
-handle, policy failures and an isolated challenger overflow.
+queries verify the healthy and mixed plans, cap counts, failure status and
+replay parentage across repeated calls on one loaded handle. The standalone
+checks cover explicit policy files, omitted policy flags and an isolated
+challenger overflow.
 
 The [Semantic Model Diff query](semantic-diff.sql) joins stage spans through
 each model replay to its shared row span, then orders the pairs by row, stage

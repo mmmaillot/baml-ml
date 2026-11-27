@@ -179,11 +179,9 @@ function ShadowBatch(
             CaptureShadowSnapshots(champion, challenger);
             ShadowChallengerFailed(
                 failure,
-                $trace = trace.span().context(metadata = {
-                    "baml_ml.challenger_isolated": true,
-                    "baml_ml.shadow_role": "challenger",
-                    "baml_ml.model_id": challenger.model_id,
-                }),
+                $trace = SelectiveContext(challenger, trace.span(), "challenger").context(
+                    metadata = { "baml_ml.challenger_isolated": true },
+                ),
             ) catch (recorded) {
                 let expected: InferenceFailure => {},
             };

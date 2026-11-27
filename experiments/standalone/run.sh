@@ -219,6 +219,25 @@ jq -e --slurpfile expected "$OUT/evidence/iris-predict-proba/output.json" '
 ' "$CASE/output.json"
 query spans "SELECT span_name, context_metadata['baml_ml.row_index'] FROM spans WHERE span_name = 'user.ShadowEscalatedRow'"
 jq -e '.rows==[["user.ShadowEscalatedRow",0]]' "$CASE/spans.json"
+# The generated CLI must accept both entry points with an omitted policy flag.
+for command in predict shadow; do
+  CASE="$OUT/evidence/default-policy-$command"
+  mkdir -p "$CASE/home" "$CASE/tmp"
+  cp "$FIX/tree-smoke.json" "$CASE/model.json"
+  printf '%s\n' '{"features":["x"],"rows":[[null],[1]]}' > "$CASE/input.json"
+  if [ "$command" = predict ]; then
+    args=(predict --model model.json --observation adaptive)
+    replay=EscalatedRow
+  else
+    args=(shadow --champion model.json --challenger model.json)
+    replay=ShadowEscalatedRow
+  fi
+  run_case "$CASE" medium "${args[@]}" --input input.json --output-format json \
+    > "$CASE/output.json" 2> "$CASE/run.stderr"
+  jq -e '.predictions==[-3,7]' "$CASE/output.json"
+  query spans "SELECT context_metadata['baml_ml.row_index'] FROM spans WHERE span_name = 'user.$replay'"
+  jq -e '.rows==[[0]]' "$CASE/spans.json"
+done
 echo "Packed adaptive and shadow passed"
 tar -czf "$OUT/baml-ml-$PLATFORM.tar.gz" -C "$OUT/dist" baml-ml LICENSE SHA256SUMS
 echo "Standalone offline smoke passed: $PLATFORM"
