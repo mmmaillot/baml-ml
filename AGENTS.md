@@ -4,11 +4,11 @@ Operating policy for humans and coding agents working on `baml-ml`.
 
 ## Trunk-based workflow
 
-This repository uses **trunk-based development** on `main`:
+This repository uses **trunk-based development** on `main` with mandatory pull requests:
 
-- **Commit small, atomic changes directly to `main`** (one story or focused increment per commit/series of commits). Short-lived branches are optional for risky refactors or external review, and must be merged or discarded the same day — no long-lived branches and no multi-story mega-commits.
-- **Keep `main` green at all times.** Never push broken code; if a `main` CI check turns red, fix forward immediately or `git revert` the offending commit.
-- **Run local verification before pushing to `main`**:
+- **Never push feature commits directly to `main`.** Work on a short-lived branch (`vibe/<short-slug>-<id>`, `feature/...`, `fix/...`), open a pull request, and merge or discard the branch the same day — no long-lived branches and no multi-story mega-commits. One story or focused increment per PR; keep PRs small and atomic.
+- **Keep `main` green at all times.** Never merge broken code; if a `main` CI check turns red, fix forward immediately on a new PR, or push a `git revert` of the offending commit (reverts are the only direct pushes allowed on `main`).
+- **Run local verification before opening a PR** (and re-run before merging if `main` moved):
   - Always: `BAML_TELEMETRY=off "$BAML_CLI" check` and `BAML_TELEMETRY=off "$BAML_CLI" test --max-concurrency 1 --test-timeout 5m`.
   - When touching traces, loaders, or observation policies: run `experiments/imported_inference/run.sh` and `experiments/native_ml_observability/run.sh` (or `experiments/adaptive_shadow/run.py` when relevant).
   - When touching standalone CLI entry points (`baml_src/batch.baml`, `shadow.baml`, `baml.toml`): verify `experiments/standalone/run.sh` or confirm the `standalone-package` CI job passes on `main`.
@@ -19,7 +19,7 @@ This repository uses **trunk-based development** on `main`:
 - Backlog stories live in GitHub Issues with label `status/todo`.
 - Respect explicit issue dependencies (`Depends on #...`) before starting a story.
 - Move the issue label from `status/todo` to `status/in-progress` when starting work.
-- Reference `Closes #<number>` in the commit message on `main` and move the label to `status/done` once verified and green on `main`.
+- Reference `Closes #<number>` in the PR body (and commit message) and move the label to `status/done` once the PR is merged and green on `main`.
 - Respect explicit **Out of scope** sections in each story; open a new `status/todo` issue instead of expanding scope mid-commit.
 
 ## Engineering invariants
