@@ -408,7 +408,12 @@ function LogRegPredictProbaCore(x: float[][], model: LogisticRegressionModel, fi
 // Predict the class label per row: argmax of the probabilities over the stored
 // class order (ties resolve to the lowest class).
 function LogRegPredict(x: float[][], model: LogisticRegressionModel) -> IntArrayResult {
-  let pr = LogRegPredictProba(x, model);
+  LogRegPredictCore(x, model, false)
+}
+
+// Internal: same successful-preprocessing precondition as LogRegPredictProbaCore.
+function LogRegPredictCore(x: float[][], model: LogisticRegressionModel, finite_input: bool) -> IntArrayResult {
+  let pr = LogRegPredictProbaCore(x, model, finite_input);
   let err = pr.error;
   let out: int[] = [];
   if (err == "") {
