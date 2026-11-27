@@ -6,6 +6,12 @@ class NativeBenchResult {
   checksum float
 }
 
+function ScaleFloat(n: int) -> float {
+  let v = 0.0;
+  for (let i = 0; i < n; i += 1) { v = v + 1.0; }
+  v
+}
+
 function ScaleModel(d: int) -> ClassificationPipeline {
   let means: float[] = [];
   let scales: float[] = [];
@@ -14,7 +20,7 @@ function ScaleModel(d: int) -> ClassificationPipeline {
     means.push(0.0);
     scales.push(1.0);
     for (let k = 0; k < 3; k += 1) {
-      weights[k].push((float((j+k)%7)-3.0)/float(d));
+      weights[k].push((ScaleFloat((j+k)%7)-3.0)/ScaleFloat(d));
     }
   }
   ClassificationPipeline {
@@ -29,10 +35,10 @@ function ScaleRows(d: int, n: int, offset: int) -> float[][] {
   for (let i = 0; i < n; i += 1) {
     let row: float[] = [];
     for (let j = 0; j < d; j += 1) {
-      row.push(float(((i+offset)*17+j*13)%101)/50.0-1.0);
+      row.push(ScaleFloat(((i+offset)*17+j*13)%101)/50.0-1.0);
     }
     // Ensure distinct rows even beyond the periodic component.
-    row[0] = float(i+offset)/10000.0;
+    row[0] = ScaleFloat(i+offset)/10000.0;
     x.push(row);
   }
   x
