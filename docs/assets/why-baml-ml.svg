@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="430" viewBox="0 0 960 430" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title>Same scikit-learn model, two ways to serve and explain it</title>
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8b949e"/>
+    </marker>
+    <style>
+      .t { font-size: 13px; fill: #1f2328; font-weight: 600; }
+      .s { font-size: 11.5px; fill: #57606a; }
+      .m { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11.5px; }
+      .lane { font-size: 14px; font-weight: 700; }
+      .bad { fill: #cf222e; }
+      .good { fill: #1a7f37; }
+      .a { stroke: #8b949e; stroke-width: 1.6; fill: none; marker-end: url(#arr); }
+    </style>
+  </defs>
+
+  <rect x="0.5" y="0.5" width="959" height="429" rx="14" fill="#ffffff" stroke="#d0d7de"/>
+  <text x="480" y="34" text-anchor="middle" font-size="18" font-weight="700" fill="#1f2328">Same scikit-learn model — two ways to serve it and explain a prediction</text>
+
+  <!-- ============ Lane A: typical Python serving ============ -->
+  <rect x="16" y="54" width="928" height="160" rx="10" fill="#fff8f8" stroke="#ffcecb"/>
+  <text x="32" y="78" class="lane bad">Typical Python serving</text>
+
+  <g transform="translate(32,92)">
+    <rect width="160" height="104" rx="8" fill="#ffffff" stroke="#d0d7de"/>
+    <text x="80" y="26" text-anchor="middle" class="t">Train in Python</text>
+    <text x="80" y="48" text-anchor="middle" class="m" fill="#57606a">pipeline.fit(X, y)</text>
+    <text x="80" y="72" text-anchor="middle" class="s">notebook / job</text>
+  </g>
+  <path d="M194,144 L216,144" class="a"/>
+  <g transform="translate(218,92)">
+    <rect width="160" height="104" rx="8" fill="#ffffff" stroke="#ff8182"/>
+    <text x="80" y="26" text-anchor="middle" class="t">model.pkl</text>
+    <text x="80" y="48" text-anchor="middle" class="s bad">⚠ pickle can execute</text>
+    <text x="80" y="64" text-anchor="middle" class="s bad">arbitrary code on load</text>
+    <text x="80" y="86" text-anchor="middle" class="s">opaque, version-fragile</text>
+  </g>
+  <path d="M380,144 L402,144" class="a"/>
+  <g transform="translate(404,92)">
+    <rect width="160" height="104" rx="8" fill="#ffffff" stroke="#d0d7de"/>
+    <text x="80" y="26" text-anchor="middle" class="t">Python + sklearn</text>
+    <text x="80" y="48" text-anchor="middle" class="s">interpreter, NumPy,</text>
+    <text x="80" y="64" text-anchor="middle" class="s">SciPy, scikit-learn…</text>
+    <text x="80" y="88" text-anchor="middle" class="m bad">≈ 898 ms / call*</text>
+  </g>
+  <path d="M566,144 L588,144" class="a"/>
+  <g transform="translate(590,92)">
+    <rect width="160" height="104" rx="8" fill="#ffffff" stroke="#d0d7de" stroke-dasharray="5 4"/>
+    <text x="80" y="26" text-anchor="middle" class="t">+ telemetry glue</text>
+    <text x="80" y="48" text-anchor="middle" class="s">logging / tracing SDK,</text>
+    <text x="80" y="64" text-anchor="middle" class="s">collector, custom spans</text>
+    <text x="80" y="86" text-anchor="middle" class="s bad">you write &amp; maintain it</text>
+  </g>
+  <path d="M752,144 L774,144" class="a"/>
+  <g transform="translate(776,92)">
+    <rect width="152" height="104" rx="8" fill="#ffffff" stroke="#ff8182"/>
+    <text x="76" y="26" text-anchor="middle" class="t">“Why class 0?”</text>
+    <text x="76" y="48" text-anchor="middle" class="s">re-run in a notebook,</text>
+    <text x="76" y="64" text-anchor="middle" class="s">add prints, hope the</text>
+    <text x="76" y="80" text-anchor="middle" class="s">input was logged</text>
+  </g>
+
+  <!-- ============ Lane B: baml-ml ============ -->
+  <rect x="16" y="226" width="928" height="160" rx="10" fill="#f6fff8" stroke="#aceebb"/>
+  <text x="32" y="250" class="lane good">baml-ml</text>
+
+  <g transform="translate(32,264)">
+    <rect width="160" height="104" rx="8" fill="#ffffff" stroke="#d0d7de"/>
+    <text x="80" y="26" text-anchor="middle" class="t">Train in Python</text>
+    <text x="80" y="48" text-anchor="middle" class="m" fill="#57606a">pipeline.fit(X, y)</text>
+    <text x="80" y="72" text-anchor="middle" class="s">unchanged</text>
+  </g>
+  <path d="M194,316 L216,316" class="a"/>
+  <g transform="translate(218,264)">
+    <rect width="160" height="104" rx="8" fill="#ffffff" stroke="#4ac26b"/>
+    <text x="80" y="26" text-anchor="middle" class="t">iris.json</text>
+    <text x="80" y="48" text-anchor="middle" class="s good">✓ data only, no code</text>
+    <text x="80" y="64" text-anchor="middle" class="s good">✓ versioned schema</text>
+    <text x="80" y="86" text-anchor="middle" class="s">model_id = SHA-256</text>
+  </g>
+  <path d="M380,316 L402,316" class="a"/>
+  <g transform="translate(404,264)">
+    <rect width="160" height="104" rx="8" fill="#ffffff" stroke="#4ac26b"/>
+    <text x="80" y="26" text-anchor="middle" class="t">./baml-ml</text>
+    <text x="80" y="48" text-anchor="middle" class="s">one standalone binary,</text>
+    <text x="80" y="64" text-anchor="middle" class="s">no Python at inference</text>
+    <text x="80" y="88" text-anchor="middle" class="m good">≈ 32 ms / call*</text>
+  </g>
+  <path d="M566,316 L588,316" class="a"/>
+  <g transform="translate(590,264)">
+    <rect width="160" height="104" rx="8" fill="#ffffff" stroke="#4ac26b"/>
+    <text x="80" y="26" text-anchor="middle" class="t">BTEL recordings</text>
+    <text x="80" y="48" text-anchor="middle" class="s">traces built into the</text>
+    <text x="80" y="64" text-anchor="middle" class="s">runtime, stored locally</text>
+    <text x="80" y="86" text-anchor="middle" class="s good">no SDK, no collector</text>
+  </g>
+  <path d="M752,316 L774,316" class="a"/>
+  <g transform="translate(776,264)">
+    <rect width="152" height="104" rx="8" fill="#ffffff" stroke="#4ac26b"/>
+    <text x="76" y="26" text-anchor="middle" class="t">SQL over spans</text>
+    <text x="76" y="48" text-anchor="middle" class="s">inputs &amp; outputs of</text>
+    <text x="76" y="64" text-anchor="middle" class="s">every stage, for the</text>
+    <text x="76" y="80" text-anchor="middle" class="s">exact row in question</text>
+  </g>
+
+  <text x="480" y="410" text-anchor="middle" class="s">* one-row predict-proba as a fresh process (startup + load + JSON I/O), BAML with telemetry off, Apple M1 Pro. Details in Benchmarks below.</text>
+</svg>

@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="400" viewBox="0 0 960 400" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title>Anatomy of one prediction: the Full replay of row 0, stage by stage</title>
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8b949e"/>
+    </marker>
+    <style>
+      .h { font-size: 13.5px; font-weight: 700; fill: #1f2328; }
+      .span { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; fill: #0969da; }
+      .k { font-size: 11.5px; fill: #57606a; }
+      .v { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; fill: #1f2328; }
+      .hl { fill: #bc4c00; font-weight: 700; }
+      .note { font-size: 12px; fill: #57606a; }
+      .a { stroke: #8b949e; stroke-width: 1.6; fill: none; marker-end: url(#arr); }
+    </style>
+  </defs>
+
+  <rect x="0.5" y="0.5" width="959" height="399" rx="14" fill="#ffffff" stroke="#d0d7de"/>
+  <text x="480" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#1f2328">Anatomy of one prediction — what a Full replay records for row 0</text>
+  <text x="480" y="54" text-anchor="middle" class="note">Row 0 has a missing value → trigger <tspan class="v" font-size="12px">missing_input</tspan> → Adaptive / shadow replays it with one span per pipeline stage.</text>
+
+  <!-- Stage 0: input -->
+  <g transform="translate(20,76)">
+    <rect width="164" height="226" rx="10" fill="#fff8c5" stroke="#d4a72c"/>
+    <text x="82" y="26" text-anchor="middle" class="h">Input row 0</text>
+    <text x="82" y="44" text-anchor="middle" class="span">batch.json</text>
+    <line x1="14" y1="56" x2="150" y2="56" stroke="#e6d38a"/>
+    <text x="14" y="84" class="k">sepal length</text><text x="150" y="84" text-anchor="end" class="v hl">null</text>
+    <text x="14" y="114" class="k">sepal width</text><text x="150" y="114" text-anchor="end" class="v">3.0</text>
+    <text x="14" y="144" class="k">petal length</text><text x="150" y="144" text-anchor="end" class="v">1.3</text>
+    <text x="14" y="174" class="k">petal width</text><text x="150" y="174" text-anchor="end" class="v">0.2</text>
+    <text x="82" y="208" text-anchor="middle" class="note">raw features</text>
+  </g>
+  <path d="M186,189 L206,189" class="a"/>
+
+  <!-- Stage 1: impute -->
+  <g transform="translate(208,76)">
+    <rect width="164" height="226" rx="10" fill="#f6f8fa" stroke="#d0d7de"/>
+    <text x="82" y="26" text-anchor="middle" class="h">1 · Impute (mean)</text>
+    <text x="82" y="44" text-anchor="middle" class="span">ObservedImpute</text>
+    <line x1="14" y1="56" x2="150" y2="56" stroke="#d0d7de"/>
+    <text x="150" y="84" text-anchor="end" class="v hl">5.854</text><text x="14" y="84" class="k">← mean</text>
+    <text x="150" y="114" text-anchor="end" class="v">3.000</text>
+    <text x="150" y="144" text-anchor="end" class="v">1.300</text>
+    <text x="150" y="174" text-anchor="end" class="v">0.200</text>
+    <text x="82" y="208" text-anchor="middle" class="note">gap filled</text>
+  </g>
+  <path d="M374,189 L394,189" class="a"/>
+
+  <!-- Stage 2: scale -->
+  <g transform="translate(396,76)">
+    <rect width="164" height="226" rx="10" fill="#f6f8fa" stroke="#d0d7de"/>
+    <text x="82" y="26" text-anchor="middle" class="h">2 · Standardize</text>
+    <text x="82" y="44" text-anchor="middle" class="span">ObservedScale</text>
+    <line x1="14" y1="56" x2="150" y2="56" stroke="#d0d7de"/>
+    <text x="14" y="84" class="k">z =</text><text x="150" y="84" text-anchor="end" class="v">0.000</text>
+    <text x="150" y="114" text-anchor="end" class="v">−0.108</text>
+    <text x="150" y="144" text-anchor="end" class="v">−1.403</text>
+    <text x="150" y="174" text-anchor="end" class="v">−1.323</text>
+    <text x="82" y="208" text-anchor="middle" class="note">(x − μ) / σ</text>
+  </g>
+  <path d="M562,189 L582,189" class="a"/>
+
+  <!-- Stage 3: decision scores -->
+  <g transform="translate(584,76)">
+    <rect width="164" height="226" rx="10" fill="#f6f8fa" stroke="#d0d7de"/>
+    <text x="82" y="26" text-anchor="middle" class="h">3 · Linear scores</text>
+    <text x="82" y="44" text-anchor="middle" class="span">ObservedDecisionScores</text>
+    <line x1="14" y1="56" x2="150" y2="56" stroke="#d0d7de"/>
+    <text x="14" y="94" class="k">class 0</text><text x="150" y="94" text-anchor="end" class="v">4.625</text>
+    <text x="14" y="129" class="k">class 1</text><text x="150" y="129" text-anchor="end" class="v">3.097</text>
+    <text x="14" y="164" class="k">class 2</text><text x="150" y="164" text-anchor="end" class="v">−7.721</text>
+    <text x="82" y="208" text-anchor="middle" class="note">W · z + b</text>
+  </g>
+  <path d="M750,189 L770,189" class="a"/>
+
+  <!-- Stage 4: softmax -->
+  <g transform="translate(772,76)">
+    <rect width="168" height="226" rx="10" fill="#dafbe1" stroke="#4ac26b"/>
+    <text x="84" y="26" text-anchor="middle" class="h">4 · Softmax</text>
+    <text x="84" y="44" text-anchor="middle" class="span">ObservedSoftmax</text>
+    <line x1="14" y1="56" x2="154" y2="56" stroke="#aceebb"/>
+    <text x="14" y="86" class="k">class 0</text><text x="154" y="86" text-anchor="end" class="v" font-weight="700">0.822</text>
+    <rect x="14" y="92" width="140" height="7" rx="3" fill="#ffffff"/><rect x="14" y="92" width="115" height="7" rx="3" fill="#1a7f37"/>
+    <text x="14" y="124" class="k">class 1</text><text x="154" y="124" text-anchor="end" class="v">0.178</text>
+    <rect x="14" y="130" width="140" height="7" rx="3" fill="#ffffff"/><rect x="14" y="130" width="25" height="7" rx="3" fill="#4ac26b"/>
+    <text x="14" y="162" class="k">class 2</text><text x="154" y="162" text-anchor="end" class="v">0.000004</text>
+    <rect x="14" y="168" width="140" height="7" rx="3" fill="#ffffff"/><rect x="14" y="168" width="1.5" height="7" fill="#4ac26b"/>
+    <text x="84" y="208" text-anchor="middle" class="note">returned on stdout</text>
+  </g>
+
+  <!-- Redaction banner -->
+  <rect x="20" y="318" width="920" height="62" rx="10" fill="#ddf4ff" stroke="#54aeff"/>
+  <text x="40" y="343" font-size="13" fill="#0a3069"><tspan font-weight="700">Fitted parameters stay out of the stage spans.</tspan> Means, scales, weights and intercepts are wrapped in</text>
+  <text x="40" y="364" font-size="13" fill="#0a3069"><tspan class="v" fill="#0a3069" font-size="12.5px">TracePrivate&lt;T&gt;</tspan> (<tspan class="v" fill="#0a3069" font-size="12.5px">@trace.redact</tspan>) and captured once, in a single model snapshot span, joinable by <tspan class="v" fill="#0a3069" font-size="12.5px">model_id</tspan>.</text>
+</svg>

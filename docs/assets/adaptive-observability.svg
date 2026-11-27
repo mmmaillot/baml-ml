@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="490" viewBox="0 0 960 490" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+<title>Adaptive observation: record everything only for the rows that deserve it</title>
+<style>.k{font-size:12px;fill:#57606a}.h{font-size:14px;font-weight:700;fill:#1f2328}.v{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;fill:#1f2328}.b{font-weight:700}</style>
+<rect x="0.5" y="0.5" width="959" height="489" rx="14" fill="#ffffff" stroke="#d0d7de"/>
+<text x="480" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#1f2328">Adaptive observation — full detail only for the rows that deserve it</text>
+<text x="28" y="64" class="h">A real 4,096-row batch, one square per row</text>
+<defs><pattern id="g" x="28" y="78" width="5" height="5" patternUnits="userSpaceOnUse"><rect width="4" height="4" fill="#d8dee4"/></pattern></defs>
+<rect x="28" y="78" width="320" height="320" fill="url(#g)"/>
+<rect x="27" y="77" width="6" height="6" fill="#e16f24"/>
+<rect x="107" y="82" width="6" height="6" fill="#e16f24"/>
+<rect x="187" y="87" width="6" height="6" fill="#e16f24"/>
+<rect x="267" y="92" width="6" height="6" fill="#e16f24"/>
+<rect x="27" y="102" width="6" height="6" fill="#e16f24"/>
+<rect x="107" y="107" width="6" height="6" fill="#e16f24"/>
+<rect x="187" y="112" width="6" height="6" fill="#e16f24"/>
+<rect x="267" y="117" width="6" height="6" fill="#e16f24"/>
+<rect x="27" y="127" width="6" height="6" fill="#e16f24"/>
+<rect x="107" y="132" width="6" height="6" fill="#e16f24"/>
+<rect x="187" y="137" width="6" height="6" fill="#e16f24"/>
+<rect x="267" y="142" width="6" height="6" fill="#e16f24"/>
+<rect x="27" y="152" width="6" height="6" fill="#e16f24"/>
+<rect x="107" y="157" width="6" height="6" fill="#e16f24"/>
+<rect x="187" y="162" width="6" height="6" fill="#e16f24"/>
+<rect x="267" y="167" width="6" height="6" fill="#e16f24"/>
+<rect x="27" y="177" width="6" height="6" fill="#e16f24"/>
+<rect x="107" y="182" width="6" height="6" fill="#e16f24"/>
+<rect x="187" y="187" width="6" height="6" fill="#e16f24"/>
+<rect x="267" y="192" width="6" height="6" fill="#e16f24"/>
+<rect x="27" y="202" width="6" height="6" fill="#e16f24"/>
+<rect x="107" y="207" width="6" height="6" fill="#e16f24"/>
+<rect x="187" y="212" width="6" height="6" fill="#e16f24"/>
+<rect x="267" y="217" width="6" height="6" fill="#e16f24"/>
+<rect x="27" y="227" width="6" height="6" fill="#e16f24"/>
+<rect x="107" y="232" width="6" height="6" fill="#e16f24"/>
+<rect x="187" y="237" width="6" height="6" fill="#e16f24"/>
+<rect x="267" y="242" width="6" height="6" fill="#e16f24"/>
+<rect x="27" y="252" width="6" height="6" fill="#e16f24"/>
+<rect x="107" y="257" width="6" height="6" fill="#e16f24"/>
+<rect x="187" y="262" width="6" height="6" fill="#e16f24"/>
+<rect x="267" y="267" width="6" height="6" fill="#e16f24"/>
+<rect x="27" y="277" width="6" height="6" fill="#e16f24"/>
+<rect x="107" y="282" width="6" height="6" fill="#e16f24"/>
+<rect x="187" y="287" width="6" height="6" fill="#e16f24"/>
+<rect x="267" y="292" width="6" height="6" fill="#e16f24"/>
+<rect x="27" y="302" width="6" height="6" fill="#e16f24"/>
+<rect x="107" y="307" width="6" height="6" fill="#e16f24"/>
+<rect x="187" y="312" width="6" height="6" fill="#e16f24"/>
+<rect x="267" y="317" width="6" height="6" fill="#e16f24"/>
+<rect x="27" y="327" width="6" height="6" fill="#e16f24"/>
+<rect x="107" y="332" width="6" height="6" fill="#e16f24"/>
+<rect x="187" y="337" width="6" height="6" fill="#e16f24"/>
+<rect x="267" y="342" width="6" height="6" fill="#e16f24"/>
+<rect x="27" y="352" width="6" height="6" fill="#e16f24"/>
+<rect x="107" y="357" width="6" height="6" fill="#e16f24"/>
+<rect x="187" y="362" width="6" height="6" fill="#e16f24"/>
+<rect x="267" y="367" width="6" height="6" fill="#e16f24"/>
+<rect x="27" y="377" width="6" height="6" fill="#e16f24"/>
+<rect x="107" y="382" width="6" height="6" fill="#e16f24"/>
+<rect x="187" y="387" width="6" height="6" fill="#e16f24"/>
+<rect x="267" y="392" width="6" height="6" fill="#e16f24"/>
+<rect x="28" y="410" width="10" height="10" fill="#d8dee4"/><text x="44" y="420" class="k"><tspan class="b" fill="#1f2328">4,044 healthy rows</tspan> → Semantic: metadata-only spans</text>
+<rect x="28" y="432" width="10" height="10" fill="#fb8f44"/><text x="44" y="442" class="k"><tspan class="b" fill="#bc4c00">52 rows with a missing value</tspan> → replayed in Full, stage by stage</text>
+<text x="390" y="64" class="h">Trace storage for that batch (BTEL + CAS, measured)</text>
+<text x="390" y="96" class="k b" fill="#1f2328">Sparse batch (52 anomalies)</text>
+<text x="390" y="121" class="k">full</text>
+<rect x="480" y="108" width="400.0" height="18" rx="4" fill="#8c959f"/>
+<text x="888.0" y="121" class="v">1,078 kB</text>
+<text x="390" y="147" class="k">adaptive</text>
+<rect x="480" y="134" width="63.9" height="18" rx="4" fill="#fb8f44"/>
+<text x="551.9" y="147" class="v b">172 kB  (−84%)</text>
+<text x="390" y="190" class="k b" fill="#1f2328">Healthy batch (0 anomalies)</text>
+<text x="390" y="215" class="k">full</text>
+<rect x="480" y="202" width="316.4" height="18" rx="4" fill="#8c959f"/>
+<text x="804.4" y="215" class="v">853 kB</text>
+<text x="390" y="241" class="k">adaptive</text>
+<rect x="480" y="228" width="10.8" height="18" rx="4" fill="#fb8f44"/>
+<text x="498.8" y="241" class="v b">29 kB</text>
+<text x="390" y="267" class="k">semantic</text>
+<rect x="480" y="254" width="7.4" height="18" rx="4" fill="#d8dee4"/>
+<text x="495.4" y="267" class="v">20 kB</text>
+<rect x="390" y="296" width="542" height="98" rx="10" fill="#fff8c5" stroke="#d4a72c"/>
+<text x="406" y="320" class="k b" fill="#1f2328">The honest trade-off</text>
+<text x="406" y="342" class="k">Each replayed row emits its own stage spans: on the sparse batch, adaptive</text>
+<text x="406" y="360" class="k">took <tspan class="v">238 ms</tspan> vs <tspan class="v">159 ms</tspan> for full. <tspan class="v">max_escalated_rows</tspan> caps both</text>
+<text x="406" y="378" class="k">storage and latency (64 here).</text>
+<text x="480" y="472" text-anchor="middle" class="k">Median of 7 fresh processes, predict-proba on Iris, Apple M1 Pro. Source: experiments/adaptive_shadow (report m1-pro-2026-11-27).</text>
+</svg>

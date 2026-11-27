@@ -8,6 +8,8 @@ Export fitted pipelines as portable, versioned, data-only JSON artifacts; load a
 
 As generated code and model fleets grow, consistent runtime observation complements tests and code review. `baml-ml` tests this thesis on classical ML: semantic traces, parameter redaction (`@trace.redact`), selective row-level replay, and champion/challenger shadow diffs are built into the runtime with zero telemetry SDK or collector.
 
+![Same scikit-learn model, two ways to serve it: a pickle + Python process + telemetry glue, versus a data-only JSON artifact run by one standalone baml-ml binary whose built-in traces answer "why this prediction?" with SQL](docs/assets/why-baml-ml.svg)
+
 ## Try it in 30 seconds
 
 Download a prebuilt standalone executable from [GitHub Releases](https://github.com/mmmaillot/baml-ml/releases/latest) (`linux-x86_64`, `linux-arm64`, or `macos-arm64`) and run it on the committed Iris fixture:
@@ -73,6 +75,12 @@ Real `shadow` output on stdout (champion predictions + compact audit summary):
 }
 ```
 
+### What gets recorded for the flagged row
+
+Row 0 has a missing sepal length, so it triggers `missing_input` and is replayed in `Full`. Each pipeline stage becomes its own span with its exact inputs and outputs (values below are from the committed Iris fixture and match the output above):
+
+![Anatomy of one prediction: input row with a missing value, mean imputation, standardization, linear scores, then softmax probabilities 0.822 / 0.178 / 0.000004, one span per stage](docs/assets/prediction-anatomy.svg)
+
 Inspect stage-by-stage differences between champion and challenger directly from local BTEL recordings using [`semantic-diff.sql`](experiments/adaptive_shadow/semantic-diff.sql) with `baml-cli local recordings query`:
 
 ```sql
@@ -131,6 +139,8 @@ See the [artifact contract](artifacts/README.md), [tree inference ADR](docs/arch
 
 ### Batch and edge latency vs scikit-learn
 
+![End-to-end latency when each batch launches a fresh process: baml-ml 32–65 ms with telemetry off vs about 895 ms for Python + scikit-learn](docs/assets/cold-start-latency.svg)
+
 Median latency on a MacBook Pro (Apple M1 Pro, 32 GB), using the same fitted Iris multinomial model and identical JSON batches for `predict-proba` (15 measured runs after warmup).
 
 | Measurement | 1 row | 128 rows | 4,096 rows |
@@ -144,6 +154,8 @@ Median latency on a MacBook Pro (Apple M1 Pro, 32 GB), using the same fitted Iri
 Process timings include startup, model loading, JSON I/O, and shutdown. Loaded timings cover inference after loading and decoding. When each batch launches a process, BAML finished **6× to 28× faster** than Python + scikit-learn with half the peak RSS. With both models already loaded in memory, BAML was faster at 1 row and scikit-learn was faster at 128 and 4,096 rows. See the [full standalone benchmark report](experiments/standalone_benchmark/m1-pro-2026-11-27.md).
 
 ### Selective observability storage vs latency trade-off
+
+![Adaptive observation on a real 4,096-row batch: only the 52 rows with a missing value are replayed in Full; trace storage drops from 1,078 kB to 172 kB](docs/assets/adaptive-observability.svg)
 
 Median measurements on Apple M1 Pro for a packed 4,096-row Iris `predict-proba` batch (7 fresh processes per case after warmup; `max_escalated_rows = 64`):
 
