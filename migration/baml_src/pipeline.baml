@@ -36,7 +36,8 @@ function PipelinePreprocessSteps(x: float[][], imputer: MeanImputer, scaler: Sta
     let t1 = ImputerTransform(x, imputer);
     err = t1.error;
     if (err == "") {
-      let t2 = ScalerTransform(t1.x, scaler);
+      // Successful imputation preserves shape and guarantees finite values.
+      let t2 = ScalerTransformCore(t1.x, scaler, true);
       err = t2.error;
       if (err == "") {
         out = t2.x;
@@ -229,7 +230,8 @@ function ClassificationPipelinePredictProba(x: float[][], pipeline: Classificati
   let err = p.error;
   let probs: float[][] = [];
   if (err == "") {
-    let r = LogRegPredictProba(p.value, pipeline.model);
+    // Successful scaling checks every computed value for finiteness.
+    let r = LogRegPredictProbaCore(p.value, pipeline.model, true);
     err = r.error;
     if (err == "") {
       probs = r.probs;
@@ -249,7 +251,7 @@ function ClassificationPipelinePredict(x: float[][], pipeline: ClassificationPip
   let err = p.error;
   let preds: int[] = [];
   if (err == "") {
-    let r = LogRegPredict(p.value, pipeline.model);
+    let r = LogRegPredictCore(p.value, pipeline.model, true);
     err = r.error;
     if (err == "") {
       preds = r.value;
