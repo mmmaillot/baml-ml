@@ -70,3 +70,17 @@ test "imported_reject_bad_version_dimensions_and_parameters" {
   a.weights = [];
   assert.equal(ArtifactError(a),"artifact: invalid multinomial dimensions")
 }
+
+test "imported_binary_decision_boundary" {
+  let a = ImportedBinary();
+  a.classes = [-7,42];
+  a.weights = [[0.0,0.0,0.0,0.0]];
+  a.intercepts = [0.0];
+  assert.equal(PredictImportedLabels(ImportedBinaryRows(),a.features,a).value,[-7,-7])
+  a.intercepts = [1e-18];
+  assert.equal(PredictImportedLabels(ImportedBinaryRows(),a.features,a).value,[42,42])
+}
+test "imported_reject_invalid_json" {
+  let a: FittedArtifact? = DecodeFittedArtifact("{") catch_all (e) { _ => null };
+  assert.equal(a,null)
+}
