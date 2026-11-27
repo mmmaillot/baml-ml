@@ -70,7 +70,7 @@ for mode in off default empty span; do
       if [ "$mode" = empty ] || [ "$mode" = span ]; then
         directive=span
         if [ "$mode" = empty ]; then directive=empty_span; fi
-        for fn in ClassificationPipelinePredictProba ImputerTransform ScalerTransform LogRegPredictProba; do
+        for fn in ClassificationPipelinePredictProba ImputerTransform ScalerTransformCore LogRegPredictProbaCore; do
           file="$(grep -l "^function $fn(" baml_src/*.baml)"
           test "$(printf '%s\n' "$file" | wc -l)" -eq 1
           sed -i "/^function $fn(/i /// baml:\$trace=trace.$directive" "$file"
@@ -87,14 +87,14 @@ for mode in off default empty span; do
         ([range(0;3) as $i | (.probs[0][$i] - $ref[0][$s].probs[$i]) | fabs < 1e-10] | all)
       ' "$CASE/prediction.json"
       collect
-      jq -c '.rows[] | select(.[2] | test("ImputerTransform|ScalerTransform|LogRegPredictProba|ClassificationPipelinePredictProba"))' "$CASE/spans.json"
+      jq -c '.rows[] | select(.[2] | test("ImputerTransform|ScalerTransformCore|LogRegPredictProbaCore|ClassificationPipelinePredictProba"))' "$CASE/spans.json"
       if [ "$mode" = off ]; then
         jq -e '.rows == []' "$CASE/spans.json" "$CASE/profiler.json" >/dev/null
       else
-        jq -e '[.rows[][2] | split(".")[-1]] | (index("ImputerTransform") != null and index("ScalerTransform") != null and index("LogRegPredictProba") != null)' "$CASE/profiler.json" >/dev/null
+        jq -e '[.rows[][2] | split(".")[-1]] | (index("ImputerTransform") != null and index("ScalerTransformCore") != null and index("LogRegPredictProbaCore") != null)' "$CASE/profiler.json" >/dev/null
       fi
       if [ "$mode" = empty ] || [ "$mode" = span ]; then
-        jq -e '[.rows[][2] | split(".")[-1]] | (index("ImputerTransform") != null and index("ScalerTransform") != null and index("LogRegPredictProba") != null)' "$CASE/spans.json" >/dev/null
+        jq -e '[.rows[][2] | split(".")[-1]] | (index("ImputerTransform") != null and index("ScalerTransformCore") != null and index("LogRegPredictProbaCore") != null)' "$CASE/spans.json" >/dev/null
       fi
       if [ "$mode" = span ]; then
         jq -e --arg s "$sample" --slurpfile ref "$ORACLE" '
@@ -103,8 +103,8 @@ for mode in off default empty span; do
           $ref[0][$s] as $e |
           row("ClassificationPipelinePredictProba") as $p |
           row("ImputerTransform") as $i |
-          row("ScalerTransform") as $z |
-          row("LogRegPredictProba") as $m |
+          row("ScalerTransformCore") as $z |
+          row("LogRegPredictProbaCore") as $m |
           ([$i,$z,$m] | all(.[1]==$p[0] and .[3]=="return" and .[4]>0)) and
           ($i[5].x[0] | if $s=="missing" then .[1]["$float"]=="NaN" and .[0]==$e.input[0] and .[2:4]==$e.input[2:4] else .==$e.input end) and
           near($i[6].x[0];$e.imputed) and near($z[5].x[0];$e.imputed) and
@@ -113,7 +113,7 @@ for mode in off default empty span; do
           ($m[5].model.weights|length)==3
         ' "$CASE/spans.json" > "$CASE/payload-assertion.json"
       elif [ "$mode" = empty ]; then
-        jq -e '[.rows[] | select((.[2]|split(".")[-1]) as $n | ["ClassificationPipelinePredictProba","ImputerTransform","ScalerTransform","LogRegPredictProba"] | index($n)!=null)] | length==4 and all(.[5]==null and .[6]==null)' "$CASE/spans.json" > "$CASE/payload-assertion.json"
+        jq -e '[.rows[] | select((.[2]|split(".")[-1]) as $n | ["ClassificationPipelinePredictProba","ImputerTransform","ScalerTransformCore","LogRegPredictProbaCore"] | index($n)!=null)] | length==4 and all(.[5]==null and .[6]==null)' "$CASE/spans.json" > "$CASE/payload-assertion.json"
       fi
     )
   done

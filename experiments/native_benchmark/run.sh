@@ -45,7 +45,7 @@ run_trial() (
   if [ "$mode" = empty ] || [ "$mode" = span ]; then
     directive=span
     if [ "$mode" = empty ]; then directive=empty_span; fi
-    for func in ClassificationPipelinePredictProba ImputerTransform ScalerTransform LogRegPredictProba ClassificationPipelineFit ImputerFit ScalerFit LogRegFit; do
+    for func in ClassificationPipelinePredictProba ImputerTransform ScalerTransformCore LogRegPredictProbaCore ClassificationPipelineFit ImputerFit ScalerFit LogRegFit; do
       file="$(grep -l "^function $func(" baml_src/*.baml)"
       test "$(printf '%s\n' "$file" | wc -l)" -eq 1
       sed -i "/^function $func(/i /// baml:\$trace=trace.$directive" "$file"

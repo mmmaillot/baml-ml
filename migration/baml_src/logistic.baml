@@ -350,6 +350,12 @@ function ModelRowLogits(row: float[], model: LogisticRegressionModel) -> float[]
 
 // Predict class probabilities per row (stable softmax).
 function LogRegPredictProba(x: float[][], model: LogisticRegressionModel) -> ProbaResult {
+  LogRegPredictProbaCore(x, model, false)
+}
+
+// Internal: finite_input is true only for the successful output of the preceding
+// preprocessing stage. Shape, fitted state, and computed outputs remain checked.
+function LogRegPredictProbaCore(x: float[][], model: LogisticRegressionModel, finite_input: bool) -> ProbaResult {
   let err = "";
   if (model.n_features <= 0 || model.classes.length() < 2 || model.weights.length() != model.classes.length() || model.intercepts.length() != model.classes.length()) {
     err = "logreg_predict_proba: invalid fitted model state";
@@ -369,7 +375,7 @@ function LogRegPredictProba(x: float[][], model: LogisticRegressionModel) -> Pro
       }
     }
   }
-  let d = CheckFiniteMatrix(x);
+  let d = if (finite_input) { CheckMatrix(x) } else { CheckFiniteMatrix(x) };
   if (err == "" && d.error != "") {
     err = d.error;
   }
@@ -402,7 +408,12 @@ function LogRegPredictProba(x: float[][], model: LogisticRegressionModel) -> Pro
 // Predict the class label per row: argmax of the probabilities over the stored
 // class order (ties resolve to the lowest class).
 function LogRegPredict(x: float[][], model: LogisticRegressionModel) -> IntArrayResult {
-  let pr = LogRegPredictProba(x, model);
+  LogRegPredictCore(x, model, false)
+}
+
+// Internal: same successful-preprocessing precondition as LogRegPredictProbaCore.
+function LogRegPredictCore(x: float[][], model: LogisticRegressionModel, finite_input: bool) -> IntArrayResult {
+  let pr = LogRegPredictProbaCore(x, model, finite_input);
   let err = pr.error;
   let out: int[] = [];
   if (err == "") {

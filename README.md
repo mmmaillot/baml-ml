@@ -1,8 +1,10 @@
 # baml-ml
 
-What would scikit-learn look like if observability were built into the language?
+A classical ML inference runtime with native semantic observability, built in [BAML](https://github.com/BoundaryML/baml).
 
-An experimental classical ML library written in [BAML](https://github.com/BoundaryML/baml), targeting native execution and built-in observability. No LLMs or API keys required.
+The goal is to reconstruct individual production predictions from preprocessing to output, not to replace the training ecosystem. Training with existing ML tools and importing portable model artifacts is the new direction, not yet an implemented import feature. No LLMs or API keys required.
+
+[Architecture decision: inference-first](docs/architecture/inference-first.md).
 
 ## Implemented
 
@@ -19,7 +21,7 @@ Four declarative span directives expose the actual input, imputed values, standa
 
 See [native ML observability](experiments/native_ml_observability/README.md) for verified payloads, typed NaN, structured errors and storage measurements.
 
-## Performance baseline
+## Historical native performance baseline
 
 Native Iris workloads, medians of four trials on a shared CI runner ([raw evidence and protocol](experiments/native_benchmark/README.md)):
 
@@ -47,12 +49,22 @@ bash experiments/native_benchmark/run.sh /tmp/native-benchmark
 
 Native checks run automatically; full performance, scaling and historical differential campaigns are manual workflows. A reproducible Apple Silicon benchmark runner is deferred; see the scaling protocol.
 
-## Next
+## Roadmap
+
+1. Versioned model artifact contract, external export and native import for the existing pipelines.
+2. Inference observation contract, capture policies and storage/privacy evaluation.
+3. Standalone or embedded inference interface and packaging.
+4. Targeted numerical acceleration only if representative inference profiles justify it.
+
+Existing BAML training is retained as a reference, but new solvers and training optimization are not priorities.
+
+## Experimental evidence
 
 - [Scaling results](experiments/scaling/README.md): near-linear feature scaling, batching plateau and ~8.9 kB marginal storage per distinct 32-feature prediction with spans and index.
-- [Hotspot analysis](experiments/profiling/README.md): inference is dominated by checks and preprocessing; training has larger coarse-grained numerical kernel opportunities. Investigate redundant internal checks before broad Rust integration.
-- [NumBam](numbam/README.md): experimental Rust numerical backend, deferred pending measured need ([#20](https://github.com/mmmaillot/baml-ml/issues/20)).
-- [Native backend and embedded runtime design](docs/architecture/numerical-backends.md).
+- [Hotspot analysis](experiments/profiling/README.md): inference is dominated by checks and preprocessing; training has larger coarse-grained numerical kernel opportunities. Training optimization is no longer a product priority.
+- [Inference validation optimization](experiments/validation/README.md): 15–35% lower measured loop time with exact checksum parity; redundant full finite-matrix scans eliminated.
+- [NumBam](numbam/README.md): experimental Rust numerical backend, deferred pending measured inference need ([#20](https://github.com/mmmaillot/baml-ml/issues/20)).
+- [Historical native backend design](docs/architecture/numerical-backends.md), subject to the inference-first decision.
 
 ## Historical MVP
 

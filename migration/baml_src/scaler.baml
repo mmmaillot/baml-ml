@@ -93,6 +93,12 @@ function ScalerFit(x: float[][]) -> ScalerFitResult {
 // (including non-positive or non-finite scales) and non-finite outputs are
 // rejected without dividing by zero.
 function ScalerTransform(x: float[][], scaler: StandardScaler) -> ScalerTransformResult {
+  ScalerTransformCore(x, scaler, false)
+}
+
+// Internal: finite_input is true only for the successful output of the preceding
+// preprocessing stage. Shape, fitted state, and computed outputs remain checked.
+function ScalerTransformCore(x: float[][], scaler: StandardScaler, finite_input: bool) -> ScalerTransformResult {
   let err = "";
   if (scaler.n_features <= 0 || scaler.means.length() != scaler.n_features || scaler.scales.length() != scaler.n_features) {
     err = "scaler_transform: invalid fitted scaler state";
@@ -109,7 +115,7 @@ function ScalerTransform(x: float[][], scaler: StandardScaler) -> ScalerTransfor
   }
   let out: float[][] = [];
   if (err == "") {
-    let d = CheckFiniteMatrix(x);
+    let d = if (finite_input) { CheckMatrix(x) } else { CheckFiniteMatrix(x) };
     err = d.error;
     if (err == "" && d.cols != scaler.n_features) {
       err = "scaler_transform: feature count differs from fitted scaler";
