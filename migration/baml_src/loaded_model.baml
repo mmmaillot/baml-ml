@@ -25,54 +25,69 @@ class LoadedLogisticModel {
   }
 }
 
-function PrepareArtifact(raw: string) -> FittedArtifact {
+function PrepareArtifact(raw: string, expected_linear: bool) -> FittedArtifact {
   let a = DecodeFittedArtifact(raw);
   let err = ArtifactError(a);
   if (err != "") {
     throw baml.errors.InvalidArgument { message: err };
   }
+  if (expected_linear && a.estimator_kind != "linear") {
+    throw baml.errors.InvalidArgument { message: "artifact: expected linear estimator" };
+  }
+  if (!expected_linear && a.estimator_kind == "linear") {
+    throw baml.errors.InvalidArgument { message: "artifact: expected logistic estimator" };
+  }
   a
 }
 
-function PrepareLinearModel(raw: string) -> LoadedLinearModel {
-  let a = PrepareArtifact(raw);
-  if (a.estimator_kind != "linear") {
-    throw baml.errors.InvalidArgument { message: "artifact: expected linear estimator" };
-  }
+function PrepareLinearModel(raw: string, observation: ObservationMode = ObservationMode.Semantic) -> LoadedLinearModel {
+  // Do not record raw artifact text or repeat the decoded output.
+  let opts = ObservationOptions(observation);
+  let a = PrepareArtifact(raw, true, $trace = if (observation == ObservationMode.Full) { trace.span(inputs = false, output = false) } else { opts });
   let p = ArtifactRegression(a);
   let names = a.features;
   let id = a.model_id;
+  let model_opts = ModelObservation(observation,id,a.schema_version,a.source_version);
+  ModelLoaded(a, $trace = model_opts);
+  let state = TracePrivate<RegressionPipeline> { value: p };
   LoadedLinearModel {
     predict_fn: (x: float[][], features: string[]) -> NumArrayResult {
-      PredictLoadedLinear(x, features, id, names, p)
+      PredictLoadedLinear(x, features, id, names, state, observation, $trace = model_opts) catch (e) {
+        let f: InferenceFailure => NumArrayResult { ok: false, value: [], error: f.message }
+      }
     }
   }
 }
 
-function PrepareLogisticModel(raw: string) -> LoadedLogisticModel {
-  let a = PrepareArtifact(raw);
-  if (a.estimator_kind == "linear") {
-    throw baml.errors.InvalidArgument { message: "artifact: expected logistic estimator" };
-  }
+function PrepareLogisticModel(raw: string, observation: ObservationMode = ObservationMode.Semantic) -> LoadedLogisticModel {
+  let opts = ObservationOptions(observation);
+  let a = PrepareArtifact(raw, false, $trace = if (observation == ObservationMode.Full) { trace.span(inputs = false, output = false) } else { opts });
   let p = ArtifactClassification(a);
   let names = a.features;
   let id = a.model_id;
+  let model_opts = ModelObservation(observation,id,a.schema_version,a.source_version);
+  ModelLoaded(a, $trace = model_opts);
+  let state = TracePrivate<ClassificationPipeline> { value: p };
   LoadedLogisticModel {
     proba_fn: (x: float[][], features: string[]) -> ProbaResult {
-      PredictLoadedProba(x, features, id, names, p)
+      PredictLoadedProba(x, features, id, names, state, observation, $trace = model_opts) catch (e) {
+        let f: InferenceFailure => ProbaResult { ok: false, probs: [], error: f.message }
+      }
     },
     labels_fn: (x: float[][], features: string[]) -> IntArrayResult {
-      PredictLoadedLabels(x, features, id, names, p)
+      PredictLoadedLabels(x, features, id, names, state, observation, $trace = model_opts) catch (e) {
+        let f: InferenceFailure => IntArrayResult { ok: false, value: [], error: f.message }
+      }
     }
   }
 }
 
-function LoadLinearModel(path: string) -> LoadedLinearModel {
-  PrepareLinearModel(baml.fs.read(path))
+function LoadLinearModel(path: string, observation: ObservationMode = ObservationMode.Semantic) -> LoadedLinearModel {
+  PrepareLinearModel(baml.fs.read(path), observation = observation)
 }
 
-function LoadLogisticModel(path: string) -> LoadedLogisticModel {
-  PrepareLogisticModel(baml.fs.read(path))
+function LoadLogisticModel(path: string, observation: ObservationMode = ObservationMode.Semantic) -> LoadedLogisticModel {
+  PrepareLogisticModel(baml.fs.read(path), observation = observation)
 }
 
 // Internal execution helpers. Model ID is an explicit argument for tracing.
@@ -85,33 +100,37 @@ function LoadedFeatureError(features: string[], expected: string[]) -> string {
   ""
 }
 
-function PreparedPreprocess(x: float[][], imputer: MeanImputer, scaler: StandardScaler) -> MatrixResult {
-  let t1 = ImputerTransformCore(x, imputer, validated_state = true);
-  if (!t1.ok) { return MatrixResult { ok: false, value: [], error: t1.error }; }
-  let t2 = ScalerTransformCore(t1.x, scaler, true, validated_state = true);
-  MatrixResult { ok: t2.ok, value: t2.x, error: t2.error }
+function PreparedPreprocess(x: float[][], imputer: MeanImputer, scaler: StandardScaler, opts: trace.Options) -> float[][] throws InferenceFailure {
+  let t1 = ObservedImpute(x, TracePrivate<MeanImputer> { value: imputer }, $trace = opts);
+  let t2 = ObservedScale(t1.x, TracePrivate<StandardScaler> { value: scaler }, $trace = opts);
+  t2.x
 }
 
-function PredictLoadedLinear(x: float[][], features: string[], model_id: string, expected: string[], p: RegressionPipeline) -> NumArrayResult {
+function PredictLoadedLinear(x: float[][], features: string[], model_id: string, expected: string[], state: TracePrivate<RegressionPipeline>, observation: ObservationMode) -> NumArrayResult throws InferenceFailure {
   let err = LoadedFeatureError(features, expected);
-  if (err != "") { return NumArrayResult { ok: false, value: [], error: err }; }
-  let t = PreparedPreprocess(x, p.imputer, p.scaler);
-  if (!t.ok) { return NumArrayResult { ok: false, value: [], error: t.error }; }
-  LinearRegressionPredictCore(t.value, p.model, true, validated_state = true)
+  if (err != "") { throw InferenceFailure { stage: "input_validation", message: err }; }
+  let p = state.value;
+  let opts = ObservationOptions(observation);
+  let t = PreparedPreprocess(x, p.imputer, p.scaler, opts);
+  ObservedLinear(t, TracePrivate<LinearRegressionModel> { value: p.model }, $trace = opts)
 }
 
-function PredictLoadedProba(x: float[][], features: string[], model_id: string, expected: string[], p: ClassificationPipeline) -> ProbaResult {
+function PredictLoadedProba(x: float[][], features: string[], model_id: string, expected: string[], state: TracePrivate<ClassificationPipeline>, observation: ObservationMode) -> ProbaResult throws InferenceFailure {
   let err = LoadedFeatureError(features, expected);
-  if (err != "") { return ProbaResult { ok: false, probs: [], error: err }; }
-  let t = PreparedPreprocess(x, p.imputer, p.scaler);
-  if (!t.ok) { return ProbaResult { ok: false, probs: [], error: t.error }; }
-  LogRegPredictProbaCore(t.value, p.model, true, validated_state = true)
+  if (err != "") { throw InferenceFailure { stage: "input_validation", message: err }; }
+  let p = state.value;
+  let opts = ObservationOptions(observation);
+  let t = PreparedPreprocess(x, p.imputer, p.scaler, opts);
+  let scores = ObservedDecisionScores(t, TracePrivate<LogisticRegressionModel> { value: p.model }, $trace = opts);
+  ObservedSoftmax(scores, $trace = opts)
 }
 
-function PredictLoadedLabels(x: float[][], features: string[], model_id: string, expected: string[], p: ClassificationPipeline) -> IntArrayResult {
+function PredictLoadedLabels(x: float[][], features: string[], model_id: string, expected: string[], state: TracePrivate<ClassificationPipeline>, observation: ObservationMode) -> IntArrayResult throws InferenceFailure {
   let err = LoadedFeatureError(features, expected);
-  if (err != "") { return IntArrayResult { ok: false, value: [], error: err }; }
-  let t = PreparedPreprocess(x, p.imputer, p.scaler);
-  if (!t.ok) { return IntArrayResult { ok: false, value: [], error: t.error }; }
-  LabelsFromScores(t.value, p.model)
+  if (err != "") { throw InferenceFailure { stage: "input_validation", message: err }; }
+  let p = state.value;
+  let opts = ObservationOptions(observation);
+  let t = PreparedPreprocess(x, p.imputer, p.scaler, opts);
+  let scores = ObservedDecisionScores(t, TracePrivate<LogisticRegressionModel> { value: p.model }, $trace = opts);
+  ObservedLabels(scores,p.model.classes, $trace = opts)
 }
