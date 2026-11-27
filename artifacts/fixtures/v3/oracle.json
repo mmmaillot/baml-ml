@@ -551,5 +551,189 @@
         0.35955623795735425
       ]
     ]
+  },
+  "v3-ct-hetero-logreg": {
+    "input": {
+      "features": [
+        "age",
+        "income",
+        "city"
+      ],
+      "rows": [
+        [
+          null,
+          55000.0,
+          "paris"
+        ],
+        [
+          30.0,
+          null,
+          null
+        ],
+        [
+          45.0,
+          60000.0,
+          "berlin"
+        ]
+      ]
+    },
+    "is_classifier": true,
+    "predict_labels": [
+      1,
+      1,
+      1
+    ],
+    "predict_proba": [
+      [
+        0.05739803769653462,
+        0.9426019623034654
+      ],
+      [
+        0.10610493164898371,
+        0.8938950683510163
+      ],
+      [
+        0.052071470518571084,
+        0.9479285294814289
+      ]
+    ]
+  },
+  "v3-ct-hetero-tree": {
+    "input": {
+      "features": [
+        "age",
+        "income",
+        "city"
+      ],
+      "rows": [
+        [
+          null,
+          55000.0,
+          "paris"
+        ],
+        [
+          30.0,
+          null,
+          null
+        ],
+        [
+          45.0,
+          60000.0,
+          "berlin"
+        ]
+      ]
+    },
+    "is_classifier": true,
+    "predict_labels": [
+      1,
+      1,
+      1
+    ],
+    "predict_proba": [
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.0,
+        1.0
+      ]
+    ]
+  },
+  "v3-ct-passthrough-remainder": {
+    "input": {
+      "features": [
+        "age",
+        "income",
+        "city"
+      ],
+      "rows": [
+        [
+          25.0,
+          null,
+          "lyon"
+        ],
+        [
+          40.0,
+          70000.0,
+          null
+        ],
+        [
+          52.0,
+          30000.0,
+          "madrid"
+        ]
+      ]
+    },
+    "is_classifier": true,
+    "predict_labels": [
+      1,
+      1,
+      1
+    ],
+    "predict_proba": [
+      [
+        0.4405280914916354,
+        0.5594719085083646
+      ],
+      [
+        0.11079087590586068,
+        0.8892091240941393
+      ],
+      [
+        0.08193806877314236,
+        0.9180619312268576
+      ]
+    ]
+  },
+  "v3-ct-then-scaler-logreg": {
+    "input": {
+      "features": [
+        "age",
+        "income",
+        "city"
+      ],
+      "rows": [
+        [
+          null,
+          55000.0,
+          "paris"
+        ],
+        [
+          30.0,
+          null,
+          null
+        ],
+        [
+          45.0,
+          60000.0,
+          "berlin"
+        ]
+      ]
+    },
+    "is_classifier": true,
+    "predict_labels": [
+      1,
+      1,
+      1
+    ],
+    "predict_proba": [
+      [
+        0.01810363122921077,
+        0.9818963687707892
+      ],
+      [
+        0.09419327674722355,
+        0.9058067232527764
+      ],
+      [
+        0.045231684602193734,
+        0.9547683153978063
+      ]
+    ]
   }
 }

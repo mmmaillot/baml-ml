@@ -121,4 +121,57 @@ except ValueError:
     pass
 else:
     raise AssertionError("one-hot on numeric input exported")
+
+# #75: ColumnTransformer with heterogeneous branches, remainder resolution
+# and strict rejection of unsupported configurations.
+from sklearn.compose import ColumnTransformer
+xh = np.array([[25.0, 50000.0, "paris"], [40.0, 70000.0, "lyon"], [52.0, 30000.0, "berlin"],
+               [33.0, 61000.0, "madrid"], [61.0, 45000.0, "paris"], [28.0, 80000.0, "lyon"]], dtype=object)
+yh = np.array([0, 1, 1, 0, 1, 1])
+ct = ColumnTransformer(
+    [("num", make_pipeline(SimpleImputer(), StandardScaler()), [0, 1]),
+     ("cat", make_pipeline(SimpleImputer(strategy="most_frequent"), OneHotEncoder(sparse_output=False)), [2])],
+    remainder="drop")
+ct_model = make_pipeline(ct, LogisticRegression(max_iter=1000)).fit(xh, yh)
+a = export_pipeline_v3(ct_model, ["age", "income", "c"])
+assert a["input_kinds"] == ["numeric", "numeric", "categorical"]
+step = a["steps"][0]
+assert step["kind"] == "column_transformer" and step["n_features_in"] == 3
+branches = step["column_transformer"]["branches"]
+assert [b["name"] for b in branches] == ["num", "cat"]
+assert branches[0]["columns"] == [0, 1] and branches[1]["columns"] == [2]
+assert branches[1]["steps"][-1]["kind"] == "one_hot_encoder"
+assert step["n_features_out"] == a["estimator"]["n_features_in"] == 2 + 4
+assert step["column_transformer"]["remainder"] == "drop" and step["column_transformer"]["remainder_columns"] == []
+ct_pt = make_pipeline(ColumnTransformer([("cat", make_pipeline(SimpleImputer(strategy="most_frequent"),
+                                                                OneHotEncoder(sparse_output=False)), [2])],
+                                        remainder="passthrough"),
+                      LogisticRegression(max_iter=1000)).fit(xh, yh)
+a = export_pipeline_v3(ct_pt, ["age", "income", "c"])
+assert a["steps"][0]["column_transformer"]["remainder_columns"] == [0, 1]
+assert a["steps"][0]["n_features_out"] == 4 + 2
+
+def rejects_ct(**kwargs):
+    try:
+        model = make_pipeline(ColumnTransformer(**kwargs), LogisticRegression(max_iter=1000)).fit(xh, yh)
+        export_pipeline_v3(model, ["age", "income", "c"])
+    except (ValueError, TypeError):
+        pass
+    else:
+        raise AssertionError("unsupported column transformer exported")
+
+rejects_ct(transformers=[("cat", make_pipeline(SimpleImputer(strategy="most_frequent"),
+                                                OneHotEncoder(sparse_output=True)), [2])],
+           remainder="drop", sparse_threshold=1.0)  # sparse output
+rejects_ct(transformers=[("n", make_pipeline(SimpleImputer(), StandardScaler()), [0, 1]),
+                        ("c", ColumnTransformer([("i", make_pipeline(SimpleImputer(strategy="most_frequent"),
+                                                                     OneHotEncoder(sparse_output=False)), [0])]), [2])],
+           remainder="drop")  # nested CT
+rejects_ct(transformers=[("n", make_pipeline(SimpleImputer(), StandardScaler()), lambda X: [0, 1]),
+                        ("c", make_pipeline(SimpleImputer(strategy="most_frequent"),
+                                             OneHotEncoder(sparse_output=False)), [2])], remainder="drop")  # callable selector
+rejects_ct(transformers=[("n", make_pipeline(SimpleImputer(), StandardScaler()), [0, 1]),
+                        ("c", make_pipeline(SimpleImputer(strategy="most_frequent"),
+                                             OneHotEncoder(sparse_output=False)), [2])],
+           remainder="drop", transformer_weights={"n": 2.0})  # transformer_weights
 print("Exporter contract and regenerated reference fixtures passed.")

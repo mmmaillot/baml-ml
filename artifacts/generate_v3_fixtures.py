@@ -17,6 +17,7 @@ from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
 from sklearn.tree import DecisionTreeClassifier
 
 assert sklearn.__version__ == "1.8.0", sklearn.__version__
@@ -157,6 +158,70 @@ def build_fixtures():
     fixtures["v3-ohe-int-categories"] = (
         ohe_int, ["code_a", "code_b"], ["categorical", "categorical"],
         {"features": ["code_a", "code_b"], "rows": [[1, 2], [3, 3]]},
+    )
+
+    # #75: heterogeneous numeric + categorical ColumnTransformer pipelines.
+    rng = np.random.default_rng(7)
+    n = 24
+    age = rng.uniform(20.0, 60.0, n)
+    income = rng.uniform(30.0, 90.0, n) * 1000.0
+    cities = np.array(["paris", "lyon", "berlin", "madrid"], dtype=object)[rng.integers(0, 4, n)]
+    xh = np.empty((n, 3), dtype=object)
+    xh[:, 0] = age
+    xh[:, 1] = income
+    xh[:, 2] = cities
+    xh[2, 0] = np.nan
+    xh[5, 2] = np.nan
+    yh = (age + income / 1000.0 > 80.0).astype(int)
+    hetero_features = ["age", "income", "city"]
+    hetero_kinds = ["numeric", "numeric", "categorical"]
+    ct = ColumnTransformer(
+        [("num", make_pipeline(SimpleImputer(), StandardScaler()), [0, 1]),
+         ("cat", make_pipeline(SimpleImputer(strategy="most_frequent"),
+                               OneHotEncoder(sparse_output=False)), [2])],
+        remainder="drop",
+    )
+    hetero_rows = [[None, 55000.0, "paris"], [30.0, None, None], [45.0, 60000.0, "berlin"]]
+    ct_logreg = Pipeline([("ct", ct), ("est", LogisticRegression(max_iter=1000))]).fit(xh, yh)
+    fixtures["v3-ct-hetero-logreg"] = (
+        ct_logreg, hetero_features, hetero_kinds,
+        {"features": hetero_features, "rows": hetero_rows},
+    )
+    ct_tree = Pipeline([("ct", ColumnTransformer(
+        [("num", make_pipeline(SimpleImputer(), StandardScaler()), [0, 1]),
+         ("cat", make_pipeline(SimpleImputer(strategy="most_frequent"),
+                               OneHotEncoder(sparse_output=False)), [2])],
+        remainder="drop")),
+        ("est", DecisionTreeClassifier(max_depth=4, random_state=42))]).fit(xh, yh)
+    fixtures["v3-ct-hetero-tree"] = (
+        ct_tree, hetero_features, hetero_kinds,
+        {"features": hetero_features, "rows": hetero_rows},
+    )
+    xh_pt = xh.copy()
+    xh_pt[2, 0] = 35.0  # passthrough remainder column must be complete
+    xh_pt[3, 1] = np.nan  # dropped column may hold missing values
+    ct_pt = Pipeline([("ct", ColumnTransformer(
+        [("cat", make_pipeline(SimpleImputer(strategy="most_frequent"),
+                               OneHotEncoder(sparse_output=False)), [2]),
+         ("dropme", "drop", [1])],
+        remainder="passthrough")),
+        ("est", LogisticRegression(max_iter=1000))]).fit(xh_pt, yh)
+    # The passthrough remainder column (age) must be complete in the batch.
+    pt_rows = [[25.0, None, "lyon"], [None if False else 40.0, 70000.0, None], [52.0, 30000.0, "madrid"]]
+    fixtures["v3-ct-passthrough-remainder"] = (
+        ct_pt, hetero_features, hetero_kinds,
+        {"features": hetero_features, "rows": pt_rows},
+    )
+    ct_scale = Pipeline([("ct", ColumnTransformer(
+        [("num", make_pipeline(SimpleImputer(), StandardScaler()), [0, 1]),
+         ("cat", make_pipeline(SimpleImputer(strategy="most_frequent"),
+                               OneHotEncoder(sparse_output=False)), [2])],
+        remainder="drop")),
+        ("scale", StandardScaler()),
+        ("est", LogisticRegression(max_iter=1000))]).fit(xh, yh)
+    fixtures["v3-ct-then-scaler-logreg"] = (
+        ct_scale, hetero_features, hetero_kinds,
+        {"features": hetero_features, "rows": hetero_rows},
     )
     return fixtures
 

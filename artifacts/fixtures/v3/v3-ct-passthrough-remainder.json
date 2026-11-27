@@ -1,0 +1,103 @@
+{
+  "schema_version": 3,
+  "source": "scikit-learn",
+  "source_version": "1.8.0",
+  "features": [
+    "age",
+    "income",
+    "city"
+  ],
+  "input_kinds": [
+    "numeric",
+    "numeric",
+    "categorical"
+  ],
+  "steps": [
+    {
+      "kind": "column_transformer",
+      "n_features_in": 3,
+      "n_features_out": 5,
+      "column_transformer": {
+        "branches": [
+          {
+            "name": "cat",
+            "columns": [
+              2
+            ],
+            "mode": "pipeline",
+            "steps": [
+              {
+                "kind": "simple_imputer",
+                "n_features_in": 1,
+                "n_features_out": 1,
+                "imputer": {
+                  "strategy": "most_frequent",
+                  "value_kind": "string",
+                  "statistics": [],
+                  "fill_strings": [
+                    "berlin"
+                  ]
+                }
+              },
+              {
+                "kind": "one_hot_encoder",
+                "n_features_in": 1,
+                "n_features_out": 4,
+                "one_hot": {
+                  "columns": [
+                    {
+                      "kind": "string",
+                      "strings": [
+                        "berlin",
+                        "lyon",
+                        "madrid",
+                        "paris"
+                      ],
+                      "ints": []
+                    }
+                  ],
+                  "handle_unknown": "error",
+                  "drop": null
+                }
+              }
+            ]
+          },
+          {
+            "name": "dropme",
+            "columns": [
+              1
+            ],
+            "mode": "drop",
+            "steps": []
+          }
+        ],
+        "remainder": "passthrough",
+        "remainder_columns": [
+          0
+        ]
+      }
+    }
+  ],
+  "estimator": {
+    "kind": "logistic_binary",
+    "n_features_in": 5,
+    "weights": [
+      [
+        0.3444906113729596,
+        -1.1107590132000433,
+        0.36736830683736554,
+        0.3954734529389202,
+        0.025894619457718523
+      ]
+    ],
+    "intercepts": [
+      0.702412629867831
+    ],
+    "classes": [
+      0,
+      1
+    ],
+    "nodes": []
+  },
+  "model_id": "0fa7dcf1ecf973f6b184f49c6d498b7609d025afa7c6734e81a82bd73654e913"
+}

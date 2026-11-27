@@ -39,13 +39,30 @@ class OneHotEncoderStep {
   drop string? // null (sklearn None) | "first" | "if_binary"
 }
 
+// One named branch of a column transformer: explicit validated input column
+// indices plus "drop", "passthrough" (numeric columns only) or a nested
+// sequential sub-pipeline of supported preprocessors (no nested transformer).
+class ColumnTransformerBranch {
+  name string
+  columns int[]
+  mode string // "drop" | "passthrough" | "pipeline"
+  steps PipelineStep[]
+}
+
+class ColumnTransformerStep {
+  branches ColumnTransformerBranch[]
+  remainder string // "drop" | "passthrough"
+  remainder_columns int[] // resolved to explicit indices at export time
+}
+
 class PipelineStep {
-  kind string // "simple_imputer" | "standard_scaler" | "one_hot_encoder"; extended by follow-up stories
+  kind string // "simple_imputer" | "standard_scaler" | "one_hot_encoder" | "column_transformer"
   n_features_in int
   n_features_out int
   imputer SimpleImputerStep?
   scaler ScalerStep?
   one_hot OneHotEncoderStep?
+  column_transformer ColumnTransformerStep?
 }
 
 class PipelineEstimator {
@@ -190,11 +207,32 @@ function OneHotColumnError(col: OneHotColumn) -> string {
   ""
 }
 
+// Validate a nested sequential sub-pipeline (inside a column transformer
+// branch). Nested column transformers are rejected: unsupported, not approximated.
+function BranchStepsError(steps: PipelineStep[], n_in: int, kinds: string[]) -> string {
+  let expected = n_in;
+  let sub_kinds = kinds;
+  for (let k = 0; k < steps.length(); k += 1) {
+    let s = steps[k];
+    if (s.kind == "column_transformer") { return "artifact: nested column transformer"; }
+    let err = PipelineStepError(s, expected, sub_kinds);
+    if (err != "") { return err; }
+    expected = s.n_features_out;
+    if (s.kind == "one_hot_encoder") {
+      sub_kinds = NumericKinds(expected);
+    }
+  }
+  for (let j = 0; j < sub_kinds.length(); j += 1) {
+    if (sub_kinds[j] != "numeric") { return "artifact: branch pipeline output is not numeric"; }
+  }
+  ""
+}
+
 function PipelineStepError(s: PipelineStep, n_in: int, kinds: string[]) -> string {
   if (s.n_features_in != n_in) { return "artifact: step input dimension mismatch"; }
   if (s.kind == "simple_imputer") {
     let imp = s.imputer;
-    if (imp == null || s.scaler != null || s.one_hot != null) { return "artifact: malformed simple_imputer step"; }
+    if (imp == null || s.scaler != null || s.one_hot != null || s.column_transformer != null) { return "artifact: malformed simple_imputer step"; }
     if (imp.strategy != "mean" && imp.strategy != "median" && imp.strategy != "most_frequent" && imp.strategy != "constant") { return "artifact: unsupported imputer strategy"; }
     if (imp.value_kind == "numeric") {
       if (imp.statistics.length() != n_in || imp.fill_strings.length() != 0) { return "artifact: invalid imputer dimensions"; }
@@ -217,7 +255,7 @@ function PipelineStepError(s: PipelineStep, n_in: int, kinds: string[]) -> strin
   }
   if (s.kind == "one_hot_encoder") {
     let ohe = s.one_hot;
-    if (ohe == null || s.imputer != null || s.scaler != null) { return "artifact: malformed one_hot_encoder step"; }
+    if (ohe == null || s.imputer != null || s.scaler != null || s.column_transformer != null) { return "artifact: malformed one_hot_encoder step"; }
     if (ohe.columns.length() != n_in) { return "artifact: invalid one-hot dimensions"; }
     if (ohe.handle_unknown != "error" && ohe.handle_unknown != "ignore") { return "artifact: unsupported one-hot handle_unknown"; }
     if (ohe.drop != null && ohe.drop != "first" && ohe.drop != "if_binary") { return "artifact: unsupported one-hot drop"; }
@@ -233,9 +271,56 @@ function PipelineStepError(s: PipelineStep, n_in: int, kinds: string[]) -> strin
     if (s.n_features_out != out) { return "artifact: one-hot output dimension mismatch"; }
     return "";
   }
+  if (s.kind == "column_transformer") {
+    let ct = s.column_transformer;
+    if (ct == null || s.imputer != null || s.scaler != null || s.one_hot != null) { return "artifact: malformed column_transformer step"; }
+    if (ct.remainder != "drop" && ct.remainder != "passthrough") { return "artifact: unsupported column transformer remainder"; }
+    let used: bool[] = [];
+    for (let j = 0; j < n_in; j += 1) { used.push(false); }
+    let out = 0;
+    for (let b = 0; b < ct.branches.length(); b += 1) {
+      let branch = ct.branches[b];
+      if (branch.name == "") { return "artifact: empty branch name"; }
+      for (let b2 = 0; b2 < b; b2 += 1) {
+        if (ct.branches[b2].name == branch.name) { return "artifact: duplicate branch name"; }
+      }
+      if (branch.mode != "drop" && branch.mode != "passthrough" && branch.mode != "pipeline") { return "artifact: unsupported branch mode"; }
+      if (branch.columns.length() == 0) { return "artifact: branch has no columns"; }
+      let sub_kinds: string[] = [];
+      for (let c = 0; c < branch.columns.length(); c += 1) {
+        let col = branch.columns[c];
+        if (col < 0 || col >= n_in || used[col]) { return "artifact: invalid or overlapping branch column"; }
+        used[col] = true;
+        sub_kinds.push(kinds[col]);
+      }
+      if (branch.mode == "drop") {
+        if (branch.steps.length() != 0) { return "artifact: drop branch with steps"; }
+      } else if (branch.mode == "passthrough") {
+        if (branch.steps.length() != 0) { return "artifact: passthrough branch with steps"; }
+        for (let j = 0; j < sub_kinds.length(); j += 1) {
+          if (sub_kinds[j] != "numeric") { return "artifact: passthrough branch on categorical input"; }
+        }
+        out = out + branch.columns.length();
+      } else {
+        if (branch.steps.length() == 0) { return "artifact: pipeline branch without steps"; }
+        let err = BranchStepsError(branch.steps, branch.columns.length(), sub_kinds);
+        if (err != "") { return err; }
+        out = out + branch.steps[branch.steps.length() - 1].n_features_out;
+      }
+    }
+    for (let c = 0; c < ct.remainder_columns.length(); c += 1) {
+      let col = ct.remainder_columns[c];
+      if (col < 0 || col >= n_in || used[col]) { return "artifact: invalid or overlapping remainder column"; }
+      used[col] = true;
+      if (ct.remainder == "passthrough" && kinds[col] != "numeric") { return "artifact: passthrough remainder on categorical input"; }
+    }
+    if (ct.remainder == "passthrough") { out = out + ct.remainder_columns.length(); }
+    if (s.n_features_out != out) { return "artifact: column transformer output dimension mismatch"; }
+    return "";
+  }
   if (s.kind == "standard_scaler") {
     let sc = s.scaler;
-    if (sc == null || s.imputer != null || s.one_hot != null) { return "artifact: malformed standard_scaler step"; }
+    if (sc == null || s.imputer != null || s.one_hot != null || s.column_transformer != null) { return "artifact: malformed standard_scaler step"; }
     if (sc.means.length() != n_in || sc.scales.length() != n_in) { return "artifact: invalid scaler dimensions"; }
     for (let j = 0; j < n_in; j += 1) {
       if (!IsFinite(sc.means[j]) || !IsFinite(sc.scales[j]) || sc.scales[j] <= 0.0) { return "artifact: invalid scaler parameters"; }
@@ -271,7 +356,7 @@ function PipelineArtifactError(a: FittedPipelineArtifact) -> string {
     let err = PipelineStepError(s, expected, kinds);
     if (err != "") { return err; }
     expected = s.n_features_out;
-    if (s.kind == "one_hot_encoder") {
+    if (s.kind == "one_hot_encoder" || s.kind == "column_transformer") {
       kinds = NumericKinds(expected);
     } else if (s.kind != "simple_imputer" && s.kind != "standard_scaler") {
       return "artifact: unsupported pipeline step kind";
@@ -565,29 +650,113 @@ function ObservedOneHotEncode(cells: Cell[][], state: TracePrivate<OneHotEncoder
   r.cells
 }
 
+// Internal: execute one validated step. Used by top-level pipelines and by
+// column transformer branches; the caller supplies the step index metadata.
+function RunOneStep(cur: Cell[][], s: PipelineStep, index: int, opts: trace.Options, exec: PipelineExecution) -> Cell[][] throws InferenceFailure {
+  if (s.kind == "simple_imputer") {
+    let imp = s.imputer;
+    if (imp == null) { throw InferenceFailure { stage: "imputation", message: "artifact: malformed simple_imputer step" }; }
+    return ObservedImputeStep(cur, TracePrivate<SimpleImputerStep> { value: imp }, $trace = StepOptions(opts, index, s.kind));
+  }
+  if (s.kind == "standard_scaler") {
+    let sc = s.scaler;
+    if (sc == null) { throw InferenceFailure { stage: "standardization", message: "artifact: malformed standard_scaler step" }; }
+    let out = ObservedScaleStep(cur, TracePrivate<ScalerStep> { value: sc }, $trace = StepOptions(opts, index, s.kind));
+    exec.scaled = CellsToFloatMatrix(out);
+    return out;
+  }
+  if (s.kind == "one_hot_encoder") {
+    let ohe = s.one_hot;
+    if (ohe == null) { throw InferenceFailure { stage: "one_hot_encoding", message: "artifact: malformed one_hot_encoder step" }; }
+    return ObservedOneHotEncode(cur, TracePrivate<OneHotEncoderStep> { value: ohe }, $trace = StepOptions(opts, index, s.kind));
+  }
+  if (s.kind == "column_transformer") {
+    if (s.column_transformer == null) { throw InferenceFailure { stage: "column_transform", message: "artifact: malformed column_transformer step" }; }
+    return ObservedColumnTransformer(cur, TracePrivate<PipelineStep> { value: s }, index, opts, exec, $trace = StepOptions(opts, index, s.kind));
+  }
+  throw InferenceFailure { stage: "preprocessing", message: "artifact: unsupported pipeline step kind" };
+}
+
 function RunPipelineSteps(cells: Cell[][], a: FittedPipelineArtifact, opts: trace.Options, exec: PipelineExecution) -> Cell[][] throws InferenceFailure {
   let cur = cells;
   for (let i = 0; i < a.steps.length(); i += 1) {
-    let s = a.steps[i];
-    if (s.kind == "simple_imputer") {
-      let imp = s.imputer;
-      if (imp == null) { throw InferenceFailure { stage: "imputation", message: "artifact: malformed simple_imputer step" }; }
-      cur = ObservedImputeStep(cur, TracePrivate<SimpleImputerStep> { value: imp }, $trace = StepOptions(opts, i, s.kind));
-    } else if (s.kind == "standard_scaler") {
-      let sc = s.scaler;
-      if (sc == null) { throw InferenceFailure { stage: "standardization", message: "artifact: malformed standard_scaler step" }; }
-      let out = ObservedScaleStep(cur, TracePrivate<ScalerStep> { value: sc }, $trace = StepOptions(opts, i, s.kind));
-      exec.scaled = CellsToFloatMatrix(out);
-      cur = out;
-    } else if (s.kind == "one_hot_encoder") {
-      let ohe = s.one_hot;
-      if (ohe == null) { throw InferenceFailure { stage: "one_hot_encoding", message: "artifact: malformed one_hot_encoder step" }; }
-      cur = ObservedOneHotEncode(cur, TracePrivate<OneHotEncoderStep> { value: ohe }, $trace = StepOptions(opts, i, s.kind));
-    } else {
-      throw InferenceFailure { stage: "preprocessing", message: "artifact: unsupported pipeline step kind" };
-    }
+    cur = RunOneStep(cur, a.steps[i], i, opts, exec);
   }
   cur
+}
+
+function BranchOptions(opts: trace.Options, index: int, name: string) -> trace.Options {
+  opts.context(metadata = {
+    "baml_ml.step_index": index,
+    "baml_ml.branch_name": name
+  })
+}
+
+// Per-branch child span with redacted fitted branch state.
+function ObservedColumnTransformerBranch(sub: Cell[][], state: TracePrivate<ColumnTransformerBranch>, index: int, opts: trace.Options, exec: PipelineExecution) -> Cell[][] throws InferenceFailure {
+  let branch = state.value;
+  if (branch.mode == "passthrough") { return sub; }
+  if (branch.mode == "drop") { return []; }
+  let cur = sub;
+  for (let k = 0; k < branch.steps.length(); k += 1) {
+    cur = RunOneStep(cur, branch.steps[k], index, opts, exec);
+  }
+  cur
+}
+
+// Internal: extract the selected columns of one row.
+function SubRow(row: Cell[], columns: int[]) -> Cell[] {
+  let out: Cell[] = [];
+  for (let c = 0; c < columns.length(); c += 1) {
+    out.push(row[columns[c]]);
+  }
+  out
+}
+
+// Internal: validated step state. Selects explicit column subsets, runs
+// each branch (drop/passthrough/sub-pipeline) and concatenates the branch
+// outputs horizontally in branch order, then the resolved remainder columns.
+function ColumnTransformerStepCore(cells: Cell[][], step: PipelineStep, opts: trace.Options, index: int, exec: PipelineExecution) -> CellMatrixResult {
+  let ct = step.column_transformer;
+  if (ct == null) { return CellMatrixResult { ok: false, cells: [], error: "artifact: malformed column_transformer step" }; }
+  let err = CheckCellMatrixDims(cells, step.n_features_in);
+  let out: Cell[][] = [];
+  if (err == "") {
+    for (let i = 0; i < cells.length() && err == ""; i += 1) {
+      let row: Cell[] = [];
+      for (let b = 0; b < ct.branches.length(); b += 1) {
+        let branch = ct.branches[b];
+        let sub: Cell[][] = [SubRow(cells[i], branch.columns)];
+        let part = ObservedColumnTransformerBranch(sub, TracePrivate<ColumnTransformerBranch> { value: branch }, index, opts, exec, $trace = BranchOptions(opts, index, branch.name));
+        if (part.length() > 0) {
+          for (let j = 0; j < part[0].length(); j += 1) {
+            row.push(part[0][j]);
+          }
+        }
+      }
+      if (ct.remainder == "passthrough") {
+        for (let c = 0; c < ct.remainder_columns.length(); c += 1) {
+          row.push(cells[i][ct.remainder_columns[c]]);
+        }
+      }
+      out.push(row);
+    }
+  }
+  // Column count of every output row must equal the validated n_features_out.
+  if (err == "" && out.length() > 0 && out[0].length() != step.n_features_out) {
+    err = "column_transform: branch output dimension mismatch";
+  }
+  if (err == "") {
+    CellMatrixResult { ok: true, cells: out, error: "" }
+  } else {
+    CellMatrixResult { ok: false, cells: [], error: err }
+  }
+}
+
+function ObservedColumnTransformer(cells: Cell[][], state: TracePrivate<PipelineStep>, index: int, opts: trace.Options, exec: PipelineExecution) -> Cell[][] throws InferenceFailure {
+  let r = ColumnTransformerStepCore(cells, state.value, opts, index, exec);
+  if (!r.ok) { throw InferenceFailure { stage: "column_transform", message: r.error }; }
+  r.cells
 }
 
 // The estimator consumes a dense finite float64 matrix; missing or

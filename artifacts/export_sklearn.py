@@ -6,6 +6,7 @@ import sklearn
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.utils.validation import check_is_fitted
 from sklearn.tree import DecisionTreeClassifier
@@ -233,7 +234,101 @@ def _export_one_hot_encoder(step, width, col_kinds):
     )
 
 
-def export_preprocessor(step, width, col_kinds):
+def _resolve_columns(cols, width, features):
+    """Resolve explicit integer or string column selectors to indices."""
+    if isinstance(cols, (list, tuple, np.ndarray)) and not callable(cols):
+        arr = list(cols)
+        if arr and all(isinstance(c, (int, np.integer)) and not isinstance(c, bool) for c in arr):
+            out = [int(c) for c in arr]
+        elif arr and all(isinstance(c, str) for c in arr):
+            if any(c not in features for c in arr):
+                raise ValueError("unknown column name selector")
+            out = [features.index(c) for c in arr]
+        else:
+            raise ValueError("unsupported column selector")
+        if any(c < 0 or c >= width for c in out):
+            raise ValueError("column index out of range")
+        return out
+    raise ValueError("runtime column selectors unsupported")
+
+
+def _export_branch_pipeline(trans, cols_r, col_kinds):
+    if type(trans) is ColumnTransformer:
+        raise ValueError("nested column transformer unsupported")
+    if not isinstance(trans, Pipeline):
+        raise ValueError("unsupported branch transformer")
+    sub = [s for _, s in trans.steps]
+    for s in sub:
+        check_is_fitted(s)
+    sub_width = len(cols_r)
+    sub_kinds = [col_kinds[c] for c in cols_r]
+    step_dicts = []
+    for s in sub:
+        d, sub_width, sub_kinds = export_preprocessor(s, sub_width, sub_kinds, None)
+        step_dicts.append(d)
+    if any(k != "numeric" for k in sub_kinds):
+        raise ValueError("branch pipeline output is not numeric")
+    return step_dicts, sub_width
+
+
+def _export_column_transformer(step, width, col_kinds, features):
+    if step.transformer_weights is not None:
+        raise ValueError("transformer_weights unsupported")
+    if getattr(step, "sparse_output_", False):
+        raise ValueError("sparse column transformer output unsupported")
+    if step.n_features_in_ != width:
+        raise ValueError("unsupported dimensionality change")
+    for _name, _trans, cols in step.transformers:
+        if callable(cols) or callable(_trans):
+            raise ValueError("callable selectors/transformers unsupported")
+    branches = []
+    used = set()
+    fitted_remainder = None
+    for name, trans, cols in step.transformers_:
+        if name == "remainder":
+            fitted_remainder = _resolve_columns(cols, width, features)
+            continue
+        cols_r = _resolve_columns(cols, width, features)
+        if any(c in used for c in cols_r):
+            raise ValueError("overlapping branch columns")
+        used.update(cols_r)
+        if not isinstance(name, str) or not name:
+            raise ValueError("invalid branch name")
+        if trans == "drop":
+            branches.append(dict(name=name, columns=cols_r, mode="drop", steps=[]))
+        elif trans == "passthrough":
+            if any(col_kinds[c] != "numeric" for c in cols_r):
+                raise ValueError("passthrough branch on categorical input")
+            branches.append(dict(name=name, columns=cols_r, mode="passthrough", steps=[]))
+        else:
+            step_dicts, branch_out = _export_branch_pipeline(trans, cols_r, col_kinds)
+            branches.append(dict(name=name, columns=cols_r, mode="pipeline", steps=step_dicts))
+    if len({b["name"] for b in branches}) != len(branches):
+        raise ValueError("duplicate branch names")
+    remainder = step.remainder
+    if remainder not in ("drop", "passthrough"):
+        raise ValueError("unsupported remainder")
+    rem_cols = sorted(set(range(width)) - used)
+    if fitted_remainder is not None and fitted_remainder != rem_cols:
+        raise ValueError("remainder columns differ from the fitted complement")
+    if remainder == "passthrough" and any(col_kinds[c] != "numeric" for c in rem_cols):
+        raise ValueError("passthrough remainder on categorical input")
+    n_out = sum(b["steps"][-1]["n_features_out"] if b["mode"] == "pipeline"
+                else (len(b["columns"]) if b["mode"] == "passthrough" else 0)
+                for b in branches)
+    if remainder == "passthrough":
+        n_out += len(rem_cols)
+    if n_out != len(step.get_feature_names_out()):
+        raise ValueError("column transformer output dimension mismatch")
+    return (
+        dict(kind="column_transformer", n_features_in=width, n_features_out=n_out,
+             column_transformer=dict(branches=branches, remainder=remainder, remainder_columns=rem_cols)),
+        n_out,
+        ["numeric"] * n_out,
+    )
+
+
+def export_preprocessor(step, width, col_kinds, features=None):
     """Export one preprocessing step of a schema v3 pipeline.
 
     Returns (step_dict, n_features_out, output_column_kinds).
@@ -244,10 +339,12 @@ def export_preprocessor(step, width, col_kinds):
         return _export_standard_scaler(step, width, col_kinds)
     if type(step) is OneHotEncoder:
         return _export_one_hot_encoder(step, width, col_kinds)
+    if type(step) is ColumnTransformer:
+        return _export_column_transformer(step, width, col_kinds, features or list(range(width)))
     raise ValueError("unsupported pipeline step")
 
 
-def _infer_input_kinds(pre, n):
+def _infer_input_kinds(pre, n, features):
     if not pre:
         return ["numeric"] * n
     first = pre[0]
@@ -255,8 +352,19 @@ def _infer_input_kinds(pre, n):
         vals = np.asarray(first.statistics_).tolist()
         if all(isinstance(v, str) for v in vals):
             return ["categorical"] * n
+        return ["numeric"] * n
     if type(first) is OneHotEncoder:
         return ["categorical"] * n
+    if type(first) is ColumnTransformer:
+        kinds = ["numeric"] * n
+        for name, trans, cols in first.transformers_:
+            if name == "remainder":
+                continue
+            cols_r = _resolve_columns(cols, n, features)
+            if isinstance(trans, Pipeline) and any(type(s) is OneHotEncoder for _, s in trans.steps):
+                for c in cols_r:
+                    kinds[c] = "categorical"
+        return kinds
     return ["numeric"] * n
 
 
@@ -278,7 +386,7 @@ def export_pipeline_v3(pipeline, features, input_kinds=None):
     features, n = _check_features(features)
     _check_pipeline_names(pipeline, features)
     if input_kinds is None:
-        input_kinds = _infer_input_kinds(pre, n)
+        input_kinds = _infer_input_kinds(pre, n, features)
     input_kinds = list(input_kinds)
     if len(input_kinds) != n or any(k not in ("numeric", "categorical") for k in input_kinds):
         raise ValueError("invalid input kinds")
@@ -286,7 +394,7 @@ def export_pipeline_v3(pipeline, features, input_kinds=None):
     col_kinds = list(input_kinds)
     step_dicts = []
     for step in pre:
-        d, width, col_kinds = export_preprocessor(step, width, col_kinds)
+        d, width, col_kinds = export_preprocessor(step, width, col_kinds, features)
         step_dicts.append(d)
     estimator = export_estimator(est, width)
     a = dict(schema_version=3, source="scikit-learn", source_version=sklearn.__version__,

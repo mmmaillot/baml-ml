@@ -1,0 +1,201 @@
+{
+  "schema_version": 3,
+  "source": "scikit-learn",
+  "source_version": "1.8.0",
+  "features": [
+    "age",
+    "income",
+    "city"
+  ],
+  "input_kinds": [
+    "numeric",
+    "numeric",
+    "categorical"
+  ],
+  "steps": [
+    {
+      "kind": "column_transformer",
+      "n_features_in": 3,
+      "n_features_out": 6,
+      "column_transformer": {
+        "branches": [
+          {
+            "name": "num",
+            "columns": [
+              0,
+              1
+            ],
+            "mode": "pipeline",
+            "steps": [
+              {
+                "kind": "simple_imputer",
+                "n_features_in": 2,
+                "n_features_out": 2,
+                "imputer": {
+                  "strategy": "mean",
+                  "value_kind": "numeric",
+                  "statistics": [
+                    40.49302219131267,
+                    56988.22397377852
+                  ],
+                  "fill_strings": []
+                }
+              },
+              {
+                "kind": "standard_scaler",
+                "n_features_in": 2,
+                "n_features_out": 2,
+                "scaler": {
+                  "means": [
+                    40.49302219131267,
+                    56988.22397377852
+                  ],
+                  "scales": [
+                    11.59991044584084,
+                    17006.27184412634
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "name": "cat",
+            "columns": [
+              2
+            ],
+            "mode": "pipeline",
+            "steps": [
+              {
+                "kind": "simple_imputer",
+                "n_features_in": 1,
+                "n_features_out": 1,
+                "imputer": {
+                  "strategy": "most_frequent",
+                  "value_kind": "string",
+                  "statistics": [],
+                  "fill_strings": [
+                    "berlin"
+                  ]
+                }
+              },
+              {
+                "kind": "one_hot_encoder",
+                "n_features_in": 1,
+                "n_features_out": 4,
+                "one_hot": {
+                  "columns": [
+                    {
+                      "kind": "string",
+                      "strings": [
+                        "berlin",
+                        "lyon",
+                        "madrid",
+                        "paris"
+                      ],
+                      "ints": []
+                    }
+                  ],
+                  "handle_unknown": "error",
+                  "drop": null
+                }
+              }
+            ]
+          }
+        ],
+        "remainder": "drop",
+        "remainder_columns": []
+      }
+    }
+  ],
+  "estimator": {
+    "kind": "decision_tree_classifier",
+    "n_features_in": 6,
+    "weights": [],
+    "intercepts": [],
+    "classes": [
+      0,
+      1
+    ],
+    "nodes": [
+      {
+        "left": 1,
+        "right": 4,
+        "feature": 1,
+        "threshold": -1.153075933456421,
+        "probabilities": []
+      },
+      {
+        "left": 2,
+        "right": 3,
+        "feature": 0,
+        "threshold": 0.6853738725185394,
+        "probabilities": []
+      },
+      {
+        "left": -1,
+        "right": -1,
+        "feature": -2,
+        "threshold": -2.0,
+        "probabilities": [
+          1.0,
+          0.0
+        ]
+      },
+      {
+        "left": -1,
+        "right": -1,
+        "feature": -2,
+        "threshold": -2.0,
+        "probabilities": [
+          0.0,
+          1.0
+        ]
+      },
+      {
+        "left": 5,
+        "right": 8,
+        "feature": 1,
+        "threshold": -0.7964458465576172,
+        "probabilities": []
+      },
+      {
+        "left": 6,
+        "right": 7,
+        "feature": 1,
+        "threshold": -0.8936678171157837,
+        "probabilities": []
+      },
+      {
+        "left": -1,
+        "right": -1,
+        "feature": -2,
+        "threshold": -2.0,
+        "probabilities": [
+          0.0,
+          1.0
+        ]
+      },
+      {
+        "left": -1,
+        "right": -1,
+        "feature": -2,
+        "threshold": -2.0,
+        "probabilities": [
+          1.0,
+          0.0
+        ]
+      },
+      {
+        "left": -1,
+        "right": -1,
+        "feature": -2,
+        "threshold": -2.0,
+        "probabilities": [
+          0.0,
+          1.0
+        ]
+      }
+    ]
+  },
+  "model_id": "c803fea66115da43e3edfdf1da0ef56c3d38943f6763c23b90d61a0ed88c78a9"
+}
