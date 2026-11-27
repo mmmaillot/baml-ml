@@ -133,6 +133,30 @@ for sample in iris diabetes binary; do
     echo "Packed offline reference and traces passed: $sample $operation"
   done
 done
+# Tree smoke: every qualified native platform, all capture modes, no Python on target.
+for mode in semantic full timing off; do
+  CASE="$OUT/evidence/tree-$mode"
+  mkdir -p "$CASE/home" "$CASE/tmp"
+  cp "$FIX/tree-smoke.json" "$CASE/model.json"
+  printf '%s\n' '{"features":["x"],"rows":[[null],[-1],[1]]}' > "$CASE/input.json"
+  telemetry=medium
+  capture="$mode"
+  if [ "$mode" = off ]; then telemetry=off; capture=full; fi
+  run_case "$CASE" "$telemetry" predict --model model.json --input input.json --operation predict-proba --observation "$capture" --output-format json > "$CASE/output.json" 2> "$CASE/run.stderr"
+  jq -e '.schema_version==1 and .estimator_kind=="decision_tree_classifier" and .classes==[-3,7] and .predictions==[[0.5,0.5],[0.5,0.5],[0,1]]' "$CASE/output.json"
+  if [ "$mode" = off ]; then
+    test -z "$(find "$CASE/home" -type f -name '*.btel' -print -quit)"
+  else
+    query spans "SELECT span_name, input_args, output_value FROM spans"
+    if [ "$mode" = full ]; then
+      jq -e '[.rows[]|select(.[0]=="user.ObservedTreeTraversal")]|length==1 and .[0][2].paths==[[0,1],[0,1],[0,2]] and .[0][2].leaves==[1,1,2]' "$CASE/spans.json"
+    elif [ "$mode" = semantic ]; then
+      jq -e '[.rows[]|select(.[0]=="user.ObservedTreeTraversal")]|length==1 and .[0][1]==null and .[0][2]==null' "$CASE/spans.json"
+    else
+      jq -e '[.rows[]|select(.[0]=="user.ObservedTreeTraversal")]|length==0' "$CASE/spans.json"
+    fi
+  fi
+done
 # Default metadata-only semantic mode, plus explicit native engine off.
 for mode in semantic timing off; do
   prepare_case "mode-$mode" iris

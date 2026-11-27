@@ -59,6 +59,8 @@ jobs:
           cp -R baml_src baml.toml "$project/"
           python experiments/tree_traversal/generate_oracle.py "$project/tree-oracle.json"
           (cd "$project"; "$BAML_CLI" run TreeOracleProbe --output-format json)
+          python artifacts/generate_tree_pipeline.py "$project"
+          (cd "$project"; "$BAML_CLI" run TreePipelineOracleProbe --output-format json)
       - uses: actions/upload-artifact@v4
         if: always()
         with:
