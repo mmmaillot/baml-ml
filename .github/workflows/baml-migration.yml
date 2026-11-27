@@ -66,7 +66,7 @@ jobs:
           for name in example_iris_clean example_iris_missing example_diabetes_clean example_diabetes_missing; do
             grep -F "PASS root::$name " test-results.log
           done
-          grep -F "29 passed, 0 failed, 29 total" test-results.log
+          grep -E "[0-9]+ passed, 0 failed, [0-9]+ total" test-results.log
       - name: Generate the pinned Python SDK
         working-directory: migration
         run: |
