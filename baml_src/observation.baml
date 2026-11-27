@@ -4,6 +4,7 @@ enum ObservationMode {
   Timing,
   Semantic,
   Full,
+  Adaptive,
 }
 
 class InferenceFailure {
@@ -19,7 +20,7 @@ class TracePrivate<T> {
 
 function ObservationOptions(mode: ObservationMode) -> trace.Options {
   if (mode == ObservationMode.Full) { return trace.span(); }
-  if (mode == ObservationMode.Semantic) { return trace.empty_span(); }
+  if (mode == ObservationMode.Semantic || mode == ObservationMode.Adaptive) { return trace.empty_span(); }
   trace.timing()
 }
 
@@ -79,6 +80,10 @@ function ObservedSoftmax(scores: float[][]) -> ProbaResult throws InferenceFailu
 }
 
 function ObservedLabels(scores: float[][], classes: int[]) -> IntArrayResult {
+  IntArrayResult { ok: true, value: ClassLabels(scores, classes), error: "" }
+}
+
+function ClassLabels(scores: float[][], classes: int[]) -> int[] {
   let labels: int[] = [];
   for (let i = 0; i < scores.length(); i += 1) {
     let best = 0;
@@ -87,5 +92,5 @@ function ObservedLabels(scores: float[][], classes: int[]) -> IntArrayResult {
     }
     labels.push(classes[best]);
   }
-  IntArrayResult { ok: true, value: labels, error: "" }
+  labels
 }

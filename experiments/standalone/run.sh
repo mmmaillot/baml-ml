@@ -32,7 +32,7 @@ done
 (
   cd "$BUILD"
   BAML_TELEMETRY=off "$CLI" check
-  BAML_TELEMETRY=off "$CLI" pack --function predict --host-binary "$HOST" --output "$BIN"
+  BAML_TELEMETRY=off "$CLI" pack --function predict --function shadow --host-binary "$HOST" --output "$BIN"
 )
 test -x "$BIN"
 file "$BIN" | tee "$OUT/evidence/binary-format.txt"
@@ -200,5 +200,44 @@ for error in malformed wrong-order ragged empty nonnumeric invalid-model wrong-o
   fi
   echo "Packed rejection passed: $error (exit $rc)"
 done
+# Both selective entry points get the same isolation as the reference cases.
+prepare_case "mode-adaptive" iris
+printf '%s\n' '{"max_escalated_rows":1}' > "$CASE/policy.json"
+run_case "$CASE" medium predict --model model.json --input input.json --operation predict-proba \
+  --observation adaptive --policy policy.json --output-format json > "$CASE/output.json" 2> "$CASE/run.stderr"
+diff <(jq -S . "$OUT/evidence/iris-predict-proba/output.json") <(jq -S . "$CASE/output.json")
+query spans "SELECT span_name, context_metadata['baml_ml.row_index'] FROM spans WHERE span_name = 'user.EscalatedRow'"
+jq -e '.rows==[["user.EscalatedRow",0]]' "$CASE/spans.json"
+
+prepare_case "shadow-iris" iris
+printf '%s\n' '{"max_escalated_rows":1}' > "$CASE/policy.json"
+run_case "$CASE" medium shadow --champion model.json --challenger model.json --input input.json \
+  --operation predict-proba --policy policy.json --output-format json > "$CASE/output.json" 2> "$CASE/run.stderr"
+jq -e --slurpfile expected "$OUT/evidence/iris-predict-proba/output.json" '
+  .predictions==$expected[0].predictions and .summary.challenger_ok and
+  .summary.escalated_rows==1 and .summary.label_disagreements==0
+' "$CASE/output.json"
+query spans "SELECT span_name, context_metadata['baml_ml.row_index'] FROM spans WHERE span_name = 'user.ShadowEscalatedRow'"
+jq -e '.rows==[["user.ShadowEscalatedRow",0]]' "$CASE/spans.json"
+# The generated CLI must accept both entry points with an omitted policy flag.
+for command in predict shadow; do
+  CASE="$OUT/evidence/default-policy-$command"
+  mkdir -p "$CASE/home" "$CASE/tmp"
+  cp "$FIX/tree-smoke.json" "$CASE/model.json"
+  printf '%s\n' '{"features":["x"],"rows":[[null],[1]]}' > "$CASE/input.json"
+  if [ "$command" = predict ]; then
+    args=(predict --model model.json --observation adaptive)
+    replay=EscalatedRow
+  else
+    args=(shadow --champion model.json --challenger model.json)
+    replay=ShadowEscalatedRow
+  fi
+  run_case "$CASE" medium "${args[@]}" --input input.json --output-format json \
+    > "$CASE/output.json" 2> "$CASE/run.stderr"
+  jq -e '.predictions==[-3,7]' "$CASE/output.json"
+  query spans "SELECT context_metadata['baml_ml.row_index'] FROM spans WHERE span_name = 'user.$replay'"
+  jq -e '.rows==[[0]]' "$CASE/spans.json"
+done
+echo "Packed adaptive and shadow passed"
 tar -czf "$OUT/baml-ml-$PLATFORM.tar.gz" -C "$OUT/dist" baml-ml LICENSE SHA256SUMS
 echo "Standalone offline smoke passed: $PLATFORM"

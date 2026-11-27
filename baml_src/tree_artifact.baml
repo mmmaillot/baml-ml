@@ -78,17 +78,26 @@ function PredictLoadedTree(x: float[][], features: string[], model_id: string, e
   let t = PreparedPreprocess(x,p.imputer,p.scaler,opts);
   ObservedTreeTraversal(t,TracePrivate<TreeClassifierState> { value: p.tree },observation == ObservationMode.Full, $trace = opts)
 }
-function BuildLoadedTree(a: FittedTreeArtifact, observation: ObservationMode) -> LoadedTreeModel {
+function PreparedTree(a: FittedTreeArtifact) -> PreparedTreePipeline {
   let n = a.features.length();
+  PreparedTreePipeline {
+    imputer: MeanImputer { means: a.imputer_means, n_features: n },
+    scaler: StandardScaler { means: a.scaler_means, scales: a.scaler_scales, n_features: n },
+    tree: TreeClassifierState { n_features: n, classes: a.classes, nodes: a.nodes }
+  }
+}
+// Internal: caller owns the validated artifact and resolved policy.
+function BuildLoadedTree(a: FittedTreeArtifact, observation: ObservationMode, adaptive: AdaptivePolicy?) -> LoadedTreeModel {
   let names = a.features;
   let id = a.model_id;
   let model_opts = ModelObservation(observation,id,a.schema_version,a.source_version);
   TreeModelLoaded(a, $trace = model_opts);
-  let state = TracePrivate<PreparedTreePipeline> { value: PreparedTreePipeline {
-    imputer: MeanImputer { means: a.imputer_means, n_features: n },
-    scaler: StandardScaler { means: a.scaler_means, scales: a.scaler_scales, n_features: n },
-    tree: TreeClassifierState { n_features: n, classes: a.classes, nodes: a.nodes }
-  } };
+  let p = PreparedTree(a);
+  if (adaptive != null) {
+    let classifier = AdaptiveClassifier(SelectiveTree(a, p), adaptive);
+    return LoadedTreeModel { proba_fn: classifier.proba_fn, labels_fn: classifier.labels_fn };
+  }
+  let state = TracePrivate<PreparedTreePipeline> { value: p };
   LoadedTreeModel {
     proba_fn: (x: float[][], features: string[]) -> ProbaResult {
       TreeResultProba(PredictLoadedTree(x,features,id,names,state,observation, $trace = model_opts)) catch (e) {
@@ -102,20 +111,21 @@ function BuildLoadedTree(a: FittedTreeArtifact, observation: ObservationMode) ->
     }
   }
 }
-function PrepareTreeModel(raw: string, observation: ObservationMode = ObservationMode.Semantic) -> LoadedTreeModel {
+function PrepareTreeModel(raw: string, observation: ObservationMode = ObservationMode.Semantic, policy: AdaptivePolicy? = null) -> LoadedTreeModel {
+  let adaptive = ResolveAdaptivePolicy(observation, policy);
   let opts = ObservationOptions(observation);
   let a = PrepareTreeArtifact(raw, $trace = if (observation == ObservationMode.Full) { trace.span(inputs = false, output = false) } else { opts });
-  BuildLoadedTree(a,observation)
+  BuildLoadedTree(a,observation,adaptive)
 }
-function LoadTreeModel(path: string, observation: ObservationMode = ObservationMode.Semantic) -> LoadedTreeModel {
-  PrepareTreeModel(baml.fs.read(path), observation = observation)
+function LoadTreeModel(path: string, observation: ObservationMode = ObservationMode.Semantic, policy: AdaptivePolicy? = null) -> LoadedTreeModel {
+  PrepareTreeModel(baml.fs.read(path), observation = observation, policy = policy)
 }
-function RunTreeBatch(raw_model: string, raw_input: string, operation: string, mode: ObservationMode) -> BatchOutput {
+function RunTreeBatch(raw_model: string, raw_input: string, operation: string, mode: ObservationMode, adaptive: AdaptivePolicy?) -> BatchOutput {
   let opts = ObservationOptions(mode);
   let a = PrepareTreeArtifact(raw_model, $trace = if (mode == ObservationMode.Full) { trace.span(inputs = false, output = false) } else { opts });
   let input = DecodeBatchInput(raw_input);
   let rows = BatchRows(input);
-  let m = BuildLoadedTree(a,mode);
+  let m = BuildLoadedTree(a,mode,adaptive);
   if (operation == "predict-proba") {
     let r = m.predict_proba(rows,input.features);
     if (!r.ok) { throw baml.errors.InvalidArgument { message: r.error }; }
