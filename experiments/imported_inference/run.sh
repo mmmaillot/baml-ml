@@ -25,27 +25,25 @@ for sample in iris diabetes binary; do
     printf '[package]\nname = "imported-inference-probe"\n' > baml.toml
     fn=ImportedIrisProbe
     outer=PredictLoadedProba
-    model=LogRegPredictProbaCore
+    model=ObservedSoftmax
     if [ "$sample" = binary ]; then fn=ImportedBinaryProbe; fi
-    if [ "$sample" = diabetes ]; then fn=ImportedDiabetesProbe; outer=PredictLoadedLinear; model=LinearRegressionPredictCore; fi
-    for target in "$outer" ImputerTransformCore ScalerTransformCore "$model"; do
-      file="$(grep -l "^function $target(" baml_src/*.baml)"
-      test "$(printf '%s\n' "$file" | wc -l)" -eq 1
-      sed -i "/^function $target(/i /// baml:\$trace=trace.span" "$file"
-    done
+    if [ "$sample" = diabetes ]; then fn=ImportedDiabetesProbe; outer=PredictLoadedLinear; model=ObservedLinear; fi
     BAML_TELEMETRY=off "$CLI" check > "$CASE/check.log" 2>&1 || { cat "$CASE/check.log"; exit 1; }
     "$CLI" run "$fn" --output-format json > "$CASE/result.json" 2> "$CASE/run.stderr" || { cat "$CASE/run.stderr"; exit 1; }
-    "$CLI" local recordings query --output-format json "SELECT span_id, parent_span_id, span_name, status, duration, input_args, output_value FROM spans ORDER BY start_time" > "$CASE/spans.json" 2> "$CASE/query.stderr"
+    "$CLI" local recordings query --output-format json "SELECT span_id, parent_span_id, span_name, status, duration, input_args, output_value, error_value, context_distinct_id, context_metadata['baml_ml.model_id'], context_metadata['baml_ml.contract_version'] FROM spans ORDER BY start_time" > "$CASE/spans.json" 2> "$CASE/query.stderr"
     jq -e --arg sample "$sample" --arg outer "$outer" --arg model "$model" --slurpfile ref "$PROJECT/artifacts/fixtures/reference.json" --slurpfile artifact "$PROJECT/artifacts/fixtures/$sample.json" --slurpfile result "$CASE/result.json" '
       def row($n): [.rows[]|select(.[2]==("user."+$n))]|if length==1 then .[0] else error("missing or duplicate span "+$n) end;
       def near($a;$b): if ($b|type)=="array" then (($a|type)=="array" and ($a|length)==($b|length) and ([range(0;($b|length)) as $i|near($a[$i];$b[$i])]|all)) else (($a|type)=="number" and (($a-$b)|fabs)<1e-9) end;
       .outcome.status=="complete" and (
         $ref[0][$sample] as $e |
-        row($outer) as $p | row("ImputerTransformCore") as $i | row("ScalerTransformCore") as $s | row($model) as $m |
-        ([$i,$s,$m]|all(.[1]==$p[0] and .[3]=="return" and .[4]>0)) and
+        row($outer) as $p | row("ObservedImpute") as $i | row("ObservedScale") as $s | row($model) as $m |
+        ([$i,$s,$m]|all(.[1]==$p[0] and .[3]=="return" and .[4]>0 and .[9]==$artifact[0].model_id and .[10]==1)) and
+        (row("ModelLoaded")[5].artifact as $loaded | $artifact[0] | to_entries | all(. as $entry | $loaded[$entry.key]==$entry.value)) and
+        ([$p,$i,$s,$m]|all(.[9]==$artifact[0].model_id and (.[5]|[..|objects|keys[]]|index("weights")==null and index("means")==null and index("coefficients")==null))) and
         $p[5].model_id==$artifact[0].model_id and
         $i[5].x[0][0]["$float"]=="NaN" and
-        near($i[6].x;$e.imputed) and near($s[5].x;$e.imputed) and near($s[6].x;$e.scaled) and near($m[5].x;$e.scaled) and
+        near($i[6].x;$e.imputed) and near($s[5].x;$e.imputed) and near($s[6].x;$e.scaled) and
+        (if $sample=="diabetes" then near($m[5].x;$e.scaled) else row("ObservedDecisionScores") as $d | $d[1]==$p[0] and $d[9]==$artifact[0].model_id and near($d[5].x;$e.scaled) and near($d[6];$m[5].scores) and ($d[6]|length)==2 end) and
         (if $sample=="diabetes" then near($m[6].value;$e.prediction) and near($p[6].value;$e.prediction) and near($result[0].value;$e.prediction)
          else near($m[6].probs;$e.probs) and near($p[6].probs;$e.probs) and near($result[0].probs;$e.probs) end)
       )
@@ -67,7 +65,63 @@ done
   "$CLI" local recordings query --output-format json "SELECT function_name, invocation_count FROM profiler" > "$OUT/repeat/profiler.json"
   jq -e '
     def calls($n): ([.rows[]|select(.[0]==("user."+$n))|.[1]]|add // 0);
-    .outcome.status=="complete" and calls("ReadFittedArtifact")==0 and calls("DecodeFittedArtifact")==1 and calls("ArtifactError")==1 and calls("ArtifactClassification")==1 and calls("PredictLoadedProba")==3 and calls("ImputerTransformCore")==3 and calls("ScalerTransformCore")==3 and calls("LogRegPredictProbaCore")==3
+    .outcome.status=="complete" and calls("ReadFittedArtifact")==0 and calls("DecodeFittedArtifact")==1 and calls("ArtifactError")==1 and calls("ArtifactClassification")==1 and calls("PredictLoadedProba")==3 and calls("ImputerTransformCore")==3 and calls("ScalerTransformCore")==3 and calls("ObservedDecisionScores")==3 and calls("ObservedSoftmax")==3 and calls("ModelLoaded")==1
   ' "$OUT/repeat/profiler.json" || { cat "$OUT/repeat/profiler.json"; exit 1; }
-  jq -c '[.rows[] | select(.[0]|test("ArtifactError$|ArtifactClassification$|DecodeFittedArtifact$|PredictLoadedProba$|ImputerTransformCore$|ScalerTransformCore$|LogRegPredictProbaCore$"))]' "$OUT/repeat/profiler.json"
+  jq -c '[.rows[] | select(.[0]|test("ArtifactError$|ArtifactClassification$|DecodeFittedArtifact$|PredictLoadedProba$|ImputerTransformCore$|ScalerTransformCore$|ObservedDecisionScores$|ObservedSoftmax$|ModelLoaded$"))]' "$OUT/repeat/profiler.json"
 )
+
+# Run the actual runtime without editing its source or injecting trace directives.
+for mode in semantic timing full off labels failure load-failure; do
+  (
+    mkdir -p "$WORK/mode-$mode" "$OUT/mode-$mode"
+    cp -R "$WORK/iris/baml_src" "$WORK/iris/artifacts" "$WORK/iris/baml.toml" "$WORK/mode-$mode/"
+    cd "$WORK/mode-$mode"
+    export HOME="$WORK/mode-$mode-home" BAML_HOME="$WORK/mode-$mode-home/baml"
+    export XDG_CONFIG_HOME="$HOME/config" XDG_DATA_HOME="$HOME/data" XDG_CACHE_HOME="$HOME/cache"
+    mkdir -p "$HOME"
+    CASE="$OUT/mode-$mode"
+    fn=ObservationFullProbe
+    case "$mode" in
+      semantic) fn=ObservationSemanticProbe;;
+      timing) fn=ObservationTimingProbe;;
+      labels) fn=ObservationLabelProbe;;
+      failure) fn=ObservationFailureProbe;;
+      load-failure) fn=ObservationLoadFailureProbe;;
+      off) export BAML_TELEMETRY=off;;
+    esac
+    "$CLI" run "$fn" --output-format json > "$CASE/result.json" 2> "$CASE/run.stderr" || { cat "$CASE/run.stderr"; exit 1; }
+    "$CLI" local recordings query --output-format json "SELECT span_id, parent_span_id, span_name, status, duration, input_args, output_value, error_value, context_distinct_id, context_metadata['baml_ml.model_id'], context_metadata['baml_ml.contract_version'] FROM spans ORDER BY start_time" > "$CASE/spans.json"
+    "$CLI" local recordings query --output-format json "SELECT function_name, invocation_count FROM profiler" > "$CASE/profiler.json"
+    if [ "$mode" = off ]; then
+      jq -e '.rows==[]' "$CASE/spans.json" "$CASE/profiler.json"
+    elif [ "$mode" = timing ]; then
+      jq -e '[.rows[]|select(.[2]|test("user\\.(ModelLoaded|PredictLoadedProba|ObservedImpute|ObservedScale|ObservedDecisionScores|ObservedSoftmax)$"))]|length==0' "$CASE/spans.json"
+      jq -e '[.rows[]|select(.[0]=="user.PredictLoadedProba" and .[1]==1)]|length==1' "$CASE/profiler.json"
+    elif [ "$mode" = semantic ] || [ "$mode" = full ]; then
+      jq -e --arg mode "$mode" '
+        [.rows[]|select(.[2]|test("user\\.(PredictLoadedProba|ObservedImpute|ObservedScale|ObservedDecisionScores|ObservedSoftmax)$"))] |
+        length==5 and all(.[8]=="request-probe" and .[9]!=null and .[10]==1 and (if $mode=="semantic" then .[5]==null and .[6]==null and .[7]==null else .[5]!=null and .[6]!=null end))
+      ' "$CASE/spans.json"
+      jq -e --arg mode "$mode" '[.rows[]|select(.[2]=="user.ModelLoaded")]|length==1 and (.[0]|if $mode=="semantic" then .[5]==null and .[6]==null else .[5].artifact.model_id!=null end)' "$CASE/spans.json"
+    elif [ "$mode" = labels ]; then
+      jq -e '[.rows[]|select(.[2]=="user.ObservedLabels")]|length==1 and .[0][6].value==[1,1]' "$CASE/spans.json"
+      jq -e '[.rows[]|select(.[2]=="user.ObservedSoftmax")]|length==0' "$CASE/spans.json"
+    elif [ "$mode" = failure ]; then
+      jq -e '
+        def roots: [.rows[]|select(.[2]=="user.PredictLoadedProba")];
+        roots|length==3 and all(.[3]!="return" and .[7]!=null) and
+        ([.[]|.[7]|..|objects|.stage? // empty]|sort)==["imputation","input_validation","standardization"]
+      ' "$CASE/spans.json" || { cat "$CASE/spans.json"; exit 1; }
+      jq -e '[.rows[]|select(.[2]=="user.ObservedImpute" and .[3]!="return")]|length==1' "$CASE/spans.json"
+      jq -e '[.rows[]|select(.[2]=="user.ObservedScale" and .[3]!="return")]|length==1' "$CASE/spans.json"
+      jq -e '[.rows[]|select(.[2]=="user.ObservedDecisionScores")]|length==0' "$CASE/spans.json"
+    elif [ "$mode" = load-failure ]; then
+      jq -e '[.rows[]|select(.[2]=="user.PrepareArtifact")]|length==1 and (.[0]|.[3]!="return" and .[5]==null and .[6]==null and .[7]!=null)' "$CASE/spans.json"
+      jq -e '[.rows[]|select(.[2]=="user.ModelLoaded")]|length==0' "$CASE/spans.json"
+    fi
+    echo "Observation contract mode $mode passed"
+  )
+done
+for mode in semantic timing off; do
+  diff <(jq -S . "$OUT/mode-full/result.json") <(jq -S . "$OUT/mode-$mode/result.json")
+done

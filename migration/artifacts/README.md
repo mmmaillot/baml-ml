@@ -91,3 +91,7 @@ bash experiments/imported_inference/run.sh /tmp/imported-inference
 [CI run 45940061227](https://github.com/mmmaillot/baml-ml/actions/runs/45940061227) validated all three imported reference models, the exporter and semantic trace reconstruction before cleanup. Full differential and performance campaigns remain manual. No packaging or imported-runtime benchmark claim.
 
 The repeated-call profiler check requires one decode, artifact validation and conversion for three predictions in the same execution. This is a lifecycle test, not a performance benchmark.
+
+## Observation policy
+
+The loaded model API defaults to metadata-only semantic spans. Pass `observation = ObservationMode.Full` when numerical payload capture is appropriate or `ObservationMode.Timing` for aggregate profiling. See the [native observation contract](../../docs/architecture/observation-contract.md) for precise span names, error semantics, model correlation and privacy limitations.

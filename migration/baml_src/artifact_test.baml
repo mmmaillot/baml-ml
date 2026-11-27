@@ -11,15 +11,15 @@ function ImportedDiabetesRows() -> float[][] {
    [0.09256398319871433,-0.044641636506989144,0.0369065288194249,0.0218723855140367,-0.0249601584096303,-0.016658152053905938,0.0007788079970183853,-0.03949338287409329,-0.022516528376302174,-0.021788232074638245]]
 }
 function ImportedIrisProbe() -> ProbaResult {
-  let m = LoadLogisticModel("artifacts/fixtures/iris.json");
+  let m = LoadLogisticModel("artifacts/fixtures/iris.json", observation = ObservationMode.Full);
   m.predict_proba(ImportedIrisRows(),["sepal length (cm)","sepal width (cm)","petal length (cm)","petal width (cm)"])
 }
 function ImportedDiabetesProbe() -> NumArrayResult {
-  let m = LoadLinearModel("artifacts/fixtures/diabetes.json");
+  let m = LoadLinearModel("artifacts/fixtures/diabetes.json", observation = ObservationMode.Full);
   m.predict(ImportedDiabetesRows(),["age","sex","bmi","bp","s1","s2","s3","s4","s5","s6"])
 }
 function ImportedBinaryProbe() -> ProbaResult {
-  let m = LoadLogisticModel("artifacts/fixtures/binary.json");
+  let m = LoadLogisticModel("artifacts/fixtures/binary.json", observation = ObservationMode.Full);
   m.predict_proba(ImportedBinaryRows(),["sepal length (cm)","sepal width (cm)","petal length (cm)","petal width (cm)"])
 }
 
@@ -87,7 +87,7 @@ test "imported_reject_invalid_json" {
 
 
 function RepeatImportedIrisProbe() -> ProbaResult {
-  let m = LoadLogisticModel("artifacts/fixtures/iris.json");
+  let m = LoadLogisticModel("artifacts/fixtures/iris.json", observation = ObservationMode.Full);
   let features = ["sepal length (cm)","sepal width (cm)","petal length (cm)","petal width (cm)"];
   let x = ImportedIrisRows();
   let first = m.predict_proba([x[0]],features);
@@ -107,7 +107,7 @@ test "prepared_iris_repeated_single_and_batch" {
 
 test "prepared_linear_repeat_and_request_validation" {
   let a = ImportedDiabetes();
-  let m = LoadLinearModel("artifacts/fixtures/diabetes.json");
+  let m = LoadLinearModel("artifacts/fixtures/diabetes.json", observation = ObservationMode.Full);
   let x = ImportedDiabetesRows();
   let p = m.predict(x,a.features);
   assert.is_true(p.ok)
@@ -171,4 +171,42 @@ test "prepared_binary_tie_and_arithmetic_overflow" {
   let huge = PrepareLogisticModel(baml.json.stringify(a));
   assert.is_true(!huge.predict_proba([[1e308,3.0,1.3,0.2]],a.features).ok)
   assert.is_true(!huge.predict([[1e308,3.0,1.3,0.2]],a.features).ok)
+}
+
+
+function ObservationModeProbe(mode: ObservationMode) -> ProbaResult {
+  let m = LoadLogisticModel("artifacts/fixtures/iris.json", observation = mode);
+  m.predict_proba(ImportedIrisRows(),["sepal length (cm)","sepal width (cm)","petal length (cm)","petal width (cm)"], $trace = trace.context(distinct_id = "request-probe"))
+}
+function ObservationSemanticProbe() -> ProbaResult { ObservationModeProbe(ObservationMode.Semantic) }
+function ObservationTimingProbe() -> ProbaResult { ObservationModeProbe(ObservationMode.Timing) }
+function ObservationFullProbe() -> ProbaResult { ObservationModeProbe(ObservationMode.Full) }
+function ObservationLabelProbe() -> IntArrayResult {
+  let m = LoadLogisticModel("artifacts/fixtures/binary.json", observation = ObservationMode.Full);
+  m.predict(ImportedBinaryRows(),["sepal length (cm)","sepal width (cm)","petal length (cm)","petal width (cm)"])
+}
+function ObservationFailureProbe() -> string[] {
+  let m = LoadLogisticModel("artifacts/fixtures/iris.json", observation = ObservationMode.Full);
+  let names = ["sepal length (cm)","sepal width (cm)","petal length (cm)","petal width (cm)"];
+  let bad_order = m.predict_proba(ImportedIrisRows(),[]);
+  let inf = m.predict_proba([[float.inf(),3.0,1.3,0.2]],names);
+  let overflow = m.predict_proba([[1.7e308,3.0,1.3,0.2]],names);
+  assert.is_true(!bad_order.ok && !inf.ok && !overflow.ok)
+  [bad_order.error,inf.error,overflow.error]
+}
+function ObservationLoadFailureProbe() -> bool {
+  let failed: LoadedLogisticModel? = PrepareLogisticModel("{", observation = ObservationMode.Full) catch_all (e) { _ => null };
+  failed == null
+}
+test "observation_mode_does_not_change_predictions" {
+  assert.equal(ObservationFullProbe().probs,ObservationSemanticProbe().probs)
+  assert.equal(ObservationFullProbe().probs,ObservationTimingProbe().probs)
+  assert.equal(ObservationLabelProbe().value,[1,1])
+}
+test "observation_failures_preserve_result_api" {
+  let errors = ObservationFailureProbe();
+  assert.equal(errors[0],"artifact: feature order mismatch")
+  assert.equal(errors[1],"imputer_transform: input contains infinite values")
+  assert.equal(errors[2],"scaler_transform: standardized value is not finite")
+  assert.is_true(ObservationLoadFailureProbe())
 }
