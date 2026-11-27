@@ -263,15 +263,15 @@ for mode in predict adaptive shadow; do
   query spans "SELECT span_id, parent_span_id, span_name, status, duration, input_args, output_value, error_value, context_metadata['baml_ml.model_id'], context_metadata['baml_ml.step_index'], context_metadata['baml_ml.step_kind'], context_metadata['baml_ml.branch_name'], context_metadata['baml_ml.shadow_role'], context_metadata['baml_ml.row_index'], context_metadata['baml_ml.escalated'], context_metadata['baml_ml.trigger_reasons'] FROM spans ORDER BY start_time"
   if [ "$mode" = predict ]; then
     jq -e '
-      def rows($n): [.rows[]|select(.[0]==("user."+$n))];
+      def rows($n): [.rows[]|select(.[2]==("user."+$n))];
       (rows("PipelineModelLoaded")|length==1) and
       (rows("ObservedColumnTransformer") as $ct |
-        ($ct|length==1) and ($ct[0][2]==0) and ($ct[0][3]=="column_transformer") and
+        ($ct|length==1) and ($ct[0][9]==0) and ($ct[0][10]=="column_transformer") and
         (rows("ObservedColumnTransformerBranch") as $br |
-          ($br|length==2) and ([$br[]|select(.[2]==0 and .[4]!=null and .[1]==$ct[0][0])]|length==2)) and
-        (rows("ObservedImputeStep") as $im | ($im|length==2) and ([$im[]|select(.[3]=="simple_imputer" and .[2]==0)]|length==2)) and
-        (rows("ObservedScaleStep") as $sc | ($sc|length==1) and ($sc[0][3]=="standard_scaler" and $sc[0][2]==0)) and
-        (rows("ObservedOneHotEncode") as $oh | ($oh|length==1) and ($oh[0][3]=="one_hot_encoder" and $oh[0][2]==0)) and
+          ($br|length==2) and ([$br[]|select(.[9]==0 and .[11]!=null and .[1]==$ct[0][0] and .[10]=="column_transformer")]|length==2)) and
+        (rows("ObservedImputeStep") as $im | ($im|length==2) and ([$im[]|select(.[10]=="simple_imputer" and .[9]==0)]|length==2)) and
+        (rows("ObservedScaleStep") as $sc | ($sc|length==1) and ($sc[0][10]=="standard_scaler" and $sc[0][9]==0)) and
+        (rows("ObservedOneHotEncode") as $oh | ($oh|length==1) and ($oh[0][10]=="one_hot_encoder" and $oh[0][9]==0)) and
         (rows("ObservedForestTraversal")|length==1))
     ' "$CASE/spans.json" || { cat "$CASE/spans.json"; exit 1; }
   fi
