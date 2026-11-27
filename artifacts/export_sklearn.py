@@ -8,6 +8,7 @@ from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.utils.validation import check_is_fitted
+from sklearn.tree import DecisionTreeClassifier
 
 
 def export_pipeline(pipeline, features):
@@ -18,7 +19,7 @@ def export_pipeline(pipeline, features):
         raise ValueError("unsupported imputer")
     if type(scale) is not StandardScaler or not scale.with_mean or not scale.with_std:
         raise ValueError("unsupported scaler")
-    if type(model) not in (LinearRegression, LogisticRegression):
+    if type(model) not in (LinearRegression, LogisticRegression, DecisionTreeClassifier):
         raise ValueError("unsupported estimator")
     for step in (imp, scale, model):
         check_is_fitted(step)
@@ -45,6 +46,33 @@ def export_pipeline(pipeline, features):
         kind = "linear"
         weights = [finite(model.coef_, (n,))]
         intercepts = [finite(np.asarray(model.intercept_), ())]
+    elif type(model) is DecisionTreeClassifier:
+        if model.n_outputs_ != 1:
+            raise ValueError("only single-output classification trees supported")
+        labels = np.asarray(model.classes_)
+        if labels.ndim != 1 or labels.dtype.kind not in "iu" or not len(labels):
+            raise ValueError("only integer classes supported")
+        classes = [int(x) for x in labels]
+        if any(x < -(2**63) or x >= 2**63 for x in classes) or classes != sorted(set(classes)):
+            raise ValueError("invalid class order/range")
+        t = model.tree_
+        nodes = []
+        for i in range(t.node_count):
+            left, right = int(t.children_left[i]), int(t.children_right[i])
+            leaf = left == right == -1
+            probs = finite(t.value[i, 0], (len(classes),)) if leaf else []
+            if leaf and (min(probs) < 0 or max(probs) > 1 or abs(sum(probs)-1) > 1e-12):
+                raise ValueError("unsupported leaf probabilities")
+            threshold = float(t.threshold[i])
+            if not np.isfinite(threshold):
+                raise ValueError("nonfinite split threshold")
+            nodes.append(dict(left=left, right=right, feature=int(t.feature[i]), threshold=threshold, probabilities=probs))
+        a = dict(schema_version=2, source="scikit-learn", source_version=sklearn.__version__,
+                 features=features, imputer_kind="mean", scaler_kind="standard",
+                 estimator_kind="decision_tree_classifier", imputer_means=means, scaler_means=sm,
+                 scaler_scales=ss, classes=classes, nodes=nodes)
+        a["model_id"] = hashlib.sha256(json.dumps(a, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
+        return a
     else:
         if model.solver == "liblinear" or getattr(model, "multi_class", None) == "ovr":
             raise ValueError("unsupported OvR/logistic solver")

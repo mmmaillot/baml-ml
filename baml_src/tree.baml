@@ -1,4 +1,4 @@
-// Experimental fitted tree traversal. Production artifact integration is #63.
+// Fitted decision tree traversal with a checked public entry point.
 // sklearn converts dense features to binary32 before comparing f64 thresholds.
 class TreeNode {
   left int
@@ -90,8 +90,15 @@ function TreeStateError(t: TreeClassifierState) -> string {
 function TreePredictBatch(x: float[][], t: TreeClassifierState) -> TreeBatchResult {
   let err = TreeStateError(t);
   if (err != "") { throw baml.errors.InvalidArgument { message: err }; }
+  TreePredictCore(x,t,true) catch (e) {
+    let f: InferenceFailure => throw baml.errors.InvalidArgument { message: f.message }
+  }
+}
+
+// Internal: topology and state have already been validated.
+function TreePredictCore(x: float[][], t: TreeClassifierState, capture_path: bool) -> TreeBatchResult throws InferenceFailure {
   let d = CheckFiniteMatrix(x);
-  if (!d.ok || d.cols != t.n_features) { throw baml.errors.InvalidArgument { message: "tree: invalid finite input matrix" }; }
+  if (!d.ok || d.cols != t.n_features) { throw InferenceFailure { stage: "tree_traversal", message: "tree: invalid finite input matrix" }; }
   let labels: int[] = [];
   let probs: float[][] = [];
   let leaves: int[] = [];
@@ -100,15 +107,16 @@ function TreePredictBatch(x: float[][], t: TreeClassifierState) -> TreeBatchResu
     let row: float[] = [];
     for (let j = 0; j < d.cols; j += 1) {
       let v = TreeRoundFloat32(x[i][j]);
-      if (!IsFinite(v)) { throw baml.errors.InvalidArgument { message: "tree: float32 input overflow" }; }
+      if (!IsFinite(v)) { throw InferenceFailure { stage: "tree_traversal", message: "tree: float32 input overflow" }; }
       row.push(v);
     }
     let id = 0;
-    let path: int[] = [0];
+    let path: int[] = [];
+    if (capture_path) { path.push(0); }
     while (t.nodes[id].left != -1) {
       let node = t.nodes[id];
       id = if (row[node.feature] <= node.threshold) { node.left } else { node.right };
-      path.push(id);
+      if (capture_path) { path.push(id); }
     }
     let p: float[] = [];
     let best = 0;
@@ -119,7 +127,7 @@ function TreePredictBatch(x: float[][], t: TreeClassifierState) -> TreeBatchResu
     labels.push(t.classes[best]);
     probs.push(p);
     leaves.push(id);
-    paths.push(path);
+    if (capture_path) { paths.push(path); }
   }
   TreeBatchResult { labels: labels, probs: probs, leaves: leaves, paths: paths }
 }
