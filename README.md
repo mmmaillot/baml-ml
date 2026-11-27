@@ -50,7 +50,7 @@ Native checks run automatically; full performance, scaling and historical differ
 ## Next
 
 - [Scaling results](experiments/scaling/README.md): near-linear feature scaling, batching plateau and ~8.9 kB marginal storage per distinct 32-feature prediction with spans and index.
-- Profile numerical hotspots before choosing any native acceleration.
+- [Hotspot analysis](experiments/profiling/README.md): inference is dominated by checks and preprocessing; training has larger coarse-grained numerical kernel opportunities. Investigate redundant internal checks before broad Rust integration.
 - [NumBam](numbam/README.md): experimental Rust numerical backend, deferred pending measured need ([#20](https://github.com/mmmaillot/baml-ml/issues/20)).
 - [Native backend and embedded runtime design](docs/architecture/numerical-backends.md).
 
