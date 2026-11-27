@@ -19,7 +19,7 @@ Load or prepare a model once, then call its prediction methods for repeated sing
 
 ## Standalone-first delivery
 
-The MVP is a native packaged executable for batch and edge inference. No inference SDK or serving framework. See the [standalone-first ADR](docs/architecture/standalone-first.md). Linux x86-64 packaging is under validation.
+The MVP is a native packaged executable for batch and edge inference. No inference SDK or serving framework. See the [standalone-first ADR](docs/architecture/standalone-first.md). Linux x86-64 packaging is under validation. See [standalone batch usage and build](experiments/standalone/README.md).
 
 ## Run and validate
 
