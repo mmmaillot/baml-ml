@@ -36,6 +36,11 @@ done
 )
 test -x "$BIN"
 file "$BIN" | tee "$OUT/evidence/binary-format.txt"
+case "$PLATFORM" in
+  linux-x86_64) grep -E 'ELF.*x86-64' "$OUT/evidence/binary-format.txt";;
+  linux-arm64) grep -Ei 'ELF.*(aarch64|ARM aarch64)' "$OUT/evidence/binary-format.txt";;
+  macos-arm64) grep -E 'Mach-O.*arm64' "$OUT/evidence/binary-format.txt";;
+esac
 if [ "$OS" = Darwin ]; then
   otool -L "$BIN" | tee "$OUT/evidence/dynamic-libraries.txt"
   otool -l "$BIN" > "$OUT/evidence/macho-load-commands.txt"
