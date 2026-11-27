@@ -17,7 +17,9 @@ is rejected, and every tree is traversed with that shared rounded row. Following
 leaf class probabilities accumulated in estimator order and divided once by
 `n_estimators`; `predict` is the argmax of that mean with first-class tie
 breaking. The accumulation order matches sklearn's sequential
-`_accumulate_prediction`, so parity is bit-exact, verified by the independent
+`_accumulate_prediction`, so parity is bit-exact for the default sequential
+accumulation (`n_jobs=1`; parallel `n_jobs > 1` can reorder the floating-point
+sum), verified by the independent
 oracle probe (`ForestOracleProbe`, exact `assert.equal` on labels, probabilities
 and per-tree leaf IDs).
 

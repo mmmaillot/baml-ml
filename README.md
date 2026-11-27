@@ -130,7 +130,7 @@ Validated against **scikit-learn 1.8.0** for dense `float64` three-step `Pipelin
 - **`LinearRegression`** (schema v1): single-target dense regression (`predict`).
 - **`LogisticRegression`** (schema v1): binary sigmoid and multinomial softmax with sorted integer classes (`predict`, `predict-proba`).
 - **`DecisionTreeClassifier`** (schema v2): single-output dense classification with sorted integer classes and exact IEEE-754 `binary32` ties-to-even threshold rounding (`predict`, `predict-proba`, visited paths and leaves in `Full`).
-- **`RandomForestClassifier`** (schema v4): single-output dense forests reusing the binary32 tree core; `predict_proba` is the arithmetic mean of per-tree leaf probabilities (bit-exact sklearn parity) and `predict` is its argmax with first-class tie breaking (`predict`, `predict-proba`, per-row leaf IDs per tree in `Full`).
+- **`RandomForestClassifier`** (schema v4): single-output dense forests reusing the binary32 tree core; `predict_proba` is the arithmetic mean of per-tree leaf probabilities (bit-exact sklearn parity with default sequential `n_jobs=1`) and `predict` is its argmax with first-class tie breaking (`predict`, `predict-proba`, per-row leaf IDs per tree in `Full`).
 - **Observation modes**: `Semantic` (default metadata-only spans), `Timing` (aggregate profiler), `Full` (all stage payloads + one-time model snapshot), `Adaptive` (selective row-level `Full` replay with lazy snapshot and `max_escalated_rows` cap), and `BAML_TELEMETRY=off`.
 - **Standalone CLI**: `predict` and same-family `shadow` (champion/challenger comparison with challenger inference-failure isolation).
 

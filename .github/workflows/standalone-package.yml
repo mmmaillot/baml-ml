@@ -8,13 +8,8 @@ on:
       - 'artifacts/fixtures/**'
       - 'experiments/standalone/**'
       - '.github/workflows/standalone-package.yml'
+  # Required checks must run on every PR: keep paths filters on push only.
   pull_request:
-    paths:
-      - 'baml_src/**'
-      - 'baml.toml'
-      - 'artifacts/fixtures/**'
-      - 'experiments/standalone/**'
-      - '.github/workflows/standalone-package.yml'
   workflow_dispatch:
 permissions:
   contents: read
