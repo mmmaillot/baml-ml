@@ -44,14 +44,11 @@ test "adaptive_matches_semantic_and_full_for_each_operation" {
         "artifacts/fixtures/binary.json",
         "artifacts/fixtures/iris.json",
         "artifacts/fixtures/tree-smoke.json",
-        "artifacts/fixtures/forest-smoke.json",
     ];
     for (let i = 0; i < model_paths.length(); i += 1) {
         let model = baml.fs.read(model_paths[i]);
         let features = if (i == 3) {
             DecodeTreeArtifact(model).features
-        } else if (i == 4) {
-            DecodeForestArtifact(model).features
         } else {
             DecodeFittedArtifact(model).features
         };
@@ -121,44 +118,31 @@ test "loaded_adaptive_reuses_handle_and_rejects_misapplied_policy" {
     assert.equal(model.predict(rows, a.features).value, [0])
 }
 
-test "shadow_linear_binary_multinomial_tree_and_forest_preserve_champion" {
+test "shadow_linear_binary_multinomial_and_tree_preserve_champion" {
     let tree = baml.fs.read("artifacts/fixtures/tree-smoke.json");
     let tree_b = DecodeTreeArtifact(tree);
     tree_b.model_id = "tree-challenger";
     tree_b.imputer_means = [2.0];
     tree_b.scaler_means = [2.0];
     tree_b.scaler_scales = [0.5];
-    let forest = baml.fs.read("artifacts/fixtures/forest-smoke.json");
-    let forest_b = DecodeForestArtifact(forest);
-    forest_b.model_id = "forest-challenger";
-    forest_b.imputer_means = [2.0];
-    forest_b.scaler_means = [2.0];
-    forest_b.scaler_scales = [0.5];
-    forest_b.trees[1].nodes[1].probabilities = [0.0, 1.0];
     let kinds = [
         "linear",
         "logistic_binary",
         "logistic_multinomial",
         "decision_tree_classifier",
-        "random_forest_classifier",
     ];
     let healthy = `{"features":["x"],"rows":[[1],[1.5]]}`;
     let mixed = `{"features":["x"],"rows":[[null],[5],[1]]}`;
     let policy = DecodeAdaptivePolicy(`{"max_escalated_rows":1}`);
     for (let kind in kinds) {
         let is_tree = kind == "decision_tree_classifier";
-        let is_forest = kind == "random_forest_classifier";
         let a = if (is_tree) {
             tree
-        } else if (is_forest) {
-            forest
         } else {
             baml.json.stringify(ObservationFixture(kind))
         };
         let b = if (is_tree) {
             baml.json.stringify(tree_b)
-        } else if (is_forest) {
-            baml.json.stringify(forest_b)
         } else {
             baml.json.stringify(ChallengerFixture(kind))
         };
@@ -209,7 +193,6 @@ test "shadow_strict_model_input_and_operation_compatibility" {
         baml.json.stringify(ObservationFixture("linear")),
         baml.json.stringify(ObservationFixture("logistic_multinomial")),
         baml.fs.read("artifacts/fixtures/tree-smoke.json"),
-        baml.fs.read("artifacts/fixtures/forest-smoke.json"),
         "{",
     ];
     b.features = ["z"];

@@ -11,5 +11,5 @@ WHERE escalation.span_name = 'user.ShadowEscalatedRow'
   AND replay.span_name = 'user.RunSelectiveModel'
   AND stage.span_name IN ('user.ObservedImpute', 'user.ObservedScale',
       'user.ObservedLinear', 'user.ObservedDecisionScores', 'user.ObservedSoftmax',
-      'user.ObservedLabels', 'user.ObservedTreeTraversal', 'user.ObservedForestTraversal')
+      'user.ObservedLabels', 'user.ObservedTreeTraversal')
 ORDER BY row_index, stage, role
