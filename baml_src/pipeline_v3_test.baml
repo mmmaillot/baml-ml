@@ -21,7 +21,8 @@ function V3Names() -> string[] {
    "v3-impute-median-scale-logreg", "v3-impute-most-frequent-tree", "v3-impute-constant-linreg",
    "v3-strimpute-ohe-logreg", "v3-ohe-drop-first", "v3-ohe-if-binary", "v3-ohe-ignore-unseen",
    "v3-ohe-error", "v3-ohe-int-categories",
-   "v3-ct-hetero-logreg", "v3-ct-hetero-tree", "v3-ct-passthrough-remainder", "v3-ct-then-scaler-logreg"]
+   "v3-ct-hetero-logreg", "v3-ct-hetero-tree", "v3-ct-passthrough-remainder", "v3-ct-then-scaler-logreg",
+   "v3-ct-hetero-forest", "v3-forest-impute-scale", "v3-forest-impute-scale-b"]
 }
 
 function Near(a: float, b: float) -> bool { Abs(a - b) < 1e-9 }

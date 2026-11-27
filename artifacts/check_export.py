@@ -174,4 +174,37 @@ rejects_ct(transformers=[("n", make_pipeline(SimpleImputer(), StandardScaler()),
                         ("c", make_pipeline(SimpleImputer(strategy="most_frequent"),
                                              OneHotEncoder(sparse_output=False)), [2])],
            remainder="drop", transformer_weights={"n": 2.0})  # transformer_weights
+
+# #76: RandomForestClassifier as a v3 terminal estimator; strict rejection of
+# unsupported forest variants.
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+yc3 = np.array([0, 1, 2])
+forest = make_pipeline(SimpleImputer(), StandardScaler(),
+                       RandomForestClassifier(n_estimators=4, max_depth=2, random_state=42)).fit(x, yc3)
+a = export_pipeline_v3(forest, ["a", "b"])
+assert a["estimator"]["kind"] == "random_forest_classifier"
+assert a["estimator"]["classes"] == [0, 1, 2] and len(a["estimator"]["trees"]) == 4
+for tree in a["estimator"]["trees"]:
+    assert tree["n_features"] == 2 and tree["classes"] == [0, 1, 2]
+    for node in tree["nodes"]:
+        assert (node["probabilities"] != []) == (node["left"] == -1)
+ct_forest = make_pipeline(ColumnTransformer(
+    [("num", make_pipeline(SimpleImputer(), StandardScaler()), [0, 1]),
+     ("cat", make_pipeline(SimpleImputer(strategy="most_frequent"), OneHotEncoder(sparse_output=False)), [2])],
+    remainder="drop"),
+    RandomForestClassifier(n_estimators=3, max_depth=2, random_state=42)).fit(xh, yh)
+a = export_pipeline_v3(ct_forest, ["age", "income", "c"])
+assert a["estimator"]["kind"] == "random_forest_classifier"
+assert a["estimator"]["n_features_in"] == a["steps"][0]["n_features_out"] == 6
+multi = make_pipeline(SimpleImputer(), StandardScaler(),
+                      RandomForestClassifier(n_estimators=2, random_state=42)).fit(x, np.column_stack([yc3, yc3]))
+regressor = make_pipeline(SimpleImputer(), StandardScaler(),
+                          RandomForestRegressor(n_estimators=2, random_state=42)).fit(x, y.astype(float))
+for model in (multi, regressor):
+    try:
+        export_pipeline_v3(model, ["a", "b"])
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("unsupported forest exported")
 print("Exporter contract and regenerated reference fixtures passed.")

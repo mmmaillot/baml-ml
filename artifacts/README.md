@@ -46,23 +46,36 @@ The existing checked stateless PredictImported* wrappers remain available for
 caller-owned mutable artifacts. Handles are live within a single BAML engine
 execution; cross-process persistence and host SDKs are not provided. The standalone executable loads one model per batch job.
 
-## Schema v3: arbitrary-length sequential pipelines (#73)
+## Schema v3: arbitrary-length heterogeneous pipelines (#73-#76)
 
 `export_pipeline_v3(pipeline, features, input_kinds=None)` (or
 `write_artifact_v3`) exports any `sklearn.pipeline.Pipeline` with `0..N`
-supported preprocessing steps (`SimpleImputer`, `StandardScaler`; extended by
-follow-up stories) followed by one supported estimator (`LinearRegression`,
-`LogisticRegression`, `DecisionTreeClassifier`) into `schema_version = 3`.
-The artifact carries an ordered `steps` list with explicit per-step
+supported preprocessing steps followed by one supported estimator
+(`LinearRegression`, `LogisticRegression`, `DecisionTreeClassifier`,
+`RandomForestClassifier`) into `schema_version = 3`. Supported steps:
+`SimpleImputer` (numeric `mean`/`median`/`most_frequent`/`constant` on finite
+float64 statistics, or categorical `most_frequent`/`constant` string fills),
+dense `StandardScaler`, dense `OneHotEncoder` (string or signed-integer
+categories, `handle_unknown` `error`/`ignore`, `drop` `null`/`first`/`if_binary`)
+and `ColumnTransformer` (named branches over explicit column indices with
+`drop`/`passthrough`/sub-pipelines, resolved `remainder`; sparse outputs,
+`transformer_weights`, nested transformers and callable selectors are
+rejected). The artifact carries an ordered `steps` list with explicit per-step
 `n_features_in`/`n_features_out` (validated as a chain once at load time,
-together with the terminal `estimator.n_features_in`) plus the input
-`features` and `input_kinds`. Each executed step emits a semantic span tagged
-with `baml_ml.step_index` and `baml_ml.step_kind`, with the fitted step state
-redacted; `Adaptive` skips `extreme_zscore` when no `StandardScaler` step is
-present. The v1/v2 artifacts, loaders, `BatchOutput` and `ShadowOutput`
-contracts are unchanged, and `RunBatch`/`shadow` dispatch on
-`schema_version`. Committed parity fixtures and the sklearn 1.8.0 oracle live
-in `artifacts/fixtures/v3/` (regenerate with
+together with the terminal `estimator.n_features_in`), the input `features`
+and per-column `input_kinds` (`numeric`|`categorical`). Batch rows are
+`(float | string | null)[][]` validated per column; numeric-only JSON remains
+compatible with v1/v2 and all-numeric v3 pipelines. Each executed step emits a
+semantic span tagged with `baml_ml.step_index`/`baml_ml.step_kind` and redacted
+fitted state (`ObservedImputeStep`, `ObservedScaleStep`, `ObservedOneHotEncode`,
+`ObservedColumnTransformer` with `ObservedColumnTransformerBranch` children);
+forests emit `ObservedForestTraversal`. `Adaptive` fires `missing_input` on
+null numeric or categorical cells and skips `extreme_zscore` without a scaler
+step. The v1/v2 artifacts, loaders, `BatchOutput` and `ShadowOutput` contracts
+are unchanged; `RunBatch`/`shadow` dispatch on `schema_version`. See the
+[ADR](../docs/architecture/flexible-pipelines-and-forests.md). Committed parity
+fixtures and the sklearn 1.8.0 oracle live in `artifacts/fixtures/v3/`
+(regenerate with
 `python artifacts/generate_v3_fixtures.py artifacts/fixtures`).
 
 ## Export and run

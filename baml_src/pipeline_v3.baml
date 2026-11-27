@@ -72,6 +72,7 @@ class PipelineEstimator {
   intercepts float[]
   classes int[]
   nodes TreeNode[]
+  trees TreeClassifierState[]
 }
 
 class FittedPipelineArtifact {
@@ -160,20 +161,24 @@ function FiniteMatrixParams(weights: float[][], intercepts: float[], n: int) -> 
 function PipelineEstimatorError(e: PipelineEstimator, n: int) -> string {
   if (e.n_features_in != n) { return "artifact: estimator input dimension mismatch"; }
   if (e.kind == "linear") {
-    if (e.weights.length() != 1 || e.intercepts.length() != 1 || e.classes.length() != 0 || e.nodes.length() != 0) { return "artifact: invalid linear dimensions"; }
+    if (e.weights.length() != 1 || e.intercepts.length() != 1 || e.classes.length() != 0 || e.nodes.length() != 0 || e.trees.length() != 0) { return "artifact: invalid linear dimensions"; }
     return FiniteMatrixParams(e.weights, e.intercepts, n);
   }
   if (e.kind == "logistic_binary") {
-    if (e.classes.length() != 2 || !SortedUniqueClasses(e.classes) || e.weights.length() != 1 || e.intercepts.length() != 1 || e.nodes.length() != 0) { return "artifact: invalid binary dimensions"; }
+    if (e.classes.length() != 2 || !SortedUniqueClasses(e.classes) || e.weights.length() != 1 || e.intercepts.length() != 1 || e.nodes.length() != 0 || e.trees.length() != 0) { return "artifact: invalid binary dimensions"; }
     return FiniteMatrixParams(e.weights, e.intercepts, n);
   }
   if (e.kind == "logistic_multinomial") {
-    if (e.classes.length() < 3 || !SortedUniqueClasses(e.classes) || e.weights.length() != e.classes.length() || e.intercepts.length() != e.classes.length() || e.nodes.length() != 0) { return "artifact: invalid multinomial dimensions"; }
+    if (e.classes.length() < 3 || !SortedUniqueClasses(e.classes) || e.weights.length() != e.classes.length() || e.intercepts.length() != e.classes.length() || e.nodes.length() != 0 || e.trees.length() != 0) { return "artifact: invalid multinomial dimensions"; }
     return FiniteMatrixParams(e.weights, e.intercepts, n);
   }
   if (e.kind == "decision_tree_classifier") {
-    if (e.weights.length() != 0 || e.intercepts.length() != 0) { return "artifact: invalid tree dimensions"; }
+    if (e.weights.length() != 0 || e.intercepts.length() != 0 || e.trees.length() != 0) { return "artifact: invalid tree dimensions"; }
     return TreeStateError(TreeClassifierState { n_features: n, classes: e.classes, nodes: e.nodes });
+  }
+  if (e.kind == "random_forest_classifier") {
+    if (e.weights.length() != 0 || e.intercepts.length() != 0 || e.nodes.length() != 0) { return "artifact: invalid forest dimensions"; }
+    return ForestStateError(ForestClassifierState { n_features: n, classes: e.classes, trees: e.trees });
   }
   "artifact: unsupported estimator"
 }
@@ -720,17 +725,28 @@ function ColumnTransformerStepCore(cells: Cell[][], step: PipelineStep, opts: tr
   let ct = step.column_transformer;
   if (ct == null) { return CellMatrixResult { ok: false, cells: [], error: "artifact: malformed column_transformer step" }; }
   let err = CheckCellMatrixDims(cells, step.n_features_in);
+  // Each branch transforms the whole selected sub-matrix once; outputs are
+  // then concatenated row by row in branch order.
+  let branch_outs: Cell[][][] = [];
+  if (err == "") {
+    for (let b = 0; b < ct.branches.length() && err == ""; b += 1) {
+      let branch = ct.branches[b];
+      let sub: Cell[][] = [];
+      for (let i = 0; i < cells.length(); i += 1) {
+        sub.push(SubRow(cells[i], branch.columns));
+      }
+      branch_outs.push(ObservedColumnTransformerBranch(sub, TracePrivate<ColumnTransformerBranch> { value: branch }, index, opts, exec, $trace = BranchOptions(opts, index, branch.name)));
+    }
+  }
   let out: Cell[][] = [];
   if (err == "") {
-    for (let i = 0; i < cells.length() && err == ""; i += 1) {
+    for (let i = 0; i < cells.length(); i += 1) {
       let row: Cell[] = [];
-      for (let b = 0; b < ct.branches.length(); b += 1) {
-        let branch = ct.branches[b];
-        let sub: Cell[][] = [SubRow(cells[i], branch.columns)];
-        let part = ObservedColumnTransformerBranch(sub, TracePrivate<ColumnTransformerBranch> { value: branch }, index, opts, exec, $trace = BranchOptions(opts, index, branch.name));
-        if (part.length() > 0) {
-          for (let j = 0; j < part[0].length(); j += 1) {
-            row.push(part[0][j]);
+      for (let b = 0; b < branch_outs.length(); b += 1) {
+        let part = branch_outs[b];
+        if (part.length() > i) {
+          for (let j = 0; j < part[i].length(); j += 1) {
+            row.push(part[i][j]);
           }
         }
       }
@@ -823,6 +839,10 @@ function RunPipelineEstimator(x: float[][], a: FittedPipelineArtifact, operation
   }
   if (e.kind == "decision_tree_classifier") {
     let r = ObservedTreeTraversal(x, TracePrivate<TreeClassifierState> { value: TreeClassifierState { n_features: e.n_features_in, classes: e.classes, nodes: e.nodes } }, full, $trace = opts);
+    return PipelineRun { values: [], labels: r.labels, probs: r.probs };
+  }
+  if (e.kind == "random_forest_classifier") {
+    let r = ObservedForestTraversal(x, TracePrivate<ForestClassifierState> { value: ForestClassifierState { n_features: e.n_features_in, classes: e.classes, trees: e.trees } }, full, $trace = opts);
     return PipelineRun { values: [], labels: r.labels, probs: r.probs };
   }
   throw InferenceFailure { stage: "prediction", message: "artifact: unsupported estimator" };

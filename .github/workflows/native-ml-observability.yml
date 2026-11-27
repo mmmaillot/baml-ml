@@ -4,12 +4,14 @@ on:
     branches: [main]
     paths:
       - 'experiments/native_ml_observability/**'
+      - 'experiments/heterogeneous_pipelines/**'
       - 'experiments/observability/probe.baml'
       - 'baml_src/**'
       - '.github/workflows/native-ml-observability.yml'
   pull_request:
     paths:
       - 'experiments/native_ml_observability/**'
+      - 'experiments/heterogeneous_pipelines/**'
       - 'experiments/observability/probe.baml'
       - 'baml_src/**'
       - '.github/workflows/native-ml-observability.yml'
@@ -43,6 +45,10 @@ jobs:
           echo "BAML_CLI=$cli" >> "$GITHUB_ENV"
       - name: Execute native Iris inference and inspect local recordings
         run: bash experiments/native_ml_observability/run.sh native-ml-observability-results
+      - name: Verify schema v3 heterogeneous pipeline traces with BTEL SQL
+        env:
+          BAML_TELEMETRY: "off"
+        run: bash experiments/heterogeneous_pipelines/run.sh heterogeneous-pipelines-results
       - name: Publish raw evidence
         if: always()
         uses: actions/upload-artifact@v4

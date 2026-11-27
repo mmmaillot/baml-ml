@@ -1,6 +1,6 @@
 # Native inference observation contract v1
 
-This contract covers loaded LinearRegression, LogisticRegression and DecisionTreeClassifier models. The checked stateless helper API and caller instrumentation have their own trace settings. The original observation modes were validated in [CI run 45953941508](https://github.com/mmmaillot/baml-ml/actions/runs/45953941508).
+This contract covers loaded LinearRegression, LogisticRegression and DecisionTreeClassifier models, plus `schema_version = 3` flexible pipelines (see [flexible pipelines and forests ADR](flexible-pipelines-and-forests.md)). The checked stateless helper API and caller instrumentation have their own trace settings. The original observation modes were validated in [CI run 45953941508](https://github.com/mmmaillot/baml-ml/actions/runs/45953941508).
 
 ## Native capture modes
 
@@ -54,10 +54,21 @@ model_id is the artifact identity supplied by its exporter, not authentication.
 | ObservedSoftmax | Decision score matrix | Probabilities |
 | ObservedLabels | Decision score matrix, ordered classes | Integer labels |
 | ObservedTreeTraversal | Standardized rows | Probabilities, labels, visited nodes and leaves |
+| PipelineModelLoaded | Validated v3 fitted artifact | void |
+| PredictLoadedPipeline | Model ID, ordered feature names and heterogeneous input rows | Existing result object on success |
+| ObservedImputeStep | Rows, redacted imputer state | Imputed rows; metadata baml_ml.step_index / baml_ml.step_kind |
+| ObservedScaleStep | Imputed rows, redacted scaler state | Standardized rows; step metadata |
+| ObservedOneHotEncode | Rows, redacted categories state | Dense indicator rows; step metadata |
+| ObservedColumnTransformer | Rows, redacted transformer state | Concatenated rows; step metadata |
+| ObservedColumnTransformerBranch | Branch sub-matrix, redacted branch state | Branch output rows; baml_ml.branch_name |
+| ObservedForestTraversal | Preprocessed rows | Averaged probabilities, labels and per-row leaf IDs per tree |
 
 Prediction stages are children of the prediction span; intermediate helper
 functions are timing-only by default. Label-only inference in Timing, Semantic and Full skips softmax. Adaptive and shadow compute probabilities in memory for trigger evaluation and keep the label replay stages faithful to the requested operation. Binary decision scores are [0,z] (the second score is sklearn's
-decision function); multiclass scores follow artifact class order.
+decision function); multiclass scores follow artifact class order. In v3
+pipelines, `missing_input` fires on null numeric or categorical cells and
+`extreme_zscore` uses the output of the most recent standard_scaler step or
+branch (no-op without a scaler).
 
 Prepared pipeline/parameter arguments are wrapped in a native @trace.redact
 field for semantic inference spans. The full model artifact is captured in
@@ -75,7 +86,8 @@ including feature order errors that occur before the main pass. It carries stage
 returns the existing ok:false result with the original error text. Thus the
 semantic span is a failure even though the public method returns normally.
 Stages include input_validation, imputation, standardization,
-linear_prediction, decision_scores and softmax. Later stages are not called
+linear_prediction, decision_scores, softmax, one_hot_encoding,
+column_transform, tree_traversal and forest_traversal. Later stages are not called
 after a failed stage. Full captures error values; Semantic captures status
 without payload; Timing relies on native outcome counters.
 Malformed JSON, unsupported or invalid artifact state fail in PrepareArtifact;

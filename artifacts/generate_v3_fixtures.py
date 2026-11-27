@@ -19,6 +19,7 @@ from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
 
 assert sklearn.__version__ == "1.8.0", sklearn.__version__
 
@@ -222,6 +223,31 @@ def build_fixtures():
     fixtures["v3-ct-then-scaler-logreg"] = (
         ct_scale, hetero_features, hetero_kinds,
         {"features": hetero_features, "rows": hetero_rows},
+    )
+
+    # #76: end-to-end heterogeneous pipelines feeding a RandomForestClassifier.
+    ct_forest = Pipeline([("ct", ColumnTransformer(
+        [("num", make_pipeline(SimpleImputer(), StandardScaler()), [0, 1]),
+         ("cat", make_pipeline(SimpleImputer(strategy="most_frequent"),
+                               OneHotEncoder(sparse_output=False)), [2])],
+        remainder="drop")),
+        ("est", RandomForestClassifier(n_estimators=8, max_depth=4, random_state=42))]).fit(xh, yh)
+    fixtures["v3-ct-hetero-forest"] = (
+        ct_forest, hetero_features, hetero_kinds,
+        {"features": hetero_features, "rows": hetero_rows},
+    )
+    forest = make_pipeline(SimpleImputer(), StandardScaler(),
+                           RandomForestClassifier(n_estimators=8, max_depth=4, random_state=42)).fit(xi, yi)
+    fixtures["v3-forest-impute-scale"] = (
+        forest, IRIS_FEATURES, None,
+        {"features": IRIS_FEATURES, "rows": [[None, 3.0, 1.3, 0.2], [6.1, 3.0, 4.9, 1.8]]},
+    )
+    # A second forest (different seed) for shadow disagreement/delta checks.
+    forest_b = make_pipeline(SimpleImputer(), StandardScaler(),
+                             RandomForestClassifier(n_estimators=8, max_depth=3, random_state=7)).fit(xi, yi)
+    fixtures["v3-forest-impute-scale-b"] = (
+        forest_b, IRIS_FEATURES, None,
+        {"features": IRIS_FEATURES, "rows": [[None, 3.0, 1.3, 0.2], [6.1, 3.0, 4.9, 1.8]]},
     )
     return fixtures
 

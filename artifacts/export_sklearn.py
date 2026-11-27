@@ -10,6 +10,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.utils.validation import check_is_fitted
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
 
 
 def _finite(value, shape):
@@ -71,6 +72,7 @@ def _export_linear(model, n):
         intercepts=[_finite(np.asarray(model.intercept_, dtype=np.float64), ())],
         classes=[],
         nodes=[],
+        trees=[],
     )
 
 
@@ -91,6 +93,7 @@ def _export_logistic(model, n):
         intercepts=_finite(model.intercept_, (k,)),
         classes=classes,
         nodes=[],
+        trees=[],
     )
 
 
@@ -105,6 +108,38 @@ def _export_decision_tree(model, n):
         intercepts=[],
         classes=classes,
         nodes=_tree_nodes(model.tree_, len(classes)),
+        trees=[],
+    )
+
+
+def _export_random_forest(model, n):
+    if model.n_outputs_ != 1:
+        raise ValueError("only single-output forests supported")
+    classes = _integer_classes(model)
+    if len(model.estimators_) < 1:
+        raise ValueError("fitted forest has no estimators")
+    trees = []
+    for est in model.estimators_:
+        if type(est) is not DecisionTreeClassifier or est.n_outputs_ != 1:
+            raise ValueError("unsupported forest base estimator")
+        if est.n_features_in_ != n or est.tree_.n_features != n:
+            raise ValueError("unsupported dimensionality change")
+        # sklearn fits forest trees on class indices 0..K-1, so every leaf
+        # vector is already aligned with the sorted forest classes.
+        if [int(c) for c in np.asarray(est.classes_)] != list(range(len(classes))):
+            raise ValueError("base estimator classes differ from the forest")
+        if est.tree_.value.shape != (est.tree_.node_count, 1, len(classes)):
+            raise ValueError("base estimator leaf dimensions differ from the forest")
+        trees.append(dict(n_features=n, classes=classes,
+                          nodes=_tree_nodes(est.tree_, len(classes))))
+    return dict(
+        kind="random_forest_classifier",
+        n_features_in=n,
+        weights=[],
+        intercepts=[],
+        classes=classes,
+        nodes=[],
+        trees=trees,
     )
 
 
@@ -118,6 +153,8 @@ def export_estimator(model, n):
         return _export_logistic(model, n)
     if type(model) is DecisionTreeClassifier:
         return _export_decision_tree(model, n)
+    if type(model) is RandomForestClassifier:
+        return _export_random_forest(model, n)
     raise ValueError("unsupported estimator")
 
 

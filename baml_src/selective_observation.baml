@@ -76,16 +76,10 @@ function RunSelectiveModel(
     run(cells, operation, mode, signals)
 }
 
-function EscalatedRowCells(model: SelectiveModel, row: Cell[], operation: string) -> void
+function EscalatedRow(model: SelectiveModel, row: Cell[], operation: string) -> void
     throws InferenceFailure
 {
     RunSelectiveModel(model, [row], operation, ObservationMode.Full);
-}
-
-function EscalatedRow(model: SelectiveModel, row: float[], operation: string) -> void
-    throws InferenceFailure
-{
-    EscalatedRowCells(model, NumericCells([row])[0], operation);
 }
 
 function EscalationOptions(row: Escalation) -> trace.Options {
@@ -141,7 +135,7 @@ function RunAdaptiveCells(
     if (evaluation.escalated_rows > 0) {
         CaptureLazySnapshot(model);
         for (let row in evaluation.rows) {
-            EscalatedRowCells(
+            EscalatedRow(
                 model,
                 cells[row.row_index],
                 operation,
