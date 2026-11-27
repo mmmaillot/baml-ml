@@ -1,0 +1,54 @@
+name: Standalone Linux package
+on:
+  pull_request:
+    paths:
+      - 'migration/baml_src/**'
+      - 'migration/baml.toml'
+      - 'migration/artifacts/fixtures/**'
+      - 'experiments/standalone/**'
+      - '.github/workflows/standalone-package.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DO_NOT_TRACK: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install verified BAML CLI and pack host 0.26.0
+        run: |
+          set -euo pipefail
+          dest="$RUNNER_TEMP/standalone-baml"
+          mkdir -p "$dest/toolchain"
+          base="https://github.com/BoundaryML/baml/releases/download/baml-language-0.26.0"
+          archive="baml-language-0.26.0-x86_64-unknown-linux-gnu.tar.gz"
+          for asset in "$archive" "$archive.sha256"; do
+            curl --proto '=https' --tlsv1.2 --retry 3 --fail --silent --show-error --location "$base/$asset" --output "$dest/$asset"
+          done
+          (cd "$dest"; sha256sum --check --strict "$archive.sha256")
+          tar -C "$dest/toolchain" -xzf "$dest/$archive"
+          cli="$(find "$dest/toolchain" -type f -name baml-cli -print -quit)"
+          host="$(find "$dest/toolchain" -type f -name baml-pack-host -print -quit)"
+          test -n "$cli" && test -n "$host"
+          chmod +x "$cli" "$host"
+          "$cli" --version
+          echo "BAML_CLI=$cli" >> "$GITHUB_ENV"
+          echo "BAML_PACK_HOST=$host" >> "$GITHUB_ENV"
+      - name: Pack and exercise standalone executable offline
+        run: bash experiments/standalone/run.sh standalone-results
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: baml-ml-linux-x86_64
+          path: standalone-results/dist/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: standalone-evidence
+          path: standalone-results/evidence/
+          include-hidden-files: true
+          if-no-files-found: warn

@@ -25,16 +25,16 @@ class LoadedLogisticModel {
   }
 }
 
-function PrepareArtifact(raw: string, expected_linear: bool) -> FittedArtifact {
+function PrepareArtifact(raw: string, expected_linear: bool?) -> FittedArtifact {
   let a = DecodeFittedArtifact(raw);
   let err = ArtifactError(a);
   if (err != "") {
     throw baml.errors.InvalidArgument { message: err };
   }
-  if (expected_linear && a.estimator_kind != "linear") {
+  if (expected_linear == true && a.estimator_kind != "linear") {
     throw baml.errors.InvalidArgument { message: "artifact: expected linear estimator" };
   }
-  if (!expected_linear && a.estimator_kind == "linear") {
+  if (expected_linear == false && a.estimator_kind == "linear") {
     throw baml.errors.InvalidArgument { message: "artifact: expected logistic estimator" };
   }
   a
@@ -44,6 +44,11 @@ function PrepareLinearModel(raw: string, observation: ObservationMode = Observat
   // Do not record raw artifact text or repeat the decoded output.
   let opts = ObservationOptions(observation);
   let a = PrepareArtifact(raw, true, $trace = if (observation == ObservationMode.Full) { trace.span(inputs = false, output = false) } else { opts });
+  BuildLoadedLinear(a, observation)
+}
+
+// Internal: caller owns the freshly decoded and validated artifact.
+function BuildLoadedLinear(a: FittedArtifact, observation: ObservationMode) -> LoadedLinearModel {
   let p = ArtifactRegression(a);
   let names = a.features;
   let id = a.model_id;
@@ -62,6 +67,11 @@ function PrepareLinearModel(raw: string, observation: ObservationMode = Observat
 function PrepareLogisticModel(raw: string, observation: ObservationMode = ObservationMode.Semantic) -> LoadedLogisticModel {
   let opts = ObservationOptions(observation);
   let a = PrepareArtifact(raw, false, $trace = if (observation == ObservationMode.Full) { trace.span(inputs = false, output = false) } else { opts });
+  BuildLoadedLogistic(a, observation)
+}
+
+// Internal: caller owns the freshly decoded and validated artifact.
+function BuildLoadedLogistic(a: FittedArtifact, observation: ObservationMode) -> LoadedLogisticModel {
   let p = ArtifactClassification(a);
   let names = a.features;
   let id = a.model_id;
