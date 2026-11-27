@@ -1,4 +1,4 @@
-# Standalone batch executable (Linux x86-64)
+# Standalone batch executable
 
 Linux x86-64 validated in [CI run 45958260690](https://github.com/mmmaillot/baml-ml/actions/runs/45958260690): all five reference operations, four observation modes and seven invalid-input cases. See the [standalone-first ADR](../../docs/architecture/standalone-first.md).
 
@@ -6,8 +6,9 @@ Linux x86-64 validated in [CI run 45958260690](https://github.com/mmmaillot/baml
 
 Use the matching BAML CLI and pack host from the verified 0.26.0 release archive.
 The CI script builds without test files or fixture data and runs the binary
-inside an offline Ubuntu 24.04 container. A matching CLI is used outside the
-container only to inspect the generated recordings.
+on native architecture runners. Linux uses an offline Ubuntu 24.04 container;
+macOS uses a fresh-home native process with network denied by sandbox-exec.
+The matching CLI is used outside the isolated execution to inspect recordings.
 
 ```sh
 export BAML_CLI=/absolute/path/to/baml-cli
@@ -15,9 +16,12 @@ export BAML_PACK_HOST=/absolute/path/to/baml-pack-host
 bash experiments/standalone/run.sh /tmp/standalone-results
 ```
 
-The CI artifact contains the binary and SHA-256 checksum. This is not a
-public release. The OS/ABI dependencies are recorded by file and ldd.
-Docker is a validation harness, not a deployment dependency.
+The CI artifact contains a tar.gz archive with the executable, license and
+SHA-256 checksum, preserving executable permissions. Extract with tar -xzf.
+This is not a public release. The OS/ABI dependencies are recorded by file,
+ldd on Linux and otool on macOS, with the runner OS version. Docker is a Linux
+validation harness, not a deployment dependency. macOS isolation relies on
+sandbox-exec (a deprecated platform tool), not a portable sandbox guarantee.
 
 ## Usage
 
@@ -50,5 +54,8 @@ credentials are embedded; avoid supplying Boundary credentials for local-only
 use. Native root traces and caller/engine policy are distinct from semantic
 span payload policies; see the [contract](../../docs/architecture/observation-contract.md).
 
-macOS ARM64 and Linux ARM64 are not qualified yet. No inference SDK or serving
+The matrix adds macOS ARM64 (macos-15) and Linux ARM64 (ubuntu-24.04-arm).
+These targets remain unqualified until native execution and trace checks pass.
+The Linux binaries target GNU libc; no musl or arbitrary older Linux ABI guarantee.
+No claim of support for macOS versions older than the tested runner. No inference SDK or serving
 framework, and no benchmark claim.
