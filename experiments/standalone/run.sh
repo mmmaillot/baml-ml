@@ -276,11 +276,11 @@ for mode in predict adaptive shadow; do
     ' "$CASE/spans.json" || { cat "$CASE/spans.json"; exit 1; }
   fi
   if [ "$mode" = adaptive ]; then
-    jq -e '[.rows[]|select(.[0]=="user.EscalatedRow")]|length==2 and all(.[6]!=null)' "$CASE/spans.json" || { cat "$CASE/spans.json"; exit 1; }
+    jq -e '[.rows[]|select(.[2]=="user.EscalatedRow")]|length==2 and all(.[13]!=null and .[14]==true)' "$CASE/spans.json" || { cat "$CASE/spans.json"; exit 1; }
   fi
   if [ "$mode" = shadow ]; then
-    jq -e '[.rows[]|select(.[0]=="user.ShadowEscalatedRow")]|length>=1' "$CASE/spans.json" || { cat "$CASE/spans.json"; exit 1; }
-    jq -e '[.rows[]|select(.[0]=="user.ObservedColumnTransformer" and .[5]!=null)]|length==2' "$CASE/spans.json" || { cat "$CASE/spans.json"; exit 1; }
+    jq -e '[.rows[]|select(.[2]=="user.ShadowEscalatedRow")]|length==2' "$CASE/spans.json" || { cat "$CASE/spans.json"; exit 1; }
+    jq -e '[.rows[]|select(.[2]=="user.ObservedColumnTransformer" and .[12]!=null)]|length==6 and ([.[]|select(.[12]=="champion")]|length==3) and ([.[]|select(.[12]=="challenger")]|length==3)' "$CASE/spans.json" || { cat "$CASE/spans.json"; exit 1; }
   fi
   echo "Packed v3 heterogeneous forest passed: $mode"
 done
