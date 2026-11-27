@@ -1,6 +1,6 @@
 # Standalone batch executable (Linux x86-64)
 
-Initial implementation; CI evidence pending. See the [standalone-first ADR](../../docs/architecture/standalone-first.md).
+Linux x86-64 validated in [CI run 45958260690](https://github.com/mmmaillot/baml-ml/actions/runs/45958260690): all five reference operations, four observation modes and seven invalid-input cases. See the [standalone-first ADR](../../docs/architecture/standalone-first.md).
 
 ## Build
 
