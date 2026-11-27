@@ -1,12 +1,23 @@
 #!/usr/bin/env bash
-# Build with verified, matching CLI and pack host; run in a clean offline container.
+# Build with verified, matching native CLI and pack host; exercise in isolation.
 set -euo pipefail
 export LC_ALL=C DO_NOT_TRACK=1
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 CLI="$(realpath "$BAML_CLI")"
 HOST="$(realpath "$BAML_PACK_HOST")"
-OUT="$(realpath -m "$1")"
+mkdir -p "$1"
+OUT="$(cd "$1" && pwd -P)"
 mkdir -p "$OUT/dist" "$OUT/evidence"
+OS="$(uname -s)"
+ARCH="$(uname -m)"
+case "$OS/$ARCH" in
+  Linux/x86_64) PLATFORM=linux-x86_64;;
+  Linux/aarch64) PLATFORM=linux-arm64;;
+  Darwin/arm64) PLATFORM=macos-arm64;;
+  *) echo "Unsupported native platform: $OS/$ARCH" >&2; exit 1;;
+esac
+printf '%s\n' "$PLATFORM" > "$OUT/evidence/platform.txt"
+uname -a > "$OUT/evidence/environment.txt"
 BIN="$OUT/dist/baml-ml"
 FIX="$ROOT/artifacts/fixtures"
 # Build without source tests or fixture data in the binary.
@@ -25,16 +36,38 @@ done
 )
 test -x "$BIN"
 file "$BIN" | tee "$OUT/evidence/binary-format.txt"
-ldd "$BIN" | tee "$OUT/evidence/dynamic-libraries.txt"
-stat -c '%s' "$BIN" > "$OUT/evidence/binary-size.txt"
+if [ "$OS" = Darwin ]; then
+  otool -L "$BIN" | tee "$OUT/evidence/dynamic-libraries.txt"
+  otool -l "$BIN" > "$OUT/evidence/macho-load-commands.txt"
+  sw_vers >> "$OUT/evidence/environment.txt"
+  codesign --verify --verbose=2 "$BIN"
+  stat -f '%z' "$BIN" > "$OUT/evidence/binary-size.txt"
+else
+  ldd "$BIN" | tee "$OUT/evidence/dynamic-libraries.txt"
+  stat -c '%s' "$BIN" > "$OUT/evidence/binary-size.txt"
+fi
 cp "$ROOT/LICENSE" "$OUT/dist/LICENSE"
-(cd "$OUT/dist"; sha256sum baml-ml > SHA256SUMS)
-docker pull ubuntu:24.04
+(cd "$OUT/dist"; if [ "$OS" = Darwin ]; then shasum -a 256 baml-ml > SHA256SUMS; else sha256sum baml-ml > SHA256SUMS; fi)
+if [ "$OS" = Linux ]; then
+  docker pull ubuntu:24.04
+else
+  # Native macOS process, fresh home and no inherited credentials or PATH to
+  # developer tools. Deny network via the platform sandbox; no Rosetta/Docker.
+  test -x /usr/bin/sandbox-exec
+fi
 # No repository, source, interpreter SDK, toolchain or credentials mounted.
 # Mount each case under its original path so recorded paths remain resolvable.
 run_case() {
   local case_dir="$1" telemetry="$2"
   shift 2
+  if [ "$OS" = Darwin ]; then
+    (
+      cd "$case_dir"
+      /usr/bin/env -i HOME="$case_dir/home" TMPDIR="$case_dir/tmp" PATH=/usr/bin:/bin LC_ALL=C DO_NOT_TRACK=1 BAML_TELEMETRY="$telemetry" \
+        /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' "$BIN" "$@"
+    )
+    return
+  fi
   docker run --rm --network none --read-only \
     --user "$(id -u):$(id -g)" --tmpfs /tmp \
     -e HOME="$case_dir/home" -e DO_NOT_TRACK=1 \
@@ -44,7 +77,7 @@ run_case() {
 }
 prepare_case() {
   CASE="$OUT/evidence/$1"
-  mkdir -p "$CASE/home"
+  mkdir -p "$CASE/home" "$CASE/tmp"
   cp "$FIX/$2.json" "$CASE/model.json"
   jq -n --arg sample "$2" --slurpfile ref "$FIX/reference.json" --slurpfile a "$CASE/model.json" \
     '{features:$a[0].features,rows:($ref[0][$sample].imputed | .[0][0]=null)}' > "$CASE/input.json"
@@ -138,4 +171,5 @@ for error in malformed wrong-order ragged empty nonnumeric invalid-model wrong-o
   fi
   echo "Packed rejection passed: $error (exit $rc)"
 done
-echo "Standalone offline smoke passed"
+tar -czf "$OUT/baml-ml-$PLATFORM.tar.gz" -C "$OUT/dist" baml-ml LICENSE SHA256SUMS
+echo "Standalone offline smoke passed: $PLATFORM"
