@@ -103,6 +103,24 @@ test "v3_loaded_handle_modes_agree_and_own_state" {
   assert.is_true(!semantic.predict_proba(cells, ["wrong"]).ok)
 }
 
+test "loaded_pipeline_class_metadata_does_not_alias_fitted_state" {
+  let input = PipelineOracle()["v3-logreg-impute-scale"].input;
+  let cells = BatchCells(input);
+  let raw = PipelineFixture("v3-logreg-impute-scale");
+  for (let mode in [ObservationMode.Semantic, ObservationMode.Adaptive]) {
+    let model = PreparePipelineModel(raw, observation = mode);
+    let before = model.predict(cells, input.features);
+    assert.is_true(before.ok)
+    for (let i = 0; i < model.classes.length(); i += 1) {
+      model.classes[i] = model.classes[i] + 1000;
+    }
+    let after = model.predict(cells, input.features);
+    assert.is_true(after.ok)
+    assert.equal(after.labels, before.labels)
+  }
+}
+
+
 function PipelineLoadFails(raw: string) -> bool {
   let m: LoadedPipelineModel? = PreparePipelineModel(raw) catch_all (e) { _ => null };
   m == null
