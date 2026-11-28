@@ -7,16 +7,14 @@ export LC_ALL=C DO_NOT_TRACK=1
 unset BAML_TELEMETRY BOUNDARY_API_KEY BOUNDARY_PROJECT
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 CLI="$(realpath "$BAML_CLI")"
-OUT="$(realpath -m "$1")"
-mkdir -p "$OUT"
+mkdir -p "$1"
+OUT="$(cd "$1" && pwd -P)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
 PROJECT="$WORK/project"
 mkdir -p "$PROJECT/baml_src" "$PROJECT/artifacts/fixtures"
-cp "$ROOT"/baml_src/*.baml "$PROJECT/baml_src/"
-case "$(basename "$PROJECT/baml_src")" in *) ;; esac
-for src in "$PROJECT"/baml_src/*_test.baml; do rm -f "$src"; done
+"$ROOT/scripts/stage_runtime.sh" "$PROJECT/baml_src"
 cp "$ROOT/experiments/heterogeneous_pipelines/probes.baml" "$PROJECT/baml_src/"
 cp "$ROOT"/artifacts/fixtures/v3/*.json "$PROJECT/artifacts/fixtures/v3/" 2>/dev/null || {
   mkdir -p "$PROJECT/artifacts/fixtures/v3"
@@ -24,7 +22,7 @@ cp "$ROOT"/artifacts/fixtures/v3/*.json "$PROJECT/artifacts/fixtures/v3/" 2>/dev
 }
 printf '[package]\nname = "heterogeneous-pipelines-probe"\n' > "$PROJECT/baml.toml"
 
-SPAN_QUERY="SELECT span_id, parent_span_id, span_name, status, duration, input_args, output_value, error_value, context_metadata['baml_ml.model_id'], context_metadata['baml_ml.step_index'], context_metadata['baml_ml.step_kind'], context_metadata['baml_ml.branch_name'], context_metadata['baml_ml.shadow_role'], context_metadata['baml_ml.row_index'], context_metadata['baml_ml.escalated'], context_metadata['baml_ml.trigger_reasons'] FROM spans ORDER BY start_time"
+SPAN_QUERY="SELECT span_id AS span_id, parent_span_id AS parent_span_id, span_name AS span_name, status AS status, duration AS duration, input_args AS input_args, output_value AS output_value, error_value AS error_value, context_metadata['baml_ml.model_id'] AS model_id, context_metadata['baml_ml.step_index'] AS step_index, context_metadata['baml_ml.step_kind'] AS step_kind, context_metadata['baml_ml.branch_name'] AS branch_name, context_metadata['baml_ml.shadow_role'] AS shadow_role, context_metadata['baml_ml.row_index'] AS row_index, context_metadata['baml_ml.escalated'] AS escalated, context_metadata['baml_ml.trigger_reasons'] AS trigger_reasons FROM spans ORDER BY start_time"
 
 run_probe() {
   local name="$1" fn="$2" mode="$3"
@@ -72,51 +70,56 @@ jq -e --slurpfile ref "$PROJECT/artifacts/fixtures/v3/oracle.json" --slurpfile s
 
 # Full: complete stage inventory with ordered step metadata, branch hierarchy,
 # redacted fitted state and captured values.
-jq -e '
-  def rows($n): [.rows[]|select(.[2]==("user."+$n))];
+jq -e -L "$ROOT/scripts" '
+  import "btel_jq" as btel;
+  def rows($n): [btel::named_rows[]|select(.span_name==("user."+$n))];
   .outcome.status=="complete" and
   (rows("PipelineModelLoaded")|length==1) and
   (rows("ObservedColumnTransformer") as $ct |
-    ($ct|length==1) and ($ct[0][9]==0) and ($ct[0][10]=="column_transformer") and ($ct[0][8]!=null) and
+    ($ct|length==1) and ($ct[0].step_index==0) and ($ct[0].step_kind=="column_transformer") and ($ct[0].model_id!=null) and
     (rows("ObservedColumnTransformerBranch") as $br |
-      ($br|length==2) and ([$br[]|select(.[9]==0 and .[11]!=null and .[1]==$ct[0][0] and .[10]=="column_transformer")]|length==2)) and
-    (rows("ObservedImputeStep") as $im | ($im|length==2) and ([$im[]|select(.[10]=="simple_imputer" and .[9]==0 and .[11]!=null)]|length==2)) and
-    (rows("ObservedScaleStep") as $sc | ($sc|length==1) and ($sc[0][10]=="standard_scaler" and $sc[0][9]==0)) and
-    (rows("ObservedOneHotEncode") as $oh | ($oh|length==1) and ($oh[0][10]=="one_hot_encoder" and $oh[0][9]==0)) and
-    (rows("ObservedForestTraversal")|length==1 and .[0][3]=="return" and .[0][6]!=null and .[0][5]!=null))
+      ($br|length==2) and ([$br[]|select(.step_index==0 and .branch_name!=null and .parent_span_id==$ct[0].span_id and .step_kind=="column_transformer")]|length==2)) and
+    (rows("ObservedImputeStep") as $im | ($im|length==2) and ([$im[]|select(.step_kind=="simple_imputer" and .step_index==0 and .branch_name!=null)]|length==2)) and
+    (rows("ObservedScaleStep") as $sc | ($sc|length==1) and ($sc[0].step_kind=="standard_scaler" and $sc[0].step_index==0)) and
+    (rows("ObservedOneHotEncode") as $oh | ($oh|length==1) and ($oh[0].step_kind=="one_hot_encoder" and $oh[0].step_index==0)) and
+    (rows("ObservedForestTraversal")|length==1 and .[0].status=="return" and .[0].output_value!=null and .[0].input_args!=null))
 ' "$OUT/full/spans.json" || { cat "$OUT/full/spans.json"; exit 1; }
 # Full redaction: no fitted-state keys in any step payload; values are captured.
-jq -e '
-  def rows($n): [.rows[]|select(.[2]==("user."+$n))];
+jq -e -L "$ROOT/scripts" '
+  import "btel_jq" as btel;
+  def rows($n): [btel::named_rows[]|select(.span_name==("user."+$n))];
   ((rows("ObservedImputeStep")+rows("ObservedScaleStep")+rows("ObservedOneHotEncode")+rows("ObservedColumnTransformer")+rows("ObservedColumnTransformerBranch")+rows("ObservedForestTraversal"))|all(
-    ((.[5]|tostring) + (.[6]|tostring)) as $p |
+    ((.input_args|tostring) + (.output_value|tostring)) as $p |
     ($p|test("statistics|fill_strings|categories|\"trees\"|\"nodes\"|\"scaler\"|\"imputer\"|\"one_hot\"|column_transformer|\"means\"|\"scales\"")|not) and
-    (.[5]!=null) and (.[6]!=null)
+    (.input_args!=null) and (.output_value!=null)
   ))
 ' "$OUT/full/spans.json" || { cat "$OUT/full/spans.json"; exit 1; }
 # Semantic: same spans, no payloads.
-jq -e '
-  def rows($n): [.rows[]|select(.[2]==("user."+$n))];
+jq -e -L "$ROOT/scripts" '
+  import "btel_jq" as btel;
+  def rows($n): [btel::named_rows[]|select(.span_name==("user."+$n))];
   (rows("ObservedColumnTransformer")+rows("ObservedColumnTransformerBranch")+rows("ObservedImputeStep")+rows("ObservedScaleStep")+rows("ObservedOneHotEncode")+rows("ObservedForestTraversal")|length==8) and
-  ((rows("ObservedColumnTransformer")+rows("ObservedImputeStep")+rows("ObservedScaleStep")+rows("ObservedOneHotEncode")+rows("ObservedForestTraversal"))|all(.[5]==null and .[6]==null and .[3]=="return"))
+  ((rows("ObservedColumnTransformer")+rows("ObservedImputeStep")+rows("ObservedScaleStep")+rows("ObservedOneHotEncode")+rows("ObservedForestTraversal"))|all(.input_args==null and .output_value==null and .status=="return"))
 ' "$OUT/semantic/spans.json" || { cat "$OUT/semantic/spans.json"; exit 1; }
 # Timing and off: no semantic spans at all.
-jq -e '[.rows[]|select(.[2]|test("user\\.(Observed|PipelineModelLoaded|EscalatedRow)"))]|length==0' "$OUT/timing/spans.json"
+jq -e -L "$ROOT/scripts" 'import "btel_jq" as btel; [btel::named_rows[]|select(.span_name|test("user\\.(Observed|PipelineModelLoaded|EscalatedRow)"))]|length==0' "$OUT/timing/spans.json"
 jq -e '.rows==[]' "$OUT/off/spans.json" "$OUT/off/profiler.json"
 # Adaptive: summary plus per-row Full replays with trigger reasons; the lazy
 # model snapshot is captured exactly once, after the semantic pass.
-jq -e '
-  def rows($n): [.rows[]|select(.[2]==("user."+$n))];
+jq -e -L "$ROOT/scripts" '
+  import "btel_jq" as btel;
+  def rows($n): [btel::named_rows[]|select(.span_name==("user."+$n))];
   (rows("AdaptiveSummary")|length==1) and
-  (rows("EscalatedRow") as $er | ($er|length==2) and ([$er[]|select(.[14]==true and .[15]=="missing_input" and (.[13]==0 or .[13]==1))]|length==2)) and
+  (rows("EscalatedRow") as $er | ($er|length==2) and ([$er[]|select(.escalated==true and .trigger_reasons=="missing_input" and (.row_index==0 or .row_index==1))]|length==2)) and
   (rows("PipelineModelLoaded")|length==2) and
   (rows("ObservedForestTraversal")|length==3)
 ' "$OUT/adaptive/spans.json" || { cat "$OUT/adaptive/spans.json"; exit 1; }
 # Shadow: champion/challenger roles, selective Full replays, summary metadata.
-jq -e '
-  def rows($n): [.rows[]|select(.[2]==("user."+$n))];
+jq -e -L "$ROOT/scripts" '
+  import "btel_jq" as btel;
+  def rows($n): [btel::named_rows[]|select(.span_name==("user."+$n))];
   (rows("ShadowEscalatedRow")|length==2) and
-  (rows("ObservedColumnTransformer") as $ct | ($ct|length==6) and ([$ct[]|select(.[12]=="champion" or .[12]=="challenger")]|length==6)) and
+  (rows("ObservedColumnTransformer") as $ct | ($ct|length==6) and ([$ct[]|select(.shadow_role=="champion" or .shadow_role=="challenger")]|length==6)) and
   (rows("PipelineModelLoaded")|length==4) and
   (rows("ObservedForestTraversal")|length==6)
 ' "$OUT/shadow/spans.json" || { cat "$OUT/shadow/spans.json"; exit 1; }

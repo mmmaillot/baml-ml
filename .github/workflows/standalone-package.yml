@@ -8,6 +8,8 @@ on:
       - 'artifacts/fixtures/**'
       - 'experiments/standalone/**'
       - '.github/workflows/standalone-package.yml'
+      - 'scripts/**'
+      - '.github/actions/setup-baml/**'
   pull_request:
     paths:
       - 'baml_src/**'
@@ -15,6 +17,8 @@ on:
       - 'artifacts/fixtures/**'
       - 'experiments/standalone/**'
       - '.github/workflows/standalone-package.yml'
+      - 'scripts/**'
+      - '.github/actions/setup-baml/**'
   workflow_dispatch:
 permissions:
   contents: read
@@ -25,17 +29,11 @@ jobs:
       matrix:
         include:
           - runner: ubuntu-24.04
-            target: x86_64-unknown-linux-gnu
             platform: linux-x86_64
-            machine: x86_64
           - runner: ubuntu-24.04-arm
-            target: aarch64-unknown-linux-gnu
             platform: linux-arm64
-            machine: aarch64
           - runner: macos-15
-            target: aarch64-apple-darwin
             platform: macos-arm64
-            machine: arm64
     name: Package ${{ matrix.platform }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 15
@@ -43,26 +41,10 @@ jobs:
       DO_NOT_TRACK: "1"
     steps:
       - uses: actions/checkout@v4
-      - name: Install verified BAML CLI and pack host 0.26.0
-        run: |
-          set -euo pipefail
-          dest="$RUNNER_TEMP/standalone-baml"
-          mkdir -p "$dest/toolchain"
-          base="https://github.com/BoundaryML/baml/releases/download/baml-language-0.26.0"
-          test "$(uname -m)" = "${{ matrix.machine }}"
-          archive="baml-language-0.26.0-${{ matrix.target }}.tar.gz"
-          for asset in "$archive" "$archive.sha256"; do
-            curl --proto '=https' --tlsv1.2 --retry 3 --fail --silent --show-error --location "$base/$asset" --output "$dest/$asset"
-          done
-          (cd "$dest"; if [ "$(uname -s)" = Darwin ]; then shasum -a 256 -c "$archive.sha256"; else sha256sum --check --strict "$archive.sha256"; fi)
-          tar -C "$dest/toolchain" -xzf "$dest/$archive"
-          cli="$(find "$dest/toolchain" -type f -name baml-cli -print -quit)"
-          host="$(find "$dest/toolchain" -type f -name baml-pack-host -print -quit)"
-          test -n "$cli" && test -n "$host"
-          chmod +x "$cli" "$host"
-          "$cli" --version
-          echo "BAML_CLI=$cli" >> "$GITHUB_ENV"
-          echo "BAML_PACK_HOST=$host" >> "$GITHUB_ENV"
+      - uses: ./.github/actions/setup-baml
+        with:
+          platform: ${{ matrix.platform }}
+          pack-host: true
       - name: Pack and exercise standalone executable offline
         run: bash experiments/standalone/run.sh standalone-results
       - uses: actions/upload-artifact@v4

@@ -8,6 +8,8 @@ on:
       - 'experiments/observability/probe.baml'
       - 'baml_src/**'
       - '.github/workflows/native-ml-observability.yml'
+      - 'scripts/**'
+      - '.github/actions/setup-baml/**'
   pull_request:
     paths:
       - 'experiments/native_ml_observability/**'
@@ -15,6 +17,8 @@ on:
       - 'experiments/observability/probe.baml'
       - 'baml_src/**'
       - '.github/workflows/native-ml-observability.yml'
+      - 'scripts/**'
+      - '.github/actions/setup-baml/**'
   workflow_dispatch:
 permissions:
   contents: read
@@ -26,23 +30,7 @@ jobs:
       DO_NOT_TRACK: "1"
     steps:
       - uses: actions/checkout@v4
-      - name: Install verified BAML CLI 0.26.0
-        run: |
-          set -euo pipefail
-          dest="$RUNNER_TEMP/observability-baml"
-          mkdir -p "$dest/toolchain"
-          base="https://github.com/BoundaryML/baml/releases/download/baml-language-0.26.0"
-          archive="baml-language-0.26.0-x86_64-unknown-linux-gnu.tar.gz"
-          for asset in "$archive" "$archive.sha256"; do
-            curl --proto '=https' --tlsv1.2 --retry 3 --fail --silent --show-error --location "$base/$asset" --output "$dest/$asset"
-          done
-          (cd "$dest"; sha256sum --check --strict "$archive.sha256")
-          tar -C "$dest/toolchain" -xzf "$dest/$archive"
-          cli="$(find "$dest/toolchain" -type f -name baml-cli -print -quit)"
-          test -n "$cli"
-          chmod +x "$cli"
-          "$cli" --version
-          echo "BAML_CLI=$cli" >> "$GITHUB_ENV"
+      - uses: ./.github/actions/setup-baml
       - name: Execute native Iris inference and inspect local recordings
         run: bash experiments/native_ml_observability/run.sh native-ml-observability-results
       - name: Verify schema v3 heterogeneous pipeline traces with BTEL SQL

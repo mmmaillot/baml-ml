@@ -5,6 +5,7 @@ __pycache__/
 .ruff_cache/
 .mypy_cache/
 .baml/
+.toolchain/
 *.sqlite
 *.sqlite3
 *.db

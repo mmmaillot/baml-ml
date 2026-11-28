@@ -64,9 +64,13 @@ def build(cli, host, out, env):
             source = project / "baml_src"
             source.mkdir()
             shutil.copyfile(ROOT / "baml.toml", project / "baml.toml")
-            for path in (ROOT / "baml_src").glob("*.baml"):
-                if not path.name.endswith("_test.baml"):
-                    shutil.copyfile(path, source / path.name)
+            for path in (ROOT / "baml_src").rglob("*.baml"):
+                rel = path.relative_to(ROOT / "baml_src")
+                if path.name.endswith("_test.baml") or "tests" in rel.parts:
+                    continue
+                dest = source / rel
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(path, dest)
             if target == "loaded":
                 shutil.copyfile(HERE / "loaded.baml", source / "loaded.baml")
             subprocess.run((cli, "check", "--agent-skill-check", "off"),

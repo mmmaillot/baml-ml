@@ -1,0 +1,40 @@
+name: Setup verified BAML toolchain
+description: >-
+  Download and SHA-256-verify the pinned BAML 0.26.0 release executables
+  (baml-cli, plus baml-pack-host on request) for the runner platform via
+  scripts/install_baml.sh. Exports BAML_CLI (and BAML_PACK_HOST) to the
+  workflow environment.
+inputs:
+  platform:
+    description: >-
+      Target platform (linux-x86_64, linux-arm64 or macos-arm64).
+      Empty auto-detects the runner.
+    required: false
+    default: ""
+  pack-host:
+    description: Set to "true" to also install and export baml-pack-host (BAML_PACK_HOST).
+    required: false
+    default: "false"
+outputs:
+  baml-cli:
+    description: Absolute path of the verified baml-cli executable.
+    value: ${{ steps.install.outputs.baml-cli }}
+  baml-pack-host:
+    description: Absolute path of the verified baml-pack-host executable (empty unless pack-host=true).
+    value: ${{ steps.install.outputs.baml-pack-host }}
+runs:
+  using: composite
+  steps:
+    - name: Install verified BAML 0.26.0 toolchain
+      id: install
+      shell: bash
+      run: |
+        set -euo pipefail
+        args=(--dest "${RUNNER_TEMP}/baml-toolchain")
+        if [ -n "${{ inputs.platform }}" ]; then
+          args+=(--platform "${{ inputs.platform }}")
+        fi
+        if [ "${{ inputs.pack-host }}" = "true" ]; then
+          args+=(--pack-host)
+        fi
+        "${GITHUB_WORKSPACE}/scripts/install_baml.sh" "${args[@]}"

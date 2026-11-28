@@ -7,17 +7,14 @@ export LC_ALL=C DO_NOT_TRACK=1
 unset BAML_TELEMETRY BOUNDARY_API_KEY BOUNDARY_PROJECT
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 CLI="$(realpath "$BAML_CLI")"
-OUT="$(realpath -m "$1")"
-mkdir -p "$OUT"
+mkdir -p "$1"
+OUT="$(cd "$1" && pwd -P)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
 PROJECT="$WORK/project"
 mkdir -p "$PROJECT/baml_src" "$PROJECT/artifacts/fixtures/v3"
-for src in "$ROOT"/baml_src/*.baml; do
-  case "$(basename "$src")" in *_test.baml) continue;; esac
-  cp "$src" "$PROJECT/baml_src/"
-done
+"$ROOT/scripts/stage_runtime.sh" "$PROJECT/baml_src"
 cp "$ROOT/experiments/heterogeneous_pipelines/probes.baml" "$PROJECT/baml_src/"
 cp "$ROOT"/artifacts/fixtures/v3/v3-ct-hetero-forest.json "$PROJECT/artifacts/fixtures/v3/"
 python3 "$ROOT/experiments/heterogeneous_pipelines/generate_batch.py" "$PROJECT/batch.json"
@@ -69,7 +66,7 @@ jq -s '{campaign: "heterogeneous v3 RandomForestClassifier batch (500 rows)",
   model: "artifacts/fixtures/v3/v3-ct-hetero-forest.json",
   batch: "experiments/heterogeneous_pipelines/batch.json",
   runtime_commit: "'"$(git -C "$ROOT" rev-parse HEAD)"'",
-  baml_src_sha256: "'"$(cat "$ROOT"/baml_src/*.baml | sha256sum | cut -d" " -f1)"'",
+  baml_src_sha256: "'"$(cd "$ROOT/baml_src" && find . -type f -name '*.baml' ! -name '*_test.baml' ! -path './tests/*' -exec sha256sum {} + | LC_ALL=C sort | sha256sum | cut -d" " -f1)"'",
   platform: "'"$(uname -s)/$(uname -m)"'",
   baml_cli: "'"$("$CLI" --version 2>/dev/null | awk '{print $2}')"'",
   results: .}' "$OUT/results.jsonl" > "$OUT/report.json"

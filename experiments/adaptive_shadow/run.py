@@ -57,9 +57,13 @@ def build(cli, host, project, binary):
     source = project / "baml_src"
     source.mkdir(parents=True)
     shutil.copyfile(ROOT / "baml.toml", project / "baml.toml")
-    for path in (ROOT / "baml_src").glob("*.baml"):
-        if not path.name.endswith("_test.baml"):
-            shutil.copyfile(path, source / path.name)
+    for path in (ROOT / "baml_src").rglob("*.baml"):
+        rel = path.relative_to(ROOT / "baml_src")
+        if path.name.endswith("_test.baml") or "tests" in rel.parts:
+            continue
+        dest = source / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(path, dest)
     env = clean_env(project, "off")
     subprocess.run((*cli, "check"), cwd=project, env=env, check=True)
     subprocess.run(
@@ -225,9 +229,11 @@ def metadata(cli, host, binary, trials):
                                   if line.startswith("model name")), platform.machine())
     os_details["ram_bytes"] = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
     source = {}
-    for path in sorted((ROOT / "baml_src").glob("*.baml")):
-        if not path.name.endswith("_test.baml"):
-            source[path.name] = digest(path)
+    for path in sorted((ROOT / "baml_src").rglob("*.baml")):
+        rel = path.relative_to(ROOT / "baml_src")
+        if path.name.endswith("_test.baml") or "tests" in rel.parts:
+            continue
+        source[str(rel)] = digest(path)
     return {
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         "base_commit": command_output("git", "-C", ROOT, "rev-parse", "HEAD"),
