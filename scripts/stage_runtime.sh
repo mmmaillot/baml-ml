@@ -15,9 +15,12 @@ fi
 DEST="$1"
 mkdir -p "$DEST"
 
-find "$SRC" -type f -name '*.baml' ! -name '*_test.baml' ! -path '*/tests/*' -print0 |
+(
+  cd "$SRC"
+  find . -type f -name '*.baml' ! -name '*_test.baml' ! -path '*/tests/*' -print0
+) |
 while IFS= read -r -d '' file; do
-  rel="${file#"$SRC"/}"
+  rel="${file#./}"
   mkdir -p "$DEST/$(dirname "$rel")"
-  cp "$file" "$DEST/$rel"
+  cp "$SRC/$rel" "$DEST/$rel"
 done
