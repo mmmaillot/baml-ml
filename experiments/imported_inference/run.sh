@@ -65,7 +65,8 @@ done
   jq -e -L "$ROOT/scripts" '
     import "btel_jq" as btel;
     def calls($n): ([btel::named_rows[]|select(.function_name==("user."+$n))|.invocation_count]|add // 0);
-    .outcome.status=="complete" and calls("ReadFittedArtifact")==0 and calls("DecodeFittedArtifact")==1 and calls("ArtifactError")==1 and calls("ArtifactClassification")==1 and calls("PredictLoadedProba")==3 and calls("ImputerTransformCore")==3 and calls("ScalerTransformCore")==3 and calls("ObservedDecisionScores")==3 and calls("ObservedSoftmax")==3 and calls("ModelLoaded")==1
+    .outcome.status=="complete" and calls("ReadFittedArtifact")==0 and calls("DecodeFittedArtifact")==1 and calls("ArtifactError")==1 and calls("ArtifactClassification")==1 and calls("PredictLoadedProba")==3 and calls("ImputerTransformCore")==3 and calls("ScalerTransformCore")==3 and calls("ObservedDecisionScores")==3 and calls("ObservedSoftmax")==3 and calls("ModelLoaded")==1 and
+    calls("NumericCells")==0 and calls("CellsToFloatMatrix")==0
   ' "$OUT/repeat/profiler.json" || { cat "$OUT/repeat/profiler.json"; exit 1; }
   jq -c -L "$ROOT/scripts" 'import "btel_jq" as btel; [btel::named_rows[] | select(.function_name|test("ArtifactError$|ArtifactClassification$|DecodeFittedArtifact$|PredictLoadedProba$|ImputerTransformCore$|ScalerTransformCore$|ObservedDecisionScores$|ObservedSoftmax$|ModelLoaded$"))]' "$OUT/repeat/profiler.json"
 )
