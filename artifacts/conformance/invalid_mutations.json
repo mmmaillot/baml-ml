@@ -1,0 +1,241 @@
+{
+  "schema": 1,
+  "bases": [
+    {
+      "id": "v1-iris",
+      "schema_version": 1,
+      "file": "../fixtures/iris.json"
+    },
+    {
+      "id": "v1-binary",
+      "schema_version": 1,
+      "file": "../fixtures/binary.json"
+    },
+    {
+      "id": "v1-diabetes",
+      "schema_version": 1,
+      "file": "../fixtures/diabetes.json"
+    },
+    {
+      "id": "v2-tree-smoke",
+      "schema_version": 2,
+      "file": "../fixtures/tree-smoke.json"
+    },
+    {
+      "id": "v3-hetero-logreg",
+      "schema_version": 3,
+      "file": "../fixtures/v3/v3-ct-hetero-logreg.json"
+    },
+    {
+      "id": "v3-synthetic",
+      "schema_version": 3,
+      "file": "bases/v3-synthetic.json"
+    }
+  ],
+  "mutations": [
+    {
+      "id": "v1-bad-provenance",
+      "schema_version": 1,
+      "file": "mutations/v1-bad-provenance.json",
+      "expect_error_contains": "artifact: invalid provenance"
+    },
+    {
+      "id": "v1-empty-source-version",
+      "schema_version": 1,
+      "file": "mutations/v1-empty-source-version.json",
+      "expect_error_contains": "artifact: invalid provenance"
+    },
+    {
+      "id": "v1-empty-model-id",
+      "schema_version": 1,
+      "file": "mutations/v1-empty-model-id.json",
+      "expect_error_contains": "artifact: invalid provenance"
+    },
+    {
+      "id": "v1-unsupported-schema-version",
+      "schema_version": 1,
+      "file": "mutations/v1-unsupported-schema-version.json",
+      "expect_error_contains": "artifact: unsupported schema version"
+    },
+    {
+      "id": "v1-unsupported-preprocessing",
+      "schema_version": 1,
+      "file": "mutations/v1-unsupported-preprocessing.json",
+      "expect_error_contains": "artifact: unsupported preprocessing"
+    },
+    {
+      "id": "v1-invalid-preprocessing-dimensions",
+      "schema_version": 1,
+      "file": "mutations/v1-invalid-preprocessing-dimensions.json",
+      "expect_error_contains": "artifact: invalid preprocessing dimensions"
+    },
+    {
+      "id": "v1-empty-feature-name",
+      "schema_version": 1,
+      "file": "mutations/v1-empty-feature-name.json",
+      "expect_error_contains": "artifact: empty feature name"
+    },
+    {
+      "id": "v1-duplicate-feature-name",
+      "schema_version": 1,
+      "file": "mutations/v1-duplicate-feature-name.json",
+      "expect_error_contains": "artifact: duplicate feature name"
+    },
+    {
+      "id": "v1-zero-scaler-scale",
+      "schema_version": 1,
+      "file": "mutations/v1-zero-scaler-scale.json",
+      "expect_error_contains": "artifact: invalid preprocessing parameters"
+    },
+    {
+      "id": "v1-invalid-class-order",
+      "schema_version": 1,
+      "file": "mutations/v1-invalid-class-order.json",
+      "expect_error_contains": "artifact: invalid class order"
+    },
+    {
+      "id": "v1-invalid-multinomial-dimensions",
+      "schema_version": 1,
+      "file": "mutations/v1-invalid-multinomial-dimensions.json",
+      "expect_error_contains": "artifact: invalid multinomial dimensions"
+    },
+    {
+      "id": "v1-unsupported-estimator",
+      "schema_version": 1,
+      "file": "mutations/v1-unsupported-estimator.json",
+      "expect_error_contains": "artifact: unsupported estimator"
+    },
+    {
+      "id": "v2-unsupported-schema-or-estimator",
+      "schema_version": 2,
+      "file": "mutations/v2-unsupported-schema-or-estimator.json",
+      "expect_error_contains": "artifact: unsupported tree schema or estimator"
+    },
+    {
+      "id": "v2-bad-provenance",
+      "schema_version": 2,
+      "file": "mutations/v2-bad-provenance.json",
+      "expect_error_contains": "artifact: invalid provenance"
+    },
+    {
+      "id": "v2-duplicate-feature-name",
+      "schema_version": 2,
+      "file": "mutations/v2-duplicate-feature-name.json",
+      "expect_error_contains": "artifact: duplicate feature name"
+    },
+    {
+      "id": "v2-invalid-child-edge",
+      "schema_version": 2,
+      "file": "mutations/v2-invalid-child-edge.json",
+      "expect_error_contains": "tree: invalid child edge"
+    },
+    {
+      "id": "v3-bad-provenance",
+      "schema_version": 3,
+      "file": "mutations/v3-bad-provenance.json",
+      "expect_error_contains": "artifact: invalid provenance"
+    },
+    {
+      "id": "v3-empty-feature-list",
+      "schema_version": 3,
+      "file": "mutations/v3-empty-feature-list.json",
+      "expect_error_contains": "artifact: empty feature list"
+    },
+    {
+      "id": "v3-duplicate-feature-name",
+      "schema_version": 3,
+      "file": "mutations/v3-duplicate-feature-name.json",
+      "expect_error_contains": "artifact: duplicate feature name"
+    },
+    {
+      "id": "v3-input-kind-count-mismatch",
+      "schema_version": 3,
+      "file": "mutations/v3-input-kind-count-mismatch.json",
+      "expect_error_contains": "artifact: input kind count mismatch"
+    },
+    {
+      "id": "v3-unsupported-input-kind",
+      "schema_version": 3,
+      "file": "mutations/v3-unsupported-input-kind.json",
+      "expect_error_contains": "artifact: unsupported input kind"
+    },
+    {
+      "id": "v3-step-input-dimension-mismatch",
+      "schema_version": 3,
+      "file": "mutations/v3-step-input-dimension-mismatch.json",
+      "expect_error_contains": "artifact: step input dimension mismatch"
+    },
+    {
+      "id": "v3-unsupported-step-kind",
+      "schema_version": 3,
+      "file": "mutations/v3-unsupported-step-kind.json",
+      "expect_error_contains": "artifact: unsupported pipeline step kind"
+    },
+    {
+      "id": "v3-invalid-scaler-parameters",
+      "schema_version": 3,
+      "file": "mutations/v3-invalid-scaler-parameters.json",
+      "expect_error_contains": "artifact: invalid scaler parameters"
+    },
+    {
+      "id": "v3-scaler-on-categorical-input",
+      "schema_version": 3,
+      "file": "mutations/v3-scaler-on-categorical-input.json",
+      "expect_error_contains": "artifact: scaler on categorical input"
+    },
+    {
+      "id": "v3-remainder-not-ordered-complement",
+      "schema_version": 3,
+      "file": "mutations/v3-remainder-not-ordered-complement.json",
+      "expect_error_contains": "artifact: remainder columns are not the ordered branch complement"
+    },
+    {
+      "id": "v3-remainder-not-complement",
+      "schema_version": 3,
+      "file": "mutations/v3-remainder-not-complement.json",
+      "expect_error_contains": "artifact: remainder columns are not the branch complement"
+    },
+    {
+      "id": "v3-terminal-estimator-input-not-numeric",
+      "schema_version": 3,
+      "file": "mutations/v3-terminal-estimator-input-not-numeric.json",
+      "expect_error_contains": "artifact: terminal estimator input is not numeric"
+    },
+    {
+      "id": "v3-one-hot-zero-width",
+      "schema_version": 3,
+      "file": "mutations/v3-one-hot-zero-width.json",
+      "expect_error_contains": "artifact: one-hot output has zero width"
+    },
+    {
+      "id": "v3-unsupported-estimator",
+      "schema_version": 3,
+      "file": "mutations/v3-unsupported-estimator.json",
+      "expect_error_contains": "artifact: unsupported estimator"
+    },
+    {
+      "id": "v3-estimator-input-dimension-mismatch",
+      "schema_version": 3,
+      "file": "mutations/v3-estimator-input-dimension-mismatch.json",
+      "expect_error_contains": "artifact: estimator input dimension mismatch"
+    },
+    {
+      "id": "v3-nested-column-transformer",
+      "schema_version": 3,
+      "file": "mutations/v3-nested-column-transformer.json",
+      "expect_error_contains": "artifact: nested column transformer"
+    },
+    {
+      "id": "v3-passthrough-branch-on-categorical",
+      "schema_version": 3,
+      "file": "mutations/v3-passthrough-branch-on-categorical.json",
+      "expect_error_contains": "artifact: passthrough branch on categorical input"
+    },
+    {
+      "id": "v3-real-fixture-bad-provenance",
+      "schema_version": 3,
+      "file": "mutations/v3-real-fixture-bad-provenance.json",
+      "expect_error_contains": "artifact: invalid provenance"
+    }
+  ]
+}

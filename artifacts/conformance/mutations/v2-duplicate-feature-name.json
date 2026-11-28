@@ -1,0 +1,58 @@
+{
+  "schema_version": 2,
+  "source": "scikit-learn",
+  "source_version": "1.8.0",
+  "model_id": "tree-smoke-synthetic",
+  "features": [
+    "x",
+    "x"
+  ],
+  "imputer_kind": "mean",
+  "scaler_kind": "standard",
+  "estimator_kind": "decision_tree_classifier",
+  "imputer_means": [
+    0.0,
+    0.0
+  ],
+  "scaler_means": [
+    0.0,
+    0.0
+  ],
+  "scaler_scales": [
+    1.0,
+    1.0
+  ],
+  "classes": [
+    -3,
+    7
+  ],
+  "nodes": [
+    {
+      "left": 1,
+      "right": 2,
+      "feature": 0,
+      "threshold": 0,
+      "probabilities": []
+    },
+    {
+      "left": -1,
+      "right": -1,
+      "feature": -2,
+      "threshold": -2,
+      "probabilities": [
+        0.5,
+        0.5
+      ]
+    },
+    {
+      "left": -1,
+      "right": -1,
+      "feature": -2,
+      "threshold": -2,
+      "probabilities": [
+        0,
+        1
+      ]
+    }
+  ]
+}

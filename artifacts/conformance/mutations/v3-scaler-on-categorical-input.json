@@ -1,0 +1,58 @@
+{
+  "schema_version": 3,
+  "source": "scikit-learn",
+  "source_version": "1.8.0",
+  "model_id": "conformance-synthetic",
+  "features": [
+    "a",
+    "b",
+    "c",
+    "d"
+  ],
+  "input_kinds": [
+    "numeric",
+    "numeric",
+    "categorical",
+    "numeric"
+  ],
+  "steps": [
+    {
+      "kind": "standard_scaler",
+      "n_features_in": 4,
+      "n_features_out": 4,
+      "scaler": {
+        "means": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scales": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    }
+  ],
+  "estimator": {
+    "kind": "linear",
+    "n_features_in": 4,
+    "weights": [
+      [
+        1.0,
+        0.0,
+        0.0,
+        1.0,
+        2.0
+      ]
+    ],
+    "intercepts": [
+      0.5
+    ],
+    "classes": [],
+    "nodes": [],
+    "trees": []
+  }
+}

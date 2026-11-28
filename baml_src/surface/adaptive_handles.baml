@@ -3,7 +3,7 @@ function AdaptiveLinear(model: SelectiveModel, policy: AdaptivePolicy) -> Loaded
     let opts = SelectiveContext(model, trace.empty_span(), "");
     LoadedLinearModel {
         predict_fn: (x: float[][], features: string[]) -> NumArrayResult {
-            let r = RunAdaptive(model, x, features, "predict", policy, $trace = opts) catch (e) {
+            let r = RunAdaptive(model, x, features, Operation.Predict, policy, $trace = opts) catch (e) {
                 let f: InferenceFailure => {
                     return NumArrayResult {
                         ok: false,
@@ -28,7 +28,7 @@ function AdaptivePipeline(model: SelectiveModel, policy: AdaptivePolicy) -> Load
         estimator_kind: model.estimator_kind,
         classes: model.classes,
         predict_fn: (cells: Cell[][], features: string[]) -> PipelineResult {
-            let r = RunAdaptiveCells(model, cells, features, "predict", policy, $trace = opts) catch (e) {
+            let r = RunAdaptiveCells(model, cells, features, Operation.Predict, policy, $trace = opts) catch (e) {
                 let f: InferenceFailure => {
                     return PipelineResult {
                         ok: false,
@@ -52,7 +52,7 @@ function AdaptivePipeline(model: SelectiveModel, policy: AdaptivePolicy) -> Load
                 model,
                 cells,
                 features,
-                "predict-proba",
+                Operation.PredictProba,
                 policy,
                 $trace = opts,
             ) catch (e) {
@@ -82,7 +82,7 @@ function AdaptiveClassifier(model: SelectiveModel, policy: AdaptivePolicy) -> Lo
     let opts = SelectiveContext(model, trace.empty_span(), "");
     LoadedLogisticModel {
         labels_fn: (x: float[][], features: string[]) -> IntArrayResult {
-            let r = RunAdaptive(model, x, features, "predict", policy, $trace = opts) catch (e) {
+            let r = RunAdaptive(model, x, features, Operation.Predict, policy, $trace = opts) catch (e) {
                 let f: InferenceFailure => {
                     return IntArrayResult {
                         ok: false,
@@ -102,7 +102,7 @@ function AdaptiveClassifier(model: SelectiveModel, policy: AdaptivePolicy) -> Lo
                 model,
                 x,
                 features,
-                "predict-proba",
+                Operation.PredictProba,
                 policy,
                 $trace = opts,
             ) catch (e) {

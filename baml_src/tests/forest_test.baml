@@ -4,7 +4,7 @@ function ForestFixture(name: string) -> string {
 }
 
 test "v3_forest_sklearn_parity_is_covered_by_oracle" {
-  let o = V3Oracle()["v3-ct-hetero-forest"];
+  let o = PipelineOracle()["v3-ct-hetero-forest"];
   let raw_input = baml.json.stringify(o.input);
   let model = ForestFixture("v3-ct-hetero-forest");
   let probs = RunBatch(model, raw_input, "predict-proba", ObservationMode.Full);
@@ -35,7 +35,7 @@ test "v3_forest_rejects_malformed_estimators_at_load" {
   a = DecodePipelineArtifact(base);
   a.estimator.kind = "gradient_boosting";
   assert.is_true(PipelineArtifactError(a) != "");
-  assert.is_true(V3LoadFails(baml.json.stringify(a)));
+  assert.is_true(PipelineLoadFails(baml.json.stringify(a)));
 }
 
 test "v3_forest_adaptive_and_shadow_signals" {
@@ -49,7 +49,7 @@ test "v3_forest_adaptive_and_shadow_signals" {
   assert.is_true(out.summary.challenger_ok)
   // Champion predictions are returned; forest averaged probabilities match the oracle.
   let probs = out.predictions;
-  let o = V3Oracle()["v3-forest-impute-scale"];
+  let o = PipelineOracle()["v3-forest-impute-scale"];
   let expected = o.predict_proba;
   assert.is_true(probs is float[][] && expected != null)
   if (probs is float[][] && expected != null) { assert.is_true(NearMatrix(probs, expected)) }

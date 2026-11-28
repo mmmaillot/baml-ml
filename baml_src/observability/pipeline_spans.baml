@@ -182,10 +182,10 @@ function ObservedColumnTransformer(cells: Cell[][], state: TracePrivate<Pipeline
 // The estimator consumes a dense finite float64 matrix; missing or
 // non-numeric values that survived preprocessing are rejected here.
 
-function RunPipelineEstimator(x: float[][], a: FittedPipelineArtifact, operation: string, full: bool, compute_probs: bool, opts: trace.Options) -> PipelineRun throws InferenceFailure {
+function RunPipelineEstimator(x: float[][], a: FittedPipelineArtifact, operation: Operation, full: bool, compute_probs: bool, opts: trace.Options) -> PipelineRun throws InferenceFailure {
   let e = a.estimator;
   if (e.kind == "linear") {
-    if (operation == "predict-proba") {
+    if (operation == Operation.PredictProba) {
       throw InferenceFailure { stage: "input_validation", message: "predict-proba requires a classifier estimator" };
     }
     let r = ObservedLinear(x, TracePrivate<LinearRegressionModel> { value: LinearRegressionModel { coefficients: e.weights[0], intercept: e.intercepts[0], n_features: e.n_features_in } }, $trace = opts);
@@ -194,7 +194,7 @@ function RunPipelineEstimator(x: float[][], a: FittedPipelineArtifact, operation
   if (e.kind == "logistic_binary" || e.kind == "logistic_multinomial") {
     let model = PipelineLogisticModel(e);
     let scores = ObservedDecisionScores(x, TracePrivate<LogisticRegressionModel> { value: model }, $trace = opts);
-    if (operation == "predict-proba") {
+    if (operation == Operation.PredictProba) {
       let p = ObservedSoftmax(scores, $trace = opts);
       return PipelineRun { values: [], labels: ClassLabels(scores, e.classes), probs: p.probs };
     }
@@ -232,7 +232,10 @@ function PredictLoadedPipeline(cells: Cell[][], features: string[], model_id: st
   let exec = PipelineExecution { z_abs_max: null };
   let out = RunPipelineSteps(cells, a, opts, exec);
   let x = PipelineEstimatorMatrix(out);
-  let run = RunPipelineEstimator(x, a, operation, observation == ObservationMode.Full, false, opts);
+  // The span records the wire string; the enum lives behind the boundary.
+  // Non-throwing parse: the public entry already validated the operation.
+  let op = if (operation == "predict-proba") { Operation.PredictProba } else { Operation.Predict };
+  let run = RunPipelineEstimator(x, a, op, observation == ObservationMode.Full, false, opts);
   PipelineResult { ok: true, values: run.values, labels: run.labels, probs: run.probs, error: "" }
 }
 

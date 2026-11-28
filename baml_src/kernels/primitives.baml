@@ -39,6 +39,22 @@ class InferenceFailure {
 
 function IsNaN(x: float) -> bool { x.is_nan() }
 
+// Sorted unique integer classes: the single implementation shared by every
+// schema's state validation (tree, forest, legacy and pipeline contracts all
+// call it; kernels never depend on contracts).
+
+function SortedUniqueClasses(classes: int[]) -> bool {
+  for (let k = 1; k < classes.length(); k += 1) {
+    if (classes[k] <= classes[k - 1]) { return false; }
+  }
+  true
+}
+
+function SortedUniqueClassesMin(classes: int[], min_count: int) -> bool {
+  if (classes.length() < min_count) { return false; }
+  SortedUniqueClasses(classes)
+}
+
 
 function IsFinite(x: float) -> bool { x.is_finite() }
 

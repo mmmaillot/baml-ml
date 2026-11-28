@@ -270,24 +270,24 @@ test "adaptive_snapshot_guard_stays_lazy_until_a_row_is_replayed" {
     let model = SelectiveLinear(a, ArtifactRegression(a));
     let policy = DefaultAdaptivePolicy();
     assert.equal(
-        RunAdaptive(model, [[1.0]], ["x"], "predict", policy).values,
+        RunAdaptive(model, [[1.0]], ["x"], Operation.Predict, policy).values,
         [2.0],
     );
     assert.is_true(!model.guard.captured);
     policy.max_escalated_rows = 0;
     assert.equal(
-        RunAdaptive(model, [[float.nan()]], ["x"], "predict", policy).values,
+        RunAdaptive(model, [[float.nan()]], ["x"], Operation.Predict, policy).values,
         [0.0],
     );
     assert.is_true(!model.guard.captured);
     policy.max_escalated_rows = 1;
     assert.equal(
-        RunAdaptive(model, [[float.nan()]], ["x"], "predict", policy).values,
+        RunAdaptive(model, [[float.nan()]], ["x"], Operation.Predict, policy).values,
         [0.0],
     );
     assert.is_true(model.guard.captured);
     assert.equal(
-        RunAdaptive(model, [[5.0]], ["x"], "predict", policy).values,
+        RunAdaptive(model, [[5.0]], ["x"], Operation.Predict, policy).values,
         [10.0],
     );
     assert.is_true(model.guard.captured)

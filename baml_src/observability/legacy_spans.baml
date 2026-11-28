@@ -120,15 +120,6 @@ function PrepareArtifact(raw: string, expected_linear: bool?) -> FittedArtifact 
 }
 
 
-function LoadedFeatureError(features: string[], expected: string[]) -> string {
-  if (features.length() != expected.length()) { return "artifact: feature order mismatch"; }
-  for (let j = 0; j < features.length(); j += 1) {
-    if (features[j] != expected[j]) { return "artifact: feature order mismatch"; }
-  }
-  ""
-}
-
-
 function PreparedPreprocess(x: float[][], imputer: MeanImputer, scaler: StandardScaler, opts: trace.Options) -> float[][] throws InferenceFailure {
   let t1 = ObservedImpute(x, TracePrivate<MeanImputer> { value: imputer }, $trace = opts);
   let t2 = ObservedScale(t1.x, TracePrivate<StandardScaler> { value: scaler }, $trace = opts);

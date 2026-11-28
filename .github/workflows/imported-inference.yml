@@ -67,7 +67,7 @@ jobs:
           mkdir -p "$project"
           cp -R baml_src baml.toml "$project/"
           python artifacts/generate_v3_fixtures.py "$project/artifacts/fixtures"
-          (cd "$project"; "$BAML_CLI" run PipelineV3OracleProbe --output-format json)
+          (cd "$project"; "$BAML_CLI" run PipelineOracleProbe --output-format json)
       - uses: actions/upload-artifact@v4
         if: always()
         with:
