@@ -1,6 +1,6 @@
 class ShadowInput {
     features: string[],
-    rows: (float?)[][],
+    rows: (float | string | null)[][],
     classes: int[]?,
 }
 
@@ -32,6 +32,9 @@ function PrepareShadowModel(raw: string) -> SelectiveModel {
     if (version == 2) {
         let tree = PrepareTreeArtifact(raw, $trace = trace.empty_span());
         return SelectiveTree(tree, PreparedTree(tree));
+    }
+    if (version == 3) {
+        return SelectivePipeline(PreparePipelineArtifact(raw, $trace = trace.empty_span()));
     }
     let a = PrepareArtifact(raw, null, $trace = trace.empty_span());
     if (a.estimator_kind == "linear") {
@@ -104,7 +107,7 @@ function ShadowChallengerFailed(failure: InferenceFailure) -> void throws Infere
 function ShadowEscalatedRow(
     champion: SelectiveModel,
     challenger: SelectiveModel,
-    row: float[],
+    row: Cell[],
     operation: string,
 ) -> void throws InferenceFailure {
     RunSelectiveModel(
@@ -145,7 +148,7 @@ function CaptureShadowSnapshots(champion: SelectiveModel, challenger: SelectiveM
 function ShadowBatch(
     champion: SelectiveModel,
     challenger: SelectiveModel,
-    rows: float[][],
+    rows: Cell[][],
     operation: string,
     policy: AdaptivePolicy,
 ) -> ShadowOutput {
@@ -241,10 +244,7 @@ function RunShadow(
     let challenger = PrepareShadowModel(raw_challenger);
     let input = baml.json.decode<ShadowInput>(raw_input);
     CheckShadowCompatibility(champion, challenger, input, operation);
-    let rows = BatchRows(BatchInput {
-        features: input.features,
-        rows: input.rows,
-    });
+    let rows = ShadowCells(input.rows);
     ShadowBatch(
         champion,
         challenger,

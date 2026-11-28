@@ -125,15 +125,14 @@ function ObservedScale(x: float[][], state: TracePrivate<StandardScaler>) -> Sca
 
 ## Supported scope (`v0.2.0`)
 
-Validated against **scikit-learn 1.8.0** for dense `float64` three-step `Pipeline`s (`SimpleImputer(strategy="mean")` → `StandardScaler` → estimator):
+Validated against **scikit-learn 1.8.0**:
 
-- **`LinearRegression`** (schema v1): single-target dense regression (`predict`).
-- **`LogisticRegression`** (schema v1): binary sigmoid and multinomial softmax with sorted integer classes (`predict`, `predict-proba`).
-- **`DecisionTreeClassifier`** (schema v2): single-output dense classification with sorted integer classes and exact IEEE-754 `binary32` ties-to-even threshold rounding (`predict`, `predict-proba`, visited paths and leaves in `Full`).
+- **Schemas v1/v2**: dense `float64` three-step `Pipeline`s (`SimpleImputer(strategy="mean")` → `StandardScaler` → estimator) with `LinearRegression` (v1), `LogisticRegression` (v1, binary sigmoid / multinomial softmax, sorted integer classes) and `DecisionTreeClassifier` (v2, exact IEEE-754 `binary32` ties-to-even threshold rounding, visited paths and leaves in `Full`).
+- **Schema v3** ([ADR](docs/architecture/flexible-pipelines-and-forests.md)): arbitrary-length sequential pipelines (`0..N` steps + 1 estimator) over heterogeneous `(float | string | null)` batches — extended `SimpleImputer` strategies, dense `OneHotEncoder`, `ColumnTransformer` with named branches, and `RandomForestClassifier` (bit-exact sklearn probability averaging) as terminal estimator. Per-step `baml_ml.step_index`/`baml_ml.step_kind` and branch spans, strict input validation, and v1/v2 contracts 100% unchanged.
 - **Observation modes**: `Semantic` (default metadata-only spans), `Timing` (aggregate profiler), `Full` (all stage payloads + one-time model snapshot), `Adaptive` (selective row-level `Full` replay with lazy snapshot and `max_escalated_rows` cap), and `BAML_TELEMETRY=off`.
 - **Standalone CLI**: `predict` and same-family `shadow` (champion/challenger comparison with challenger inference-failure isolation).
 
-See the [artifact contract](artifacts/README.md), [tree inference ADR](docs/architecture/tree-inference.md), [observation contract v1](docs/architecture/observation-contract.md), and [adaptive & shadow ADR](docs/architecture/adaptive-shadow-observation.md) for exact restrictions and export instructions. Unsupported variants are explicitly rejected rather than silently approximated.
+See the [artifact contract](artifacts/README.md), [tree inference ADR](docs/architecture/tree-inference.md), [flexible pipelines & forests ADR](docs/architecture/flexible-pipelines-and-forests.md), [observation contract v1](docs/architecture/observation-contract.md), and [adaptive & shadow ADR](docs/architecture/adaptive-shadow-observation.md) for exact restrictions and export instructions. Unsupported variants are explicitly rejected rather than silently approximated.
 
 ## Benchmarks
 
@@ -189,12 +188,9 @@ bash experiments/native_ml_observability/run.sh /tmp/native-ml-observability
 
 ## Roadmap
 
-1. `RandomForestClassifier`: native ensemble traversal, sklearn probability-averaging parity, and semantic traces ([#72](https://github.com/mmmaillot/baml-ml/issues/72)).
-2. Arbitrary-length sequential pipeline contract (`schema_version = 3`) ([#73](https://github.com/mmmaillot/baml-ml/issues/73)).
-3. Extended `SimpleImputer` strategies (`median`, `most_frequent`, `constant`) and dense `OneHotEncoder` ([#74](https://github.com/mmmaillot/baml-ml/issues/74)).
-4. `ColumnTransformer` with heterogeneous numeric/categorical tabular inputs ([#75](https://github.com/mmmaillot/baml-ml/issues/75)).
-5. End-to-end heterogeneous pipelines + `RandomForestClassifier` with `Adaptive` / `shadow`, standalone packaging, and ADR ([#76](https://github.com/mmmaillot/baml-ml/issues/76)).
-6. Optional numerical acceleration only if measured inference profiles justify it ([#20](https://github.com/mmmaillot/baml-ml/issues/20), deferred).
+1. Optional numerical acceleration only if measured inference profiles justify it ([#20](https://github.com/mmmaillot/baml-ml/issues/20), deferred).
+
+Done: `RandomForestClassifier` native ensemble traversal with sklearn parity and semantic traces (#72), the `schema_version = 3` arbitrary-length pipeline contract (#73), extended `SimpleImputer` strategies + dense `OneHotEncoder` (#74), `ColumnTransformer` on heterogeneous tabular inputs (#75), and end-to-end heterogeneous pipelines + forests with `Adaptive`/`shadow`, standalone smoke and ADR (#76) — see the [flexible pipelines & forests ADR](docs/architecture/flexible-pipelines-and-forests.md) and [heterogeneous pipelines evidence](../experiments/heterogeneous_pipelines/README.md).
 
 [Architecture decision](docs/architecture/inference-first.md).
 

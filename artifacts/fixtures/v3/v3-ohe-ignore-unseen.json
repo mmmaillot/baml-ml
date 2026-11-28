@@ -1,0 +1,68 @@
+{
+  "schema_version": 3,
+  "source": "scikit-learn",
+  "source_version": "1.8.0",
+  "features": [
+    "color",
+    "size"
+  ],
+  "input_kinds": [
+    "categorical",
+    "categorical"
+  ],
+  "steps": [
+    {
+      "kind": "one_hot_encoder",
+      "n_features_in": 2,
+      "n_features_out": 6,
+      "one_hot": {
+        "columns": [
+          {
+            "kind": "string",
+            "strings": [
+              "blue",
+              "green",
+              "red"
+            ],
+            "ints": []
+          },
+          {
+            "kind": "string",
+            "strings": [
+              "L",
+              "M",
+              "S"
+            ],
+            "ints": []
+          }
+        ],
+        "handle_unknown": "ignore",
+        "drop": null
+      }
+    }
+  ],
+  "estimator": {
+    "kind": "logistic_binary",
+    "n_features_in": 6,
+    "weights": [
+      [
+        -0.28651922508991534,
+        0.4331440148291345,
+        -0.14594878435391742,
+        -0.5617879197674457,
+        0.9775246085809944,
+        -0.41506068342824715
+      ]
+    ],
+    "intercepts": [
+      0.028631940957598526
+    ],
+    "classes": [
+      0,
+      1
+    ],
+    "nodes": [],
+    "trees": []
+  },
+  "model_id": "6a0bcd62eeb7b33e1cf770b907ea1ff75ae9e67fcbe25fa4d45c221b6378fec2"
+}

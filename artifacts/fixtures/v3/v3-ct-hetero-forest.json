@@ -1,0 +1,735 @@
+{
+  "schema_version": 3,
+  "source": "scikit-learn",
+  "source_version": "1.8.0",
+  "features": [
+    "age",
+    "income",
+    "city"
+  ],
+  "input_kinds": [
+    "numeric",
+    "numeric",
+    "categorical"
+  ],
+  "steps": [
+    {
+      "kind": "column_transformer",
+      "n_features_in": 3,
+      "n_features_out": 6,
+      "column_transformer": {
+        "branches": [
+          {
+            "name": "num",
+            "columns": [
+              0,
+              1
+            ],
+            "mode": "pipeline",
+            "steps": [
+              {
+                "kind": "simple_imputer",
+                "n_features_in": 2,
+                "n_features_out": 2,
+                "imputer": {
+                  "strategy": "mean",
+                  "value_kind": "numeric",
+                  "statistics": [
+                    40.49302219131267,
+                    56988.22397377852
+                  ],
+                  "fill_strings": []
+                }
+              },
+              {
+                "kind": "standard_scaler",
+                "n_features_in": 2,
+                "n_features_out": 2,
+                "scaler": {
+                  "means": [
+                    40.49302219131267,
+                    56988.22397377852
+                  ],
+                  "scales": [
+                    11.59991044584084,
+                    17006.27184412634
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "name": "cat",
+            "columns": [
+              2
+            ],
+            "mode": "pipeline",
+            "steps": [
+              {
+                "kind": "simple_imputer",
+                "n_features_in": 1,
+                "n_features_out": 1,
+                "imputer": {
+                  "strategy": "most_frequent",
+                  "value_kind": "string",
+                  "statistics": [],
+                  "fill_strings": [
+                    "berlin"
+                  ]
+                }
+              },
+              {
+                "kind": "one_hot_encoder",
+                "n_features_in": 1,
+                "n_features_out": 4,
+                "one_hot": {
+                  "columns": [
+                    {
+                      "kind": "string",
+                      "strings": [
+                        "berlin",
+                        "lyon",
+                        "madrid",
+                        "paris"
+                      ],
+                      "ints": []
+                    }
+                  ],
+                  "handle_unknown": "error",
+                  "drop": null
+                }
+              }
+            ]
+          }
+        ],
+        "remainder": "drop",
+        "remainder_columns": []
+      }
+    }
+  ],
+  "estimator": {
+    "kind": "random_forest_classifier",
+    "n_features_in": 6,
+    "weights": [],
+    "intercepts": [],
+    "classes": [
+      0,
+      1
+    ],
+    "nodes": [],
+    "trees": [
+      {
+        "n_features": 6,
+        "classes": [
+          0,
+          1
+        ],
+        "nodes": [
+          {
+            "left": 1,
+            "right": 2,
+            "feature": 1,
+            "threshold": -1.5595644116401672,
+            "probabilities": []
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              1.0,
+              0.0
+            ]
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              0.0,
+              1.0
+            ]
+          }
+        ]
+      },
+      {
+        "n_features": 6,
+        "classes": [
+          0,
+          1
+        ],
+        "nodes": [
+          {
+            "left": 1,
+            "right": 8,
+            "feature": 5,
+            "threshold": 0.5,
+            "probabilities": []
+          },
+          {
+            "left": 2,
+            "right": 7,
+            "feature": 2,
+            "threshold": 0.5,
+            "probabilities": []
+          },
+          {
+            "left": 3,
+            "right": 6,
+            "feature": 0,
+            "threshold": 0.07345648109912872,
+            "probabilities": []
+          },
+          {
+            "left": 4,
+            "right": 5,
+            "feature": 0,
+            "threshold": -0.8983143866062164,
+            "probabilities": []
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              0.0,
+              1.0
+            ]
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              1.0,
+              0.0
+            ]
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              0.0,
+              1.0
+            ]
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              0.0,
+              1.0
+            ]
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              0.0,
+              1.0
+            ]
+          }
+        ]
+      },
+      {
+        "n_features": 6,
+        "classes": [
+          0,
+          1
+        ],
+        "nodes": [
+          {
+            "left": 1,
+            "right": 8,
+            "feature": 3,
+            "threshold": 0.5,
+            "probabilities": []
+          },
+          {
+            "left": 2,
+            "right": 7,
+            "feature": 5,
+            "threshold": 0.5,
+            "probabilities": []
+          },
+          {
+            "left": 3,
+            "right": 4,
+            "feature": 0,
+            "threshold": -0.1713622808456421,
+            "probabilities": []
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              0.0,
+              1.0
+            ]
+          },
+          {
+            "left": 5,
+            "right": 6,
+            "feature": 1,
+            "threshold": -1.0873851776123047,
+            "probabilities": []
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              1.0,
+              0.0
+            ]
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              0.0,
+              1.0
+            ]
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              0.0,
+              1.0
+            ]
+          },
+          {
+            "left": 9,
+            "right": 10,
+            "feature": 0,
+            "threshold": 0.36218853294849396,
+            "probabilities": []
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              1.0,
+              0.0
+            ]
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              0.0,
+              1.0
+            ]
+          }
+        ]
+      },
+      {
+        "n_features": 6,
+        "classes": [
+          0,
+          1
+        ],
+        "nodes": [
+          {
+            "left": 1,
+            "right": 8,
+            "feature": 2,
+            "threshold": 0.5,
+            "probabilities": []
+          },
+          {
+            "left": 2,
+            "right": 7,
+            "feature": 0,
+            "threshold": 0.36218853294849396,
+            "probabilities": []
+          },
+          {
+            "left": 3,
+            "right": 6,
+            "feature": 5,
+            "threshold": 0.5,
+            "probabilities": []
+          },
+          {
+            "left": 4,
+            "right": 5,
+            "feature": 4,
+            "threshold": 0.5,
+            "probabilities": []
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              1.0,
+              0.0
+            ]
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              0.0,
+              1.0
+            ]
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              0.0,
+              1.0
+            ]
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              0.0,
+              1.0
+            ]
+          },
+          {
+            "left": 9,
+            "right": 10,
+            "feature": 1,
+            "threshold": -0.872132733464241,
+            "probabilities": []
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              1.0,
+              0.0
+            ]
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              0.0,
+              1.0
+            ]
+          }
+        ]
+      },
+      {
+        "n_features": 6,
+        "classes": [
+          0,
+          1
+        ],
+        "nodes": [
+          {
+            "left": 1,
+            "right": 4,
+            "feature": 0,
+            "threshold": 0.36218853294849396,
+            "probabilities": []
+          },
+          {
+            "left": 2,
+            "right": 3,
+            "feature": 3,
+            "threshold": 0.5,
+            "probabilities": []
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              0.0,
+              1.0
+            ]
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              1.0,
+              0.0
+            ]
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              0.0,
+              1.0
+            ]
+          }
+        ]
+      },
+      {
+        "n_features": 6,
+        "classes": [
+          0,
+          1
+        ],
+        "nodes": [
+          {
+            "left": 1,
+            "right": 4,
+            "feature": 1,
+            "threshold": -0.7964458465576172,
+            "probabilities": []
+          },
+          {
+            "left": 2,
+            "right": 3,
+            "feature": 0,
+            "threshold": -0.19248398393392563,
+            "probabilities": []
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              1.0,
+              0.0
+            ]
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              0.0,
+              1.0
+            ]
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              0.0,
+              1.0
+            ]
+          }
+        ]
+      },
+      {
+        "n_features": 6,
+        "classes": [
+          0,
+          1
+        ],
+        "nodes": [
+          {
+            "left": 1,
+            "right": 8,
+            "feature": 2,
+            "threshold": 0.5,
+            "probabilities": []
+          },
+          {
+            "left": 2,
+            "right": 7,
+            "feature": 4,
+            "threshold": 0.5,
+            "probabilities": []
+          },
+          {
+            "left": 3,
+            "right": 6,
+            "feature": 1,
+            "threshold": 0.23117411136627197,
+            "probabilities": []
+          },
+          {
+            "left": 4,
+            "right": 5,
+            "feature": 5,
+            "threshold": 0.5,
+            "probabilities": []
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              1.0,
+              0.0
+            ]
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              0.0,
+              1.0
+            ]
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              0.0,
+              1.0
+            ]
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              0.0,
+              1.0
+            ]
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              0.0,
+              1.0
+            ]
+          }
+        ]
+      },
+      {
+        "n_features": 6,
+        "classes": [
+          0,
+          1
+        ],
+        "nodes": [
+          {
+            "left": 1,
+            "right": 8,
+            "feature": 0,
+            "threshold": 0.6777746677398682,
+            "probabilities": []
+          },
+          {
+            "left": 2,
+            "right": 7,
+            "feature": 4,
+            "threshold": 0.5,
+            "probabilities": []
+          },
+          {
+            "left": 3,
+            "right": 4,
+            "feature": 1,
+            "threshold": -1.251537263393402,
+            "probabilities": []
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              1.0,
+              0.0
+            ]
+          },
+          {
+            "left": 5,
+            "right": 6,
+            "feature": 1,
+            "threshold": -0.41066270135343075,
+            "probabilities": []
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              0.25,
+              0.75
+            ]
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              0.0,
+              1.0
+            ]
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              0.0,
+              1.0
+            ]
+          },
+          {
+            "left": -1,
+            "right": -1,
+            "feature": -2,
+            "threshold": -2.0,
+            "probabilities": [
+              0.0,
+              1.0
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "model_id": "fd7b12d636140441328de097ff86b31e9fcba842e919b9a2fdda30de976bd154"
+}

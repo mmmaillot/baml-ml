@@ -1,0 +1,60 @@
+{
+  "schema_version": 3,
+  "source": "scikit-learn",
+  "source_version": "1.8.0",
+  "features": [
+    "c0",
+    "c1"
+  ],
+  "input_kinds": [
+    "categorical",
+    "categorical"
+  ],
+  "steps": [
+    {
+      "kind": "one_hot_encoder",
+      "n_features_in": 2,
+      "n_features_out": 1,
+      "one_hot": {
+        "columns": [
+          {
+            "kind": "string",
+            "strings": [
+              "a",
+              "b"
+            ],
+            "ints": []
+          },
+          {
+            "kind": "string",
+            "strings": [
+              "x"
+            ],
+            "ints": []
+          }
+        ],
+        "handle_unknown": "error",
+        "drop": "first"
+      }
+    }
+  ],
+  "estimator": {
+    "kind": "logistic_binary",
+    "n_features_in": 1,
+    "weights": [
+      [
+        1.098249152861957
+      ]
+    ],
+    "intercepts": [
+      -0.548997926289584
+    ],
+    "classes": [
+      0,
+      1
+    ],
+    "nodes": [],
+    "trees": []
+  },
+  "model_id": "23c47ac58f9201a578b79fcfac738ec75a221d1f9bc43ea85e304e1dd8c5d565"
+}

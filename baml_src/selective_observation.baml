@@ -9,7 +9,7 @@ class SelectiveModel {
     classes: int[],
     guard: SnapshotGuard,
     snapshot_fn: (trace.Options) -> void throws never,
-    run_fn: (float[][], string, ObservationMode, AdaptiveRowSignals[]?) -> SelectivePrediction
+    run_fn: (Cell[][], string, ObservationMode, AdaptiveRowSignals[]?) -> SelectivePrediction
         throws InferenceFailure,
 }
 
@@ -67,16 +67,16 @@ function CaptureLazySnapshot(model: SelectiveModel) -> void {
 
 function RunSelectiveModel(
     model: SelectiveModel,
-    x: float[][],
+    cells: Cell[][],
     operation: string,
     mode: ObservationMode,
     signals: AdaptiveRowSignals[]? = null,
 ) -> SelectivePrediction throws InferenceFailure {
     let run = model.run_fn;
-    run(x, operation, mode, signals)
+    run(cells, operation, mode, signals)
 }
 
-function EscalatedRow(model: SelectiveModel, row: float[], operation: string) -> void
+function EscalatedRow(model: SelectiveModel, row: Cell[], operation: string) -> void
     throws InferenceFailure
 {
     RunSelectiveModel(model, [row], operation, ObservationMode.Full);
@@ -94,9 +94,9 @@ function EscalationOptions(row: Escalation) -> trace.Options {
 
 function AdaptiveSummary() -> void {}
 
-function RunAdaptive(
+function RunAdaptiveCells(
     model: SelectiveModel,
-    x: float[][],
+    cells: Cell[][],
     features: string[],
     operation: string,
     policy: AdaptivePolicy,
@@ -111,7 +111,7 @@ function RunAdaptive(
     let signals: AdaptiveRowSignals[] = [];
     let result = RunSelectiveModel(
         model,
-        x,
+        cells,
         operation,
         ObservationMode.Semantic,
         signals = signals,
@@ -137,13 +137,23 @@ function RunAdaptive(
         for (let row in evaluation.rows) {
             EscalatedRow(
                 model,
-                x[row.row_index],
+                cells[row.row_index],
                 operation,
                 $trace = EscalationOptions(row),
             );
         }
     }
     result
+}
+
+function RunAdaptive(
+    model: SelectiveModel,
+    x: float[][],
+    features: string[],
+    operation: string,
+    policy: AdaptivePolicy,
+) -> SelectivePrediction throws InferenceFailure {
+    RunAdaptiveCells(model, NumericCells(x), features, operation, policy)
 }
 
 function CollectRegressionSignals(
@@ -194,12 +204,13 @@ function SelectiveLinear(a: FittedArtifact, p: RegressionPipeline) -> SelectiveM
             ModelLoaded(a, $trace = opts);
         },
         run_fn: (
-            x: float[][],
+            cells: Cell[][],
             operation: string,
             mode: ObservationMode,
             signals: AdaptiveRowSignals[]?,
         ) -> SelectivePrediction {
             let opts = ObservationOptions(mode);
+            let x = CellsToFloatMatrix(cells);
             let scaled = PreparedPreprocess(x, p.imputer, p.scaler, opts);
             let r = ObservedLinear(
                 scaled,
@@ -231,12 +242,13 @@ function SelectiveLogistic(a: FittedArtifact, p: ClassificationPipeline) -> Sele
             ModelLoaded(a, $trace = opts);
         },
         run_fn: (
-            x: float[][],
+            cells: Cell[][],
             operation: string,
             mode: ObservationMode,
             signals: AdaptiveRowSignals[]?,
         ) -> SelectivePrediction {
             let opts = ObservationOptions(mode);
+            let x = CellsToFloatMatrix(cells);
             let scaled = PreparedPreprocess(x, p.imputer, p.scaler, opts);
             let scores = ObservedDecisionScores(
                 scaled,
@@ -290,12 +302,13 @@ function SelectiveTree(a: FittedTreeArtifact, p: PreparedTreePipeline) -> Select
             TreeModelLoaded(a, $trace = opts);
         },
         run_fn: (
-            x: float[][],
+            cells: Cell[][],
             operation: string,
             mode: ObservationMode,
             signals: AdaptiveRowSignals[]?,
         ) -> SelectivePrediction {
             let opts = ObservationOptions(mode);
+            let x = CellsToFloatMatrix(cells);
             let scaled = PreparedPreprocess(x, p.imputer, p.scaler, opts);
             let r = ObservedTreeTraversal(
                 scaled,
@@ -331,6 +344,61 @@ function AdaptiveLinear(model: SelectiveModel, policy: AdaptivePolicy) -> Loaded
             NumArrayResult {
                 ok: true,
                 value: r.values,
+                error: "",
+            }
+        },
+    }
+}
+
+function AdaptivePipeline(model: SelectiveModel, policy: AdaptivePolicy) -> LoadedPipelineModel {
+    let opts = SelectiveContext(model, trace.empty_span(), "");
+    LoadedPipelineModel {
+        estimator_kind: model.estimator_kind,
+        classes: model.classes,
+        predict_fn: (cells: Cell[][], features: string[]) -> PipelineResult {
+            let r = RunAdaptiveCells(model, cells, features, "predict", policy, $trace = opts) catch (e) {
+                let f: InferenceFailure => {
+                    return PipelineResult {
+                        ok: false,
+                        values: [],
+                        labels: [],
+                        probs: [],
+                        error: f.message,
+                    };
+                },
+            };
+            PipelineResult {
+                ok: true,
+                values: r.values,
+                labels: r.labels,
+                probs: [],
+                error: "",
+            }
+        },
+        proba_fn: (cells: Cell[][], features: string[]) -> PipelineResult {
+            let r = RunAdaptiveCells(
+                model,
+                cells,
+                features,
+                "predict-proba",
+                policy,
+                $trace = opts,
+            ) catch (e) {
+                let f: InferenceFailure => {
+                    return PipelineResult {
+                        ok: false,
+                        values: [],
+                        labels: [],
+                        probs: [],
+                        error: f.message,
+                    };
+                },
+            };
+            PipelineResult {
+                ok: true,
+                values: [],
+                labels: [],
+                probs: r.probabilities,
                 error: "",
             }
         },

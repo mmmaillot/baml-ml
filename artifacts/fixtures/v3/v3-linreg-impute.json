@@ -1,0 +1,78 @@
+{
+  "schema_version": 3,
+  "source": "scikit-learn",
+  "source_version": "1.8.0",
+  "features": [
+    "age",
+    "sex",
+    "bmi",
+    "bp",
+    "s1",
+    "s2",
+    "s3",
+    "s4",
+    "s5",
+    "s6"
+  ],
+  "input_kinds": [
+    "numeric",
+    "numeric",
+    "numeric",
+    "numeric",
+    "numeric",
+    "numeric",
+    "numeric",
+    "numeric",
+    "numeric",
+    "numeric"
+  ],
+  "steps": [
+    {
+      "kind": "simple_imputer",
+      "n_features_in": 10,
+      "n_features_out": 10,
+      "imputer": {
+        "strategy": "mean",
+        "value_kind": "numeric",
+        "statistics": [
+          -1.4442946587318214e-18,
+          2.5432145077669025e-18,
+          9.22810442174453e-05,
+          -4.854085961737817e-17,
+          -1.4285958037456057e-17,
+          3.8988106358266064e-17,
+          -6.0283603147067325e-18,
+          -1.7880995829299397e-17,
+          9.168131311949822e-17,
+          1.351769532156814e-17
+        ],
+        "fill_strings": []
+      }
+    }
+  ],
+  "estimator": {
+    "kind": "linear",
+    "n_features_in": 10,
+    "weights": [
+      [
+        -8.43275075492357,
+        -239.7101565871854,
+        518.1355447002252,
+        323.8976197636273,
+        -791.7083775217029,
+        477.3549107795869,
+        100.35580752991352,
+        177.48214914511792,
+        750.792560794312,
+        69.54943999793107
+      ]
+    ],
+    "intercepts": [
+      152.08567007378474
+    ],
+    "classes": [],
+    "nodes": [],
+    "trees": []
+  },
+  "model_id": "1598d0af1d8d73971e20c329d675151731e6c49b9a7e83529fc36c9f636f6070"
+}

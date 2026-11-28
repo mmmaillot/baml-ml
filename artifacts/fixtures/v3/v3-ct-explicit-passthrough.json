@@ -1,0 +1,104 @@
+{
+  "schema_version": 3,
+  "source": "scikit-learn",
+  "source_version": "1.8.0",
+  "features": [
+    "age",
+    "income",
+    "city"
+  ],
+  "input_kinds": [
+    "numeric",
+    "numeric",
+    "categorical"
+  ],
+  "steps": [
+    {
+      "kind": "column_transformer",
+      "n_features_in": 3,
+      "n_features_out": 5,
+      "column_transformer": {
+        "branches": [
+          {
+            "name": "keep",
+            "columns": [
+              0
+            ],
+            "mode": "passthrough",
+            "steps": []
+          },
+          {
+            "name": "cat",
+            "columns": [
+              2
+            ],
+            "mode": "pipeline",
+            "steps": [
+              {
+                "kind": "simple_imputer",
+                "n_features_in": 1,
+                "n_features_out": 1,
+                "imputer": {
+                  "strategy": "most_frequent",
+                  "value_kind": "string",
+                  "statistics": [],
+                  "fill_strings": [
+                    "berlin"
+                  ]
+                }
+              },
+              {
+                "kind": "one_hot_encoder",
+                "n_features_in": 1,
+                "n_features_out": 4,
+                "one_hot": {
+                  "columns": [
+                    {
+                      "kind": "string",
+                      "strings": [
+                        "berlin",
+                        "lyon",
+                        "madrid",
+                        "paris"
+                      ],
+                      "ints": []
+                    }
+                  ],
+                  "handle_unknown": "error",
+                  "drop": null
+                }
+              }
+            ]
+          }
+        ],
+        "remainder": "drop",
+        "remainder_columns": [
+          1
+        ]
+      }
+    }
+  ],
+  "estimator": {
+    "kind": "logistic_binary",
+    "n_features_in": 5,
+    "weights": [
+      [
+        0.02589461945776515,
+        0.3444906113735652,
+        -1.1107590132004141,
+        0.3673683068372248,
+        0.3954734529397733
+      ]
+    ],
+    "intercepts": [
+      0.702412629865593
+    ],
+    "classes": [
+      0,
+      1
+    ],
+    "nodes": [],
+    "trees": []
+  },
+  "model_id": "bc9ad177481e8afc77df51487a75a61a839214140b4d5ea700278531291b1f18"
+}

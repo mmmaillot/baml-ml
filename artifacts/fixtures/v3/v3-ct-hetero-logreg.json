@@ -1,0 +1,134 @@
+{
+  "schema_version": 3,
+  "source": "scikit-learn",
+  "source_version": "1.8.0",
+  "features": [
+    "age",
+    "income",
+    "city"
+  ],
+  "input_kinds": [
+    "numeric",
+    "numeric",
+    "categorical"
+  ],
+  "steps": [
+    {
+      "kind": "column_transformer",
+      "n_features_in": 3,
+      "n_features_out": 6,
+      "column_transformer": {
+        "branches": [
+          {
+            "name": "num",
+            "columns": [
+              0,
+              1
+            ],
+            "mode": "pipeline",
+            "steps": [
+              {
+                "kind": "simple_imputer",
+                "n_features_in": 2,
+                "n_features_out": 2,
+                "imputer": {
+                  "strategy": "mean",
+                  "value_kind": "numeric",
+                  "statistics": [
+                    40.49302219131267,
+                    56988.22397377852
+                  ],
+                  "fill_strings": []
+                }
+              },
+              {
+                "kind": "standard_scaler",
+                "n_features_in": 2,
+                "n_features_out": 2,
+                "scaler": {
+                  "means": [
+                    40.49302219131267,
+                    56988.22397377852
+                  ],
+                  "scales": [
+                    11.59991044584084,
+                    17006.27184412634
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "name": "cat",
+            "columns": [
+              2
+            ],
+            "mode": "pipeline",
+            "steps": [
+              {
+                "kind": "simple_imputer",
+                "n_features_in": 1,
+                "n_features_out": 1,
+                "imputer": {
+                  "strategy": "most_frequent",
+                  "value_kind": "string",
+                  "statistics": [],
+                  "fill_strings": [
+                    "berlin"
+                  ]
+                }
+              },
+              {
+                "kind": "one_hot_encoder",
+                "n_features_in": 1,
+                "n_features_out": 4,
+                "one_hot": {
+                  "columns": [
+                    {
+                      "kind": "string",
+                      "strings": [
+                        "berlin",
+                        "lyon",
+                        "madrid",
+                        "paris"
+                      ],
+                      "ints": []
+                    }
+                  ],
+                  "handle_unknown": "error",
+                  "drop": null
+                }
+              }
+            ]
+          }
+        ],
+        "remainder": "drop",
+        "remainder_columns": []
+      }
+    }
+  ],
+  "estimator": {
+    "kind": "logistic_binary",
+    "n_features_in": 6,
+    "weights": [
+      [
+        0.3897284668638389,
+        1.5050366379484612,
+        0.141717275254794,
+        -0.8227183467540933,
+        0.048577640388038114,
+        0.6326073106766251
+      ]
+    ],
+    "intercepts": [
+      2.3419823374846525
+    ],
+    "classes": [
+      0,
+      1
+    ],
+    "nodes": [],
+    "trees": []
+  },
+  "model_id": "9513e2b9ea6e8400fc5b138c9a36fe7bb81e30a170aeb83ac78c61ae423b2d18"
+}

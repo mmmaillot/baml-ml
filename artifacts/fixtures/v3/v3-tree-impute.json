@@ -1,0 +1,133 @@
+{
+  "schema_version": 3,
+  "source": "scikit-learn",
+  "source_version": "1.8.0",
+  "features": [
+    "sepal length (cm)",
+    "sepal width (cm)",
+    "petal length (cm)",
+    "petal width (cm)"
+  ],
+  "input_kinds": [
+    "numeric",
+    "numeric",
+    "numeric",
+    "numeric"
+  ],
+  "steps": [
+    {
+      "kind": "simple_imputer",
+      "n_features_in": 4,
+      "n_features_out": 4,
+      "imputer": {
+        "strategy": "mean",
+        "value_kind": "numeric",
+        "statistics": [
+          5.8516778523489945,
+          3.057333333333334,
+          3.7738255033557073,
+          1.199333333333334
+        ],
+        "fill_strings": []
+      }
+    }
+  ],
+  "estimator": {
+    "kind": "decision_tree_classifier",
+    "n_features_in": 4,
+    "weights": [],
+    "intercepts": [],
+    "classes": [
+      0,
+      1,
+      2
+    ],
+    "nodes": [
+      {
+        "left": 1,
+        "right": 2,
+        "feature": 3,
+        "threshold": 0.800000011920929,
+        "probabilities": []
+      },
+      {
+        "left": -1,
+        "right": -1,
+        "feature": -2,
+        "threshold": -2.0,
+        "probabilities": [
+          1.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "left": 3,
+        "right": 6,
+        "feature": 3,
+        "threshold": 1.75,
+        "probabilities": []
+      },
+      {
+        "left": 4,
+        "right": 5,
+        "feature": 2,
+        "threshold": 4.950000047683716,
+        "probabilities": []
+      },
+      {
+        "left": -1,
+        "right": -1,
+        "feature": -2,
+        "threshold": -2.0,
+        "probabilities": [
+          0.0,
+          0.9791666666666666,
+          0.020833333333333332
+        ]
+      },
+      {
+        "left": -1,
+        "right": -1,
+        "feature": -2,
+        "threshold": -2.0,
+        "probabilities": [
+          0.0,
+          0.3333333333333333,
+          0.6666666666666666
+        ]
+      },
+      {
+        "left": 7,
+        "right": 8,
+        "feature": 2,
+        "threshold": 4.8500001430511475,
+        "probabilities": []
+      },
+      {
+        "left": -1,
+        "right": -1,
+        "feature": -2,
+        "threshold": -2.0,
+        "probabilities": [
+          0.0,
+          0.3333333333333333,
+          0.6666666666666666
+        ]
+      },
+      {
+        "left": -1,
+        "right": -1,
+        "feature": -2,
+        "threshold": -2.0,
+        "probabilities": [
+          0.0,
+          0.0,
+          1.0
+        ]
+      }
+    ],
+    "trees": []
+  },
+  "model_id": "26d98f3943f8ea97f38c91a3a4f7d300a2647cd8791aeac723c088f12e0eb1a8"
+}

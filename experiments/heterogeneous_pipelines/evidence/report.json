@@ -1,0 +1,39 @@
+{
+  "campaign": "heterogeneous v3 RandomForestClassifier batch (500 rows)",
+  "model": "artifacts/fixtures/v3/v3-ct-hetero-forest.json",
+  "batch": "experiments/heterogeneous_pipelines/batch.json",
+  "runtime_commit": "ecfdf7c0de84ac57f5af02e93941ed91a412bbb2",
+  "baml_src_sha256": "b3116da947c1d2f69ffd1900e879e7e5d0d25ac2357d4417feae5d3ba2917cea",
+  "platform": "Linux/x86_64",
+  "baml_cli": "0.26.0",
+  "results": [
+    {
+      "mode": "semantic",
+      "best_wall_ms": 891,
+      "recording_bytes": 566299,
+      "span_count": 14,
+      "repetitions": 3
+    },
+    {
+      "mode": "adaptive",
+      "best_wall_ms": 1577,
+      "recording_bytes": 1520032,
+      "span_count": 593,
+      "repetitions": 3
+    },
+    {
+      "mode": "full",
+      "best_wall_ms": 1006,
+      "recording_bytes": 1807502,
+      "span_count": 14,
+      "repetitions": 3
+    },
+    {
+      "mode": "shadow",
+      "best_wall_ms": 1851,
+      "recording_bytes": 2533824,
+      "span_count": 1244,
+      "repetitions": 3
+    }
+  ]
+}

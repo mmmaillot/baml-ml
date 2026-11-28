@@ -238,6 +238,52 @@ for command in predict shadow; do
   query spans "SELECT context_metadata['baml_ml.row_index'] FROM spans WHERE span_name = 'user.$replay'"
   jq -e '.rows==[[0]]' "$CASE/spans.json"
 done
+# Schema v3 heterogeneous RandomForest pipeline smoke: predict, adaptive
+# replay and shadow on the packed offline binary, checked against the
+# committed sklearn 1.8.0 oracle.
+V3FIX="$FIX/v3"
+jq -e '."v3-ct-hetero-forest" | has("input") and has("predict_proba")' "$V3FIX/oracle.json" >/dev/null
+for mode in predict adaptive shadow; do
+  CASE="$OUT/evidence/v3-ct-forest-$mode"
+  mkdir -p "$CASE/home" "$CASE/tmp"
+  cp "$V3FIX/v3-ct-hetero-forest.json" "$CASE/model.json"
+  jq '."v3-ct-hetero-forest".input' "$V3FIX/oracle.json" > "$CASE/input.json"
+  case "$mode" in
+    predict) args=(predict --model model.json --input input.json --operation predict-proba --observation full);;
+    adaptive) args=(predict --model model.json --input input.json --operation predict-proba --observation adaptive);;
+    shadow) args=(shadow --champion model.json --challenger model.json --input input.json --operation predict-proba);;
+  esac
+  run_case "$CASE" medium "${args[@]}" --output-format json > "$CASE/output.json" 2> "$CASE/run.stderr" || { cat "$CASE/run.stderr"; exit 1; }
+  jq -e --arg mode "$mode" --slurpfile oracle "$V3FIX/oracle.json" '
+    def near($a;$b): if ($b|type)=="array" then (($a|type)=="array" and ($a|length)==($b|length) and ([range(0;($b|length)) as $i|near($a[$i];$b[$i])]|all)) else (($a|type)=="number" and (($a-$b)|fabs)<1e-9) end;
+    .schema_version==1 and .estimator_kind=="random_forest_classifier" and .classes==[0,1] and
+    near(if $mode=="shadow" then .predictions else .predictions end; $oracle[0]["v3-ct-hetero-forest"].predict_proba) and
+    (if $mode=="shadow" then .summary.challenger_ok and .summary.triggers.missing_input==2 and .summary.triggered_rows==2 else true end)
+  ' "$CASE/output.json" || { cat "$CASE/output.json"; exit 1; }
+  query spans "SELECT span_id, parent_span_id, span_name, status, duration, input_args, output_value, error_value, context_metadata['baml_ml.model_id'], context_metadata['baml_ml.step_index'], context_metadata['baml_ml.step_kind'], context_metadata['baml_ml.branch_name'], context_metadata['baml_ml.shadow_role'], context_metadata['baml_ml.row_index'], context_metadata['baml_ml.escalated'], context_metadata['baml_ml.trigger_reasons'] FROM spans ORDER BY start_time"
+  if [ "$mode" = predict ]; then
+    jq -e '
+      def rows($n): [.rows[]|select(.[2]==("user."+$n))];
+      (rows("PipelineModelLoaded")|length==1) and
+      (rows("ObservedColumnTransformer") as $ct |
+        ($ct|length==1) and ($ct[0][9]==0) and ($ct[0][10]=="column_transformer") and
+        (rows("ObservedColumnTransformerBranch") as $br |
+          ($br|length==2) and ([$br[]|select(.[9]==0 and .[11]!=null and .[1]==$ct[0][0] and .[10]=="column_transformer")]|length==2)) and
+        (rows("ObservedImputeStep") as $im | ($im|length==2) and ([$im[]|select(.[10]=="simple_imputer" and .[9]==0)]|length==2)) and
+        (rows("ObservedScaleStep") as $sc | ($sc|length==1) and ($sc[0][10]=="standard_scaler" and $sc[0][9]==0)) and
+        (rows("ObservedOneHotEncode") as $oh | ($oh|length==1) and ($oh[0][10]=="one_hot_encoder" and $oh[0][9]==0)) and
+        (rows("ObservedForestTraversal")|length==1))
+    ' "$CASE/spans.json" || { cat "$CASE/spans.json"; exit 1; }
+  fi
+  if [ "$mode" = adaptive ]; then
+    jq -e '[.rows[]|select(.[2]=="user.EscalatedRow")]|length==2 and all(.[13]!=null and .[14]==true)' "$CASE/spans.json" || { cat "$CASE/spans.json"; exit 1; }
+  fi
+  if [ "$mode" = shadow ]; then
+    jq -e '[.rows[]|select(.[2]=="user.ShadowEscalatedRow")]|length==2' "$CASE/spans.json" || { cat "$CASE/spans.json"; exit 1; }
+    jq -e '[.rows[]|select(.[2]=="user.ObservedColumnTransformer" and .[12]!=null)]|length==6 and ([.[]|select(.[12]=="champion")]|length==3) and ([.[]|select(.[12]=="challenger")]|length==3)' "$CASE/spans.json" || { cat "$CASE/spans.json"; exit 1; }
+  fi
+  echo "Packed v3 heterogeneous forest passed: $mode"
+done
 echo "Packed adaptive and shadow passed"
 tar -czf "$OUT/baml-ml-$PLATFORM.tar.gz" -C "$OUT/dist" baml-ml LICENSE SHA256SUMS
 echo "Standalone offline smoke passed: $PLATFORM"

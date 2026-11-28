@@ -55,7 +55,7 @@ jobs:
           OPENBLAS_NUM_THREADS: "1"
           OMP_NUM_THREADS: "1"
         run: |
-          python -m pip install scikit-learn==1.8.0
+          python -m pip install scikit-learn==1.8.0 pandas==3.1.1
           python artifacts/generate_fixtures.py "$RUNNER_TEMP/generated-artifacts"
           python artifacts/check_export.py "$RUNNER_TEMP/generated-artifacts"
       - name: Verify native tree traversal against independent sklearn oracle
@@ -70,6 +70,16 @@ jobs:
           (cd "$project"; "$BAML_CLI" run TreeOracleProbe --output-format json)
           python artifacts/generate_tree_pipeline.py "$project"
           (cd "$project"; "$BAML_CLI" run TreePipelineOracleProbe --output-format json)
+      - name: Verify schema v3 pipelines against independent sklearn oracle
+        env:
+          BAML_TELEMETRY: "off"
+        run: |
+          set -euo pipefail
+          project="$RUNNER_TEMP/v3-oracle-project"
+          mkdir -p "$project"
+          cp -R baml_src baml.toml "$project/"
+          python artifacts/generate_v3_fixtures.py "$project/artifacts/fixtures"
+          (cd "$project"; "$BAML_CLI" run PipelineV3OracleProbe --output-format json)
       - uses: actions/upload-artifact@v4
         if: always()
         with:
