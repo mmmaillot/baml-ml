@@ -25,9 +25,7 @@ function ForestStateError(f: ForestClassifierState) -> string {
   if (n <= 0 || n_classes == 0 || f.trees.length() == 0) {
     return "forest: invalid dimensions";
   }
-  for (let k = 1; k < n_classes; k += 1) {
-    if (f.classes[k] <= f.classes[k - 1]) { return "forest: invalid class order"; }
-  }
+  if (!SortedUniqueClasses(f.classes)) { return "forest: invalid class order"; }
   for (let t = 0; t < f.trees.length(); t += 1) {
     let tree = f.trees[t];
     if (tree.n_features != n || tree.classes != f.classes) {

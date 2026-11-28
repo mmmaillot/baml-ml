@@ -83,9 +83,7 @@ function TreeRoundFloat32(x: float) -> float {
 function TreeStateError(t: TreeClassifierState) -> string {
   let n = t.nodes.length();
   if (t.n_features <= 0 || n == 0 || t.classes.length() == 0) { return "tree: invalid dimensions"; }
-  for (let k = 1; k < t.classes.length(); k += 1) {
-    if (t.classes[k] <= t.classes[k - 1]) { return "tree: invalid class order"; }
-  }
+  if (!SortedUniqueClasses(t.classes)) { return "tree: invalid class order"; }
   let parents: int[] = [];
   for (let i = 0; i < n; i += 1) { parents.push(0); }
   for (let i = 0; i < n; i += 1) {

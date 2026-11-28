@@ -1,5 +1,7 @@
 // Single-source-of-truth static artifact invariants shared by the schema 1, 2
 // and 3 contracts, plus the internal enums parsed once at wire boundaries.
+// The sorted-unique class-order primitive lives in kernels/primitives.baml so
+// the tree/forest kernels can share it without depending on contracts.
 // Wire JSON (artifacts, batch inputs, BatchOutput, ShadowOutput) keeps plain
 // strings; enums exist only inside the process.
 
@@ -73,18 +75,6 @@ function LoadedFeatureError(features: string[], expected: string[]) -> string {
     if (features[j] != expected[j]) { return "artifact: feature order mismatch"; }
   }
   ""
-}
-
-function SortedUniqueClasses(classes: int[]) -> bool {
-  for (let k = 1; k < classes.length(); k += 1) {
-    if (classes[k] <= classes[k - 1]) { return false; }
-  }
-  true
-}
-
-function SortedUniqueClassesMin(classes: int[], min_count: int) -> bool {
-  if (classes.length() < min_count) { return false; }
-  SortedUniqueClasses(classes)
 }
 
 // IsFinite everywhere: x != x only detects NaN, never +-inf.

@@ -41,17 +41,38 @@ function ValidateBySchema(schema_version: int, raw: string) -> string {
   PipelineArtifactError(DecodePipelineArtifact(raw))
 }
 
-function LoadBySchemaOk(schema_version: int, raw: string) -> bool {
+function LoadV1(raw: string) -> string {
+  PrepareArtifact(raw, null);
+  "loaded"
+}
+
+function LoadV2(raw: string) -> string {
+  PrepareTreeArtifact(raw);
+  "loaded"
+}
+
+function LoadV3(raw: string) -> string {
+  PreparePipelineArtifact(raw);
+  "loaded"
+}
+
+// "loaded" on success, otherwise the InvalidArgument message. Any other
+// exception type does not match the catch arm and fails the test outright.
+
+function LoadMessageBySchema(schema_version: int, raw: string) -> string {
   if (schema_version == 1) {
-    let a: FittedArtifact? = PrepareArtifact(raw, null) catch_all (e) { _ => null };
-    return a != null;
+    LoadV1(raw) catch (e) {
+      let a: baml.errors.InvalidArgument => a.message,
+    }
+  } else if (schema_version == 2) {
+    LoadV2(raw) catch (e) {
+      let a: baml.errors.InvalidArgument => a.message,
+    }
+  } else {
+    LoadV3(raw) catch (e) {
+      let a: baml.errors.InvalidArgument => a.message,
+    }
   }
-  if (schema_version == 2) {
-    let a: FittedTreeArtifact? = PrepareTreeArtifact(raw) catch_all (e) { _ => null };
-    return a != null;
-  }
-  let a: FittedPipelineArtifact? = PreparePipelineArtifact(raw) catch_all (e) { _ => null };
-  a != null
 }
 
 test "conformance_bases_validate_clean_and_load" {
@@ -63,7 +84,8 @@ test "conformance_bases_validate_clean_and_load" {
     let raw = baml.fs.read(ConformancePath(b.file));
     let err = ValidateBySchema(b.schema_version, raw);
     if (err != "") { failures.push(b.id + " validator: " + err); }
-    if (!LoadBySchemaOk(b.schema_version, raw)) { failures.push(b.id + " rejected at load"); }
+    let load_msg = LoadMessageBySchema(b.schema_version, raw);
+    if (load_msg != "loaded") { failures.push(b.id + " load error: " + load_msg); }
   }
   assert.equal(failures, [])
 }
@@ -76,7 +98,9 @@ test "conformance_invalid_mutations_rejected_at_validate_and_load" {
     let raw = baml.fs.read(ConformancePath(m.file));
     let err = ValidateBySchema(m.schema_version, raw);
     if (!Contains(err, m.expect_error_contains)) { failures.push(m.id + " validator: " + err); }
-    if (LoadBySchemaOk(m.schema_version, raw)) { failures.push(m.id + " loaded despite invalid mutation"); }
+    let load_msg = LoadMessageBySchema(m.schema_version, raw);
+    if (load_msg == "loaded") { failures.push(m.id + " loaded despite invalid mutation"); }
+    else if (!Contains(load_msg, m.expect_error_contains)) { failures.push(m.id + " load error: " + load_msg); }
   }
   assert.equal(failures, [])
 }
