@@ -14,10 +14,7 @@ trap 'rm -rf "$WORK"' EXIT
 
 PROJECT="$WORK/project"
 mkdir -p "$PROJECT/baml_src" "$PROJECT/artifacts/fixtures/v3"
-for src in "$ROOT"/baml_src/*.baml; do
-  case "$(basename "$src")" in *_test.baml) continue;; esac
-  cp "$src" "$PROJECT/baml_src/"
-done
+"$ROOT/scripts/stage_runtime.sh" "$PROJECT/baml_src"
 cp "$ROOT/experiments/heterogeneous_pipelines/probes.baml" "$PROJECT/baml_src/"
 cp "$ROOT"/artifacts/fixtures/v3/v3-ct-hetero-forest.json "$PROJECT/artifacts/fixtures/v3/"
 python3 "$ROOT/experiments/heterogeneous_pipelines/generate_batch.py" "$PROJECT/batch.json"

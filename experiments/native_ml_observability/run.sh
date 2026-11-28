@@ -62,16 +62,13 @@ for mode in off default empty span; do
       prepare "$mode-$sample"
       mkdir -p baml_src
       # Exact copies of existing library sources; omit tests and generated fixtures.
-      for src in "$ROOT"/baml_src/*.baml; do
-        case "$(basename "$src")" in *_test.baml|test_*.baml|example_checks.baml|generated_examples.baml) continue;; esac
-        cp "$src" baml_src/
-      done
+      "$ROOT/scripts/stage_runtime.sh" baml_src
       cp "$SOURCE/iris_fixture.baml" baml_src/
       if [ "$mode" = empty ] || [ "$mode" = span ]; then
         directive=span
         if [ "$mode" = empty ]; then directive=empty_span; fi
         for fn in ClassificationPipelinePredictProba ImputerTransform ScalerTransformCore LogRegPredictProbaCore; do
-          file="$(grep -l "^function $fn(" baml_src/*.baml)"
+          file="$(grep -rl "^function $fn(" baml_src)"
           test "$(printf '%s\n' "$file" | wc -l)" -eq 1
           sed -i "/^function $fn(/i /// baml:\$trace=trace.$directive" "$file"
         done

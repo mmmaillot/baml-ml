@@ -28,23 +28,7 @@ jobs:
       DO_NOT_TRACK: "1"
     steps:
       - uses: actions/checkout@v4
-      - name: Install verified BAML CLI 0.26.0
-        run: |
-          set -euo pipefail
-          dest="$RUNNER_TEMP/observability-baml"
-          mkdir -p "$dest/toolchain"
-          base="https://github.com/BoundaryML/baml/releases/download/baml-language-0.26.0"
-          archive="baml-language-0.26.0-x86_64-unknown-linux-gnu.tar.gz"
-          for asset in "$archive" "$archive.sha256"; do
-            curl --proto '=https' --tlsv1.2 --retry 3 --fail --silent --show-error --location "$base/$asset" --output "$dest/$asset"
-          done
-          (cd "$dest"; sha256sum --check --strict "$archive.sha256")
-          tar -C "$dest/toolchain" -xzf "$dest/$archive"
-          cli="$(find "$dest/toolchain" -type f -name baml-cli -print -quit)"
-          test -n "$cli"
-          chmod +x "$cli"
-          "$cli" --version
-          echo "BAML_CLI=$cli" >> "$GITHUB_ENV"
+      - uses: ./.github/actions/setup-baml
       - name: Validate imported inference traces
         run: bash experiments/imported_inference/run.sh imported-inference-results
       - uses: actions/setup-python@v5

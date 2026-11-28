@@ -25,10 +25,7 @@ BUILD="$(mktemp -d)"
 trap 'rm -rf "$BUILD"' EXIT
 mkdir -p "$BUILD/baml_src"
 cp "$ROOT/baml.toml" "$BUILD/"
-for src in "$ROOT"/baml_src/*.baml; do
-  case "$(basename "$src")" in *_test.baml) continue;; esac
-  cp "$src" "$BUILD/baml_src/"
-done
+"$ROOT/scripts/stage_runtime.sh" "$BUILD/baml_src"
 (
   cd "$BUILD"
   BAML_TELEMETRY=off "$CLI" check
@@ -113,21 +110,23 @@ for sample in iris diabetes binary; do
       def near($a;$b): if ($b|type)=="array" then (($a|type)=="array" and ($a|length)==($b|length) and ([range(0;($b|length)) as $i|near($a[$i];$b[$i])]|all)) else (($a|type)=="number" and (($a-$b)|fabs)<1e-9) end;
       .schema_version==1 and .model_id==$a[0].model_id and .estimator_kind==$a[0].estimator_kind and .classes==$a[0].classes and .operation==$op and near(.predictions;(if $op=="predict-proba" then $ref[0][$s].probs else $ref[0][$s].prediction end))
     ' "$CASE/output.json"
-    query spans "SELECT span_id, parent_span_id, span_name, status, input_args, output_value, context_metadata['baml_ml.model_id'] FROM spans ORDER BY start_time"
-    query profiler "SELECT function_name, invocation_count FROM profiler"
-    jq -e --arg op "$operation" --arg s "$sample" --slurpfile a "$CASE/model.json" '
-      def row($n): [.rows[]|select(.[2]==("user."+$n))]|if length==1 then .[0] else error("missing or duplicate span "+$n) end;
+    query spans "SELECT span_id AS span_id, parent_span_id AS parent_span_id, span_name AS span_name, status AS status, input_args AS input_args, output_value AS output_value, context_metadata['baml_ml.model_id'] AS model_id FROM spans ORDER BY start_time"
+    query profiler "SELECT function_name AS function_name, invocation_count AS invocation_count FROM profiler"
+    jq -e -L "$ROOT/scripts" --arg op "$operation" --arg s "$sample" --slurpfile a "$CASE/model.json" '
+      import "btel_jq" as btel;
+      def row($n): [btel::named_rows[]|select(.span_name==("user."+$n))]|if length==1 then .[0] else error("missing or duplicate span "+$n) end;
       .outcome.status=="complete" and (
         (if $s=="diabetes" then "PredictLoadedLinear" elif $op=="predict-proba" then "PredictLoadedProba" else "PredictLoadedLabels" end) as $root |
         row($root) as $p | row("ObservedImpute") as $i | row("ObservedScale") as $z |
-        row("ModelLoaded")[4].artifact.model_id==$a[0].model_id and
-        ([$p,$i,$z]|all(.[6]==$a[0].model_id and .[3]=="return")) and
-        $i[1]==$p[0] and $z[1]==$p[0] and $i[4].x[0][0]["$float"]=="NaN" and
-        (if $s=="diabetes" then row("ObservedLinear")[1]==$p[0] else row("ObservedDecisionScores")[1]==$p[0] and (if $op=="predict-proba" then row("ObservedSoftmax")[1]==$p[0] else row("ObservedLabels")[1]==$p[0] end) end)
+        row("ModelLoaded").input_args.artifact.model_id==$a[0].model_id and
+        ([$p,$i,$z]|all(.model_id==$a[0].model_id and .status=="return")) and
+        $i.parent_span_id==$p.span_id and $z.parent_span_id==$p.span_id and $i.input_args.x[0][0]["$float"]=="NaN" and
+        (if $s=="diabetes" then row("ObservedLinear").parent_span_id==$p.span_id else row("ObservedDecisionScores").parent_span_id==$p.span_id and (if $op=="predict-proba" then row("ObservedSoftmax").parent_span_id==$p.span_id else row("ObservedLabels").parent_span_id==$p.span_id end) end)
       )
     ' "$CASE/spans.json" || { cat "$CASE/spans.json"; exit 1; }
-    jq -e '
-      def calls($n): ([.rows[]|select(.[0]==("user."+$n))|.[1]]|add // 0);
+    jq -e -L "$ROOT/scripts" '
+      import "btel_jq" as btel;
+      def calls($n): ([btel::named_rows[]|select(.function_name==("user."+$n))|.invocation_count]|add // 0);
       .outcome.status=="complete" and calls("DecodeFittedArtifact")==1 and calls("ArtifactError")==1 and calls("ModelLoaded")==1
     ' "$CASE/profiler.json" || { cat "$CASE/profiler.json"; exit 1; }
     echo "Packed offline reference and traces passed: $sample $operation"
@@ -147,13 +146,13 @@ for mode in semantic full timing off; do
   if [ "$mode" = off ]; then
     test -z "$(find "$CASE/home" -type f -name '*.btel' -print -quit)"
   else
-    query spans "SELECT span_name, input_args, output_value FROM spans"
+    query spans "SELECT span_name AS span_name, input_args AS input_args, output_value AS output_value FROM spans"
     if [ "$mode" = full ]; then
-      jq -e '[.rows[]|select(.[0]=="user.ObservedTreeTraversal")]|length==1 and .[0][2].paths==[[0,1],[0,1],[0,2]] and .[0][2].leaves==[1,1,2]' "$CASE/spans.json"
+      jq -e -L "$ROOT/scripts" 'import "btel_jq" as btel; [btel::named_rows[]|select(.span_name=="user.ObservedTreeTraversal")]|length==1 and .[0].output_value.paths==[[0,1],[0,1],[0,2]] and .[0].output_value.leaves==[1,1,2]' "$CASE/spans.json"
     elif [ "$mode" = semantic ]; then
-      jq -e '[.rows[]|select(.[0]=="user.ObservedTreeTraversal")]|length==1 and .[0][1]==null and .[0][2]==null' "$CASE/spans.json"
+      jq -e -L "$ROOT/scripts" 'import "btel_jq" as btel; [btel::named_rows[]|select(.span_name=="user.ObservedTreeTraversal")]|length==1 and .[0].input_args==null and .[0].output_value==null' "$CASE/spans.json"
     else
-      jq -e '[.rows[]|select(.[0]=="user.ObservedTreeTraversal")]|length==0' "$CASE/spans.json"
+      jq -e -L "$ROOT/scripts" 'import "btel_jq" as btel; [btel::named_rows[]|select(.span_name=="user.ObservedTreeTraversal")]|length==0' "$CASE/spans.json"
     fi
   fi
 done
@@ -169,11 +168,11 @@ for mode in semantic timing off; do
   if [ "$mode" = off ]; then
     test -z "$(find "$CASE/home" -type f -name '*.btel' -print -quit)"
   else
-    query spans "SELECT span_name, input_args, output_value FROM spans"
+    query spans "SELECT span_name AS span_name, input_args AS input_args, output_value AS output_value FROM spans"
     if [ "$mode" = semantic ]; then
-      jq -e '[.rows[]|select(.[0]=="user.PredictLoadedProba" or .[0]=="user.ObservedImpute" or .[0]=="user.ObservedScale" or .[0]=="user.ObservedDecisionScores" or .[0]=="user.ObservedSoftmax")]|length==5 and all(.[1]==null and .[2]==null)' "$CASE/spans.json"
+      jq -e -L "$ROOT/scripts" 'import "btel_jq" as btel; [btel::named_rows[]|select(.span_name=="user.PredictLoadedProba" or .span_name=="user.ObservedImpute" or .span_name=="user.ObservedScale" or .span_name=="user.ObservedDecisionScores" or .span_name=="user.ObservedSoftmax")]|length==5 and all(.input_args==null and .output_value==null)' "$CASE/spans.json"
     else
-      jq -e '[.rows[]|select(.[0]=="user.PredictLoadedProba" or .[0]=="user.ObservedImpute")]|length==0' "$CASE/spans.json"
+      jq -e -L "$ROOT/scripts" 'import "btel_jq" as btel; [btel::named_rows[]|select(.span_name=="user.PredictLoadedProba" or .span_name=="user.ObservedImpute")]|length==0' "$CASE/spans.json"
     fi
   fi
   echo "Packed mode passed: $mode"
@@ -206,8 +205,8 @@ printf '%s\n' '{"max_escalated_rows":1}' > "$CASE/policy.json"
 run_case "$CASE" medium predict --model model.json --input input.json --operation predict-proba \
   --observation adaptive --policy policy.json --output-format json > "$CASE/output.json" 2> "$CASE/run.stderr"
 diff <(jq -S . "$OUT/evidence/iris-predict-proba/output.json") <(jq -S . "$CASE/output.json")
-query spans "SELECT span_name, context_metadata['baml_ml.row_index'] FROM spans WHERE span_name = 'user.EscalatedRow'"
-jq -e '.rows==[["user.EscalatedRow",0]]' "$CASE/spans.json"
+query spans "SELECT span_name AS span_name, context_metadata['baml_ml.row_index'] AS row_index FROM spans WHERE span_name = 'user.EscalatedRow'"
+jq -e -L "$ROOT/scripts" 'import "btel_jq" as btel; btel::named_rows==[{span_name:"user.EscalatedRow",row_index:0}]' "$CASE/spans.json"
 
 prepare_case "shadow-iris" iris
 printf '%s\n' '{"max_escalated_rows":1}' > "$CASE/policy.json"
@@ -217,8 +216,8 @@ jq -e --slurpfile expected "$OUT/evidence/iris-predict-proba/output.json" '
   .predictions==$expected[0].predictions and .summary.challenger_ok and
   .summary.escalated_rows==1 and .summary.label_disagreements==0
 ' "$CASE/output.json"
-query spans "SELECT span_name, context_metadata['baml_ml.row_index'] FROM spans WHERE span_name = 'user.ShadowEscalatedRow'"
-jq -e '.rows==[["user.ShadowEscalatedRow",0]]' "$CASE/spans.json"
+query spans "SELECT span_name AS span_name, context_metadata['baml_ml.row_index'] AS row_index FROM spans WHERE span_name = 'user.ShadowEscalatedRow'"
+jq -e -L "$ROOT/scripts" 'import "btel_jq" as btel; btel::named_rows==[{span_name:"user.ShadowEscalatedRow",row_index:0}]' "$CASE/spans.json"
 # The generated CLI must accept both entry points with an omitted policy flag.
 for command in predict shadow; do
   CASE="$OUT/evidence/default-policy-$command"
@@ -235,8 +234,8 @@ for command in predict shadow; do
   run_case "$CASE" medium "${args[@]}" --input input.json --output-format json \
     > "$CASE/output.json" 2> "$CASE/run.stderr"
   jq -e '.predictions==[-3,7]' "$CASE/output.json"
-  query spans "SELECT context_metadata['baml_ml.row_index'] FROM spans WHERE span_name = 'user.$replay'"
-  jq -e '.rows==[[0]]' "$CASE/spans.json"
+  query spans "SELECT context_metadata['baml_ml.row_index'] AS row_index FROM spans WHERE span_name = 'user.$replay'"
+  jq -e -L "$ROOT/scripts" 'import "btel_jq" as btel; [btel::named_rows[].row_index]==[0]' "$CASE/spans.json"
 done
 # Schema v3 heterogeneous RandomForest pipeline smoke: predict, adaptive
 # replay and shadow on the packed offline binary, checked against the
@@ -260,27 +259,28 @@ for mode in predict adaptive shadow; do
     near(if $mode=="shadow" then .predictions else .predictions end; $oracle[0]["v3-ct-hetero-forest"].predict_proba) and
     (if $mode=="shadow" then .summary.challenger_ok and .summary.triggers.missing_input==2 and .summary.triggered_rows==2 else true end)
   ' "$CASE/output.json" || { cat "$CASE/output.json"; exit 1; }
-  query spans "SELECT span_id, parent_span_id, span_name, status, duration, input_args, output_value, error_value, context_metadata['baml_ml.model_id'], context_metadata['baml_ml.step_index'], context_metadata['baml_ml.step_kind'], context_metadata['baml_ml.branch_name'], context_metadata['baml_ml.shadow_role'], context_metadata['baml_ml.row_index'], context_metadata['baml_ml.escalated'], context_metadata['baml_ml.trigger_reasons'] FROM spans ORDER BY start_time"
+  query spans "SELECT span_id AS span_id, parent_span_id AS parent_span_id, span_name AS span_name, status AS status, duration AS duration, input_args AS input_args, output_value AS output_value, error_value AS error_value, context_metadata['baml_ml.model_id'] AS model_id, context_metadata['baml_ml.step_index'] AS step_index, context_metadata['baml_ml.step_kind'] AS step_kind, context_metadata['baml_ml.branch_name'] AS branch_name, context_metadata['baml_ml.shadow_role'] AS shadow_role, context_metadata['baml_ml.row_index'] AS row_index, context_metadata['baml_ml.escalated'] AS escalated, context_metadata['baml_ml.trigger_reasons'] AS trigger_reasons FROM spans ORDER BY start_time"
   if [ "$mode" = predict ]; then
-    jq -e '
-      def rows($n): [.rows[]|select(.[2]==("user."+$n))];
+    jq -e -L "$ROOT/scripts" '
+      import "btel_jq" as btel;
+      def rows($n): [btel::named_rows[]|select(.span_name==("user."+$n))];
       (rows("PipelineModelLoaded")|length==1) and
       (rows("ObservedColumnTransformer") as $ct |
-        ($ct|length==1) and ($ct[0][9]==0) and ($ct[0][10]=="column_transformer") and
+        ($ct|length==1) and ($ct[0].step_index==0) and ($ct[0].step_kind=="column_transformer") and
         (rows("ObservedColumnTransformerBranch") as $br |
-          ($br|length==2) and ([$br[]|select(.[9]==0 and .[11]!=null and .[1]==$ct[0][0] and .[10]=="column_transformer")]|length==2)) and
-        (rows("ObservedImputeStep") as $im | ($im|length==2) and ([$im[]|select(.[10]=="simple_imputer" and .[9]==0)]|length==2)) and
-        (rows("ObservedScaleStep") as $sc | ($sc|length==1) and ($sc[0][10]=="standard_scaler" and $sc[0][9]==0)) and
-        (rows("ObservedOneHotEncode") as $oh | ($oh|length==1) and ($oh[0][10]=="one_hot_encoder" and $oh[0][9]==0)) and
+          ($br|length==2) and ([$br[]|select(.step_index==0 and .branch_name!=null and .parent_span_id==$ct[0].span_id and .step_kind=="column_transformer")]|length==2)) and
+        (rows("ObservedImputeStep") as $im | ($im|length==2) and ([$im[]|select(.step_kind=="simple_imputer" and .step_index==0)]|length==2)) and
+        (rows("ObservedScaleStep") as $sc | ($sc|length==1) and ($sc[0].step_kind=="standard_scaler" and $sc[0].step_index==0)) and
+        (rows("ObservedOneHotEncode") as $oh | ($oh|length==1) and ($oh[0].step_kind=="one_hot_encoder" and $oh[0].step_index==0)) and
         (rows("ObservedForestTraversal")|length==1))
     ' "$CASE/spans.json" || { cat "$CASE/spans.json"; exit 1; }
   fi
   if [ "$mode" = adaptive ]; then
-    jq -e '[.rows[]|select(.[2]=="user.EscalatedRow")]|length==2 and all(.[13]!=null and .[14]==true)' "$CASE/spans.json" || { cat "$CASE/spans.json"; exit 1; }
+    jq -e -L "$ROOT/scripts" 'import "btel_jq" as btel; [btel::named_rows[]|select(.span_name=="user.EscalatedRow")]|length==2 and all(.row_index!=null and .escalated==true)' "$CASE/spans.json" || { cat "$CASE/spans.json"; exit 1; }
   fi
   if [ "$mode" = shadow ]; then
-    jq -e '[.rows[]|select(.[2]=="user.ShadowEscalatedRow")]|length==2' "$CASE/spans.json" || { cat "$CASE/spans.json"; exit 1; }
-    jq -e '[.rows[]|select(.[2]=="user.ObservedColumnTransformer" and .[12]!=null)]|length==6 and ([.[]|select(.[12]=="champion")]|length==3) and ([.[]|select(.[12]=="challenger")]|length==3)' "$CASE/spans.json" || { cat "$CASE/spans.json"; exit 1; }
+    jq -e -L "$ROOT/scripts" 'import "btel_jq" as btel; [btel::named_rows[]|select(.span_name=="user.ShadowEscalatedRow")]|length==2' "$CASE/spans.json" || { cat "$CASE/spans.json"; exit 1; }
+    jq -e -L "$ROOT/scripts" 'import "btel_jq" as btel; [btel::named_rows[]|select(.span_name=="user.ObservedColumnTransformer" and .shadow_role!=null)]|length==6 and ([.[]|select(.shadow_role=="champion")]|length==3) and ([.[]|select(.shadow_role=="challenger")]|length==3)' "$CASE/spans.json" || { cat "$CASE/spans.json"; exit 1; }
   fi
   echo "Packed v3 heterogeneous forest passed: $mode"
 done
