@@ -7,8 +7,8 @@ export LC_ALL=C DO_NOT_TRACK=1
 unset BAML_TELEMETRY BOUNDARY_API_KEY BOUNDARY_PROJECT
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 CLI="$(realpath "$BAML_CLI")"
-OUT="$(realpath -m "$1")"
-mkdir -p "$OUT"
+mkdir -p "$1"
+OUT="$(cd "$1" && pwd -P)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 

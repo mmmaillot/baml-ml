@@ -9,6 +9,8 @@ on:
       - 'experiments/imported_inference/**'
       - 'experiments/tree_traversal/**'
       - '.github/workflows/imported-inference.yml'
+      - 'scripts/**'
+      - '.github/actions/setup-baml/**'
   pull_request:
     paths:
       - 'artifacts/**'
@@ -17,6 +19,8 @@ on:
       - 'experiments/imported_inference/**'
       - 'experiments/tree_traversal/**'
       - '.github/workflows/imported-inference.yml'
+      - 'scripts/**'
+      - '.github/actions/setup-baml/**'
   workflow_dispatch:
 permissions:
   contents: read

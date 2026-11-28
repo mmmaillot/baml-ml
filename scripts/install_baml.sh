@@ -68,12 +68,40 @@ find_tool() {
   find "$DEST" -type f -name "$1" -print -quit
 }
 
-CLI="$(find_tool baml-cli)"
-HOST="$(find_tool baml-pack-host)"
-if [ "$FORCE" -eq 0 ] && [ -n "$CLI" ] && [ -x "$CLI" ] \
-  && [ "$("$CLI" --version 2>/dev/null)" = "baml-cli ${BAML_VERSION}" ] \
-  && { [ "$PACK_HOST" -eq 0 ] || { [ -n "$HOST" ] && [ -x "$HOST" ]; }; }; then
-  echo "BAML ${BAML_VERSION} toolchain already installed in $DEST"
+digest_of() {
+  if [ "$(uname -s)" = Darwin ]; then shasum -a 256 "$1" | cut -d' ' -f1; else sha256sum "$1" | cut -d' ' -f1; fi
+}
+
+# Stamp of the last SHA-256-verified extraction for this version+platform:
+# line 1 = baml-cli digest, line 2 = baml-pack-host digest.
+STAMP="$DEST/.verified-${BAML_VERSION}-${PLATFORM}"
+
+verified_tool() {
+  # Print the path of binary $1 only if it still matches the digest recorded
+  # by the verified release extraction, so a foreign executable dropped into
+  # $DEST is never reused.
+  local path
+  path="$(find_tool "$1")"
+  if [ -n "$path" ] && [ -x "$path" ] && [ -f "$STAMP" ] \
+    && [ "$(digest_of "$path")" = "$(sed -n "$2p" "$STAMP")" ]; then
+    printf '%s\n' "$path"
+  fi
+}
+
+CLI=""
+HOST=""
+if [ "$FORCE" -eq 0 ]; then
+  CLI="$(verified_tool baml-cli 1)"
+  if [ -n "$CLI" ] && [ "$("$CLI" --version 2>/dev/null)" != "baml-cli ${BAML_VERSION}" ]; then
+    CLI=""
+  fi
+  if [ -n "$CLI" ]; then
+    HOST="$(verified_tool baml-pack-host 2)"
+  fi
+fi
+
+if [ -n "$CLI" ] && { [ "$PACK_HOST" -eq 0 ] || [ -n "$HOST" ]; }; then
+  echo "BAML ${BAML_VERSION} ${PLATFORM} toolchain already verified in $DEST"
 else
   ARCHIVE="baml-language-${BAML_VERSION}-${TARGET}.tar.gz"
   WORK="$(mktemp -d)"
@@ -84,23 +112,20 @@ else
   done
   (cd "$WORK"; if [ "$(uname -s)" = Darwin ]; then shasum -a 256 -c "$ARCHIVE.sha256"; else sha256sum --check --strict "$ARCHIVE.sha256"; fi)
   tar -C "$DEST" -xzf "$WORK/$ARCHIVE"
+  rm -f "$STAMP"
   CLI="$(find_tool baml-cli)"
-  test -n "$CLI"
-  chmod +x "$CLI"
+  HOST="$(find_tool baml-pack-host)"
+  test -n "$CLI" && test -n "$HOST"
+  chmod +x "$CLI" "$HOST"
+  printf '%s\n%s\n' "$(digest_of "$CLI")" "$(digest_of "$HOST")" > "$STAMP"
   echo "verified and installed: $CLI"
 fi
 
 "$CLI" --version
 
 if [ "$PACK_HOST" -eq 1 ]; then
-  if [ -z "$HOST" ] || [ ! -x "$HOST" ] || [ "$FORCE" -eq 1 ]; then
-    HOST="$(find_tool baml-pack-host)"
-    test -n "$HOST"
-    chmod +x "$HOST"
-    echo "verified and installed: $HOST"
-  else
-    echo "BAML ${BAML_VERSION} pack host already installed: $HOST"
-  fi
+  test -n "$HOST" && [ -x "$HOST" ]
+  echo "verified and installed: $HOST"
 fi
 
 if [ -n "${GITHUB_ENV:-}" ]; then

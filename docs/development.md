@@ -12,6 +12,8 @@ For the trunk-based development workflow, Kanban issue lifecycle, and pre-push c
 ./scripts/verify.sh --full  # also runs the experiment harnesses under experiments/
 ```
 
+The harnesses use only portable POSIX shell utilities (plus `jq` and `bash`), so `--full` also works with the stock macOS utilities on Apple Silicon.
+
 `scripts/install_baml.sh` verifies the SHA-256 sidecar of the official [BAML 0.26.0 release](https://github.com/BoundaryML/baml/releases/tag/baml-language-0.26.0) archive for `linux-x86_64`, `linux-arm64` or `macos-arm64` before extraction (auto-detected, or forced with `--platform`). Useful flags: `--pack-host` also installs `baml-pack-host` (needed by `verify.sh --full` for the standalone package), `--dest DIR` changes the install location. The script prints the `BAML_CLI`/`BAML_PACK_HOST` paths; inside GitHub Actions it exports them automatically (see [setup-baml](../.github/actions/setup-baml/action.yml), used by every workflow). If you install the toolchain yourself elsewhere, point `BAML_CLI` at the absolute executable path instead:
 
 ```sh

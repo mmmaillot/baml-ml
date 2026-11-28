@@ -6,8 +6,8 @@ unset BAML_TELEMETRY BOUNDARY_API_KEY BOUNDARY_PROJECT
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SOURCE="$ROOT/experiments/native_ml_observability"
 CLI="$(realpath "$BAML_CLI")"
-OUT="$(realpath -m "$1")"
-mkdir -p "$OUT"
+mkdir -p "$1"
+OUT="$(cd "$1" && pwd -P)"
 "$CLI" --version > "$OUT/version.txt" 2>&1
 uname -a > "$OUT/environment.txt"
 jq --version >> "$OUT/environment.txt"
@@ -23,7 +23,11 @@ inventory() {
   # Count all files under native runtime storage paths, including CAS and indexes,
   # separately before and after the first SQL query; logical bytes, not disk blocks.
   { for dir in "$PROJECT/.baml" "$HOME"; do
-      if [ -d "$dir" ]; then find "$dir" -type f -printf '%s\t%p\n'; fi
+      if [ -d "$dir" ]; then
+        find "$dir" -type f | while IFS= read -r f; do
+          printf '%s\t%s\n' "$(wc -c < "$f" | tr -d '[:space:]')" "$f"
+        done
+      fi
     done; } | sort -k2 > "$CASE/storage-$1.tsv"
   awk -F '\t' '
     { total += $1; if ($2 ~ /\.btel$/) btel += $1;
@@ -70,7 +74,9 @@ for mode in off default empty span; do
         for fn in ClassificationPipelinePredictProba ImputerTransform ScalerTransformCore LogRegPredictProbaCore; do
           file="$(grep -rl "^function $fn(" baml_src)"
           test "$(printf '%s\n' "$file" | wc -l)" -eq 1
-          sed -i "/^function $fn(/i /// baml:\$trace=trace.$directive" "$file"
+          TRACE_LINE="/// baml:\$trace=trace.$directive" awk -v pat="function $fn(" \
+            'index($0, pat) == 1 { print ENVIRON["TRACE_LINE"] } { print }' \
+            "$file" > "$file.tmp" && mv "$file.tmp" "$file"
         done
       fi
       # Compile without recordings so only the invocation under test is collected.

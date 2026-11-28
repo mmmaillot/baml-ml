@@ -8,6 +8,8 @@ on:
       - 'experiments/observability/probe.baml'
       - 'baml_src/**'
       - '.github/workflows/native-ml-observability.yml'
+      - 'scripts/**'
+      - '.github/actions/setup-baml/**'
   pull_request:
     paths:
       - 'experiments/native_ml_observability/**'
@@ -15,6 +17,8 @@ on:
       - 'experiments/observability/probe.baml'
       - 'baml_src/**'
       - '.github/workflows/native-ml-observability.yml'
+      - 'scripts/**'
+      - '.github/actions/setup-baml/**'
   workflow_dispatch:
 permissions:
   contents: read

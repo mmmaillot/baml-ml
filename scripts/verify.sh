@@ -50,9 +50,10 @@ CLI="$(find_tool BAML_CLI baml-cli)"
 export BAML_CLI="$CLI"
 echo "Using BAML_CLI=$BAML_CLI ($("$CLI" --version 2>/dev/null))"
 
-echo "==> baml check"
+cd "$ROOT"
+echo "==> baml check (in $ROOT)"
 BAML_TELEMETRY=off "$CLI" check
-echo "==> baml test"
+echo "==> baml test (in $ROOT)"
 BAML_TELEMETRY=off "$CLI" test --max-concurrency 1 --test-timeout 5m
 
 if [ "$FULL" -eq 1 ]; then

@@ -8,6 +8,8 @@ on:
       - 'artifacts/fixtures/**'
       - 'experiments/standalone/**'
       - '.github/workflows/standalone-package.yml'
+      - 'scripts/**'
+      - '.github/actions/setup-baml/**'
   pull_request:
     paths:
       - 'baml_src/**'
@@ -15,6 +17,8 @@ on:
       - 'artifacts/fixtures/**'
       - 'experiments/standalone/**'
       - '.github/workflows/standalone-package.yml'
+      - 'scripts/**'
+      - '.github/actions/setup-baml/**'
   workflow_dispatch:
 permissions:
   contents: read
