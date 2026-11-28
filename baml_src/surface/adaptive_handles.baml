@@ -26,7 +26,7 @@ function AdaptivePipeline(model: ExecutableModel, policy: AdaptivePolicy) -> Loa
     let opts = SelectiveContext(model, trace.empty_span(), "");
     LoadedPipelineModel {
         estimator_kind: model.estimator_kind,
-        classes: model.classes,
+        classes: CopyClassLabels(model.classes),
         predict_fn: (cells: Cell[][], features: string[]) -> PipelineResult {
             let r = RunAdaptiveCells(model, cells, features, Operation.Predict, policy, $trace = opts) catch (e) {
                 let f: InferenceFailure => {
