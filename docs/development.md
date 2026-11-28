@@ -37,11 +37,11 @@ The example probes are defined in the native test file and use committed fitted 
 
 ## Source layout
 
-`baml_src/` is organized into five unidirectional layers plus a test folder. `scripts/check_architecture.py` (run by `verify.sh` and CI) enforces the boundaries: no `$trace`/`trace.`/`ObservationMode` in the two lowest layers, no `_vN` file-name suffixes, ≤ 300 LOC per non-test file, and the frozen BTEL span ABI present with its `@contract(btel-v1)` / `@public-api` annotations.
+`baml_src/` is organized into five unidirectional layers plus a test folder. `scripts/check_architecture.py` (run by `verify.sh` and CI) checks source placement, keeps tracing out of the two lowest layers, bans `_vN` file-name suffixes, and limits runtime files to 300 lines. The packaged sources must contain the frozen BTEL span functions and CLI entry points with their `@contract(btel-v1)` and `@public-api` annotations.
 
-- `kernels/`: pure math and tabular transforms, no tracing — `primitives.baml` (shape/finiteness checks, dot product, float predicates), `tabular.baml` (`Cell[][]` container and conversions), `imputer.baml`, `scaler.baml`, `one_hot.baml`, `column_transformer.baml`, `linear.baml`, `logistic.baml` (stable softmax), `tree.baml`, `forest.baml`, `legacy_pipeline.baml` (frozen two-step schema 1 pipeline).
-- `contracts/`: data-only JSON schemas, decoding and static artifact/type-chain validation, no tracing — `legacy.baml` (frozen schema 1 & 2 artifacts) and `pipeline.baml` (schema 3 arbitrary-length pipelines).
-- `observability/`: `policy.baml` (`ObservationMode`, `TracePrivate<T>`, `InferenceFailure`) and the frozen BTEL contract span wrappers `legacy_spans.baml` / `pipeline_spans.baml`.
+- `kernels/`: pure math and tabular transforms, no tracing — `primitives.baml` (shape/finiteness checks, dot product, float predicates, and the shared `InferenceFailure` type), `tabular.baml` (`Cell[][]` container and conversions), `imputer.baml`, `scaler.baml`, `one_hot.baml`, `column_transformer.baml`, `linear.baml`, `logistic.baml` (stable softmax), `tree.baml`, `forest.baml`, `legacy_pipeline.baml` (frozen two-step schema 1 pipeline).
+- `contracts/`: data-only JSON schemas, decoding and static artifact/type-chain validation, no tracing — `legacy.baml` (frozen schema 1 & 2 artifacts) and `pipeline.baml` and `pipeline_validation.baml` (schema 3 arbitrary-length pipelines).
+- `observability/`: `policy.baml` (`ObservationMode`, `TracePrivate<T>`) and the frozen BTEL contract span wrappers `legacy_spans.baml` / `pipeline_spans.baml`.
 - `runtime/`: selective execution and trigger evaluation — `selective.baml`, `selective_models.baml`, `adaptive.baml` (policy), `triggers.baml`, `shadow.baml`.
 - `surface/`: factory-owned public handles (`loaded_models.baml`, `adaptive_handles.baml`) and the standalone CLI entry points (`cli.baml`: `predict`, `shadow`, `RunBatch`, `RunShadow`).
 - `tests/`: all `*_test.baml` suites and test/CI probes (`ImportedIrisProbe`, `TreeOracleProbe`, `PipelineV3OracleProbe`, ...).
