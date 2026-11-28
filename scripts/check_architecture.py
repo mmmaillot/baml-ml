@@ -28,14 +28,18 @@ MAX_NON_TEST_LOC = 300
 LAYERS = ("kernels", "contracts", "observability", "runtime", "surface", "tests")
 VERSION_SUFFIX_RE = re.compile(r"_v\d")
 
-# Actual trace-machinery references in code (comments are stripped first):
-# the $trace directive parameter, @trace.* field annotations, and members of
-# the trace module. Field accesses on an unrelated local named "trace" (e.g.
-# trace.leaf) do not match.
+# BAML compiler directives live in documentation comments. Keep those while
+# discarding ordinary comments and string literals.
+NON_CODE = re.compile(
+    r'(?P<directive>^[ \t]*///[ \t]*baml:[^\n]*)'
+    r'|"(?:\\.|[^"\\\n])*"|//[^\n]*|/\*[\s\S]*?\*/',
+    re.MULTILINE,
+)
 TRACE_PATTERNS = [
     re.compile(r"\$trace\b"),
-    re.compile(r"@trace\."),
-    re.compile(r"\btrace\.(Options|span|empty_span|timing|context)\b"),
+    re.compile(r"@trace\s*\."),
+    re.compile(r"\btrace\s*\.\s*Options\b"),
+    re.compile(r"\btrace\s*\.\s*(?:span|empty_span|timing|context)\s*\("),
     re.compile(r"\bObservationMode\b"),
 ]
 
@@ -89,10 +93,8 @@ def is_test_file(rel_parts, stem):
     return "tests" in rel_parts or stem.endswith("_test")
 
 
-def code_only(line):
-    """Strip line comments so prose mentioning trace. is not matched."""
-    idx = line.find("//")
-    return line if idx < 0 else line[:idx]
+def code_with_directives(text):
+    return NON_CODE.sub(lambda match: match.group("directive") or " ", text)
 
 
 def annotated(lines, index, marker):
@@ -150,7 +152,7 @@ def main():
         if "tests" in parts[1:]:
             errors.append(f"{rel_path}: tests/ directories are only allowed at baml_src/tests/")
         if layer in ("kernels", "contracts"):
-            code = "\n".join(code_only(line) for line in text.splitlines())
+            code = code_with_directives(text)
             for pattern in TRACE_PATTERNS:
                 if pattern.search(code):
                     errors.append(f"{rel_path}: forbidden trace reference {pattern.pattern!r} in trace-free layer {layer}/")
