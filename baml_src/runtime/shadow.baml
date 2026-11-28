@@ -31,26 +31,26 @@ class ShadowOutput {
 }
 
 
-function PrepareShadowModel(raw: string) -> SelectiveModel {
+function PrepareShadowModel(raw: string) -> ExecutableModel {
     let version = ReadArtifactVersion(raw, $trace = trace.timing());
     if (version == 2) {
         let tree = PrepareTreeArtifact(raw, $trace = trace.empty_span());
-        return SelectiveTree(tree, PreparedTree(tree));
+        return ExecutableTree(tree, PreparedTree(tree));
     }
     if (version == 3) {
-        return SelectivePipeline(PreparePipelineArtifact(raw, $trace = trace.empty_span()));
+        return ExecutablePipeline(PreparePipelineArtifact(raw, $trace = trace.empty_span()));
     }
     let a = PrepareArtifact(raw, null, $trace = trace.empty_span());
     if (a.estimator_kind == "linear") {
-        return SelectiveLinear(a, ArtifactRegression(a));
+        return ExecutableLinear(a, ArtifactRegression(a));
     }
-    SelectiveLogistic(a, ArtifactClassification(a))
+    ExecutableLogistic(a, ArtifactClassification(a))
 }
 
 
 function CheckShadowCompatibility(
-    champion: SelectiveModel,
-    challenger: SelectiveModel,
+    champion: ExecutableModel,
+    challenger: ExecutableModel,
     input: ShadowInput,
     operation: Operation,
 ) -> void {
@@ -88,10 +88,10 @@ function CheckShadowCompatibility(
 
 
 function ShadowResult(
-    champion: SelectiveModel,
-    challenger: SelectiveModel,
+    champion: ExecutableModel,
+    challenger: ExecutableModel,
     operation: Operation,
-    result: SelectivePrediction,
+    result: ExecutionResult,
     summary: ShadowSummary,
 ) -> ShadowOutput {
     ShadowOutput {
@@ -115,8 +115,8 @@ function ShadowChallengerFailed(failure: InferenceFailure) -> void throws Infere
 
 // @contract(btel-v1)
 function ShadowEscalatedRow(
-    champion: SelectiveModel,
-    challenger: SelectiveModel,
+    champion: ExecutableModel,
+    challenger: ExecutableModel,
     row: Cell[],
     operation: Operation,
 ) -> void throws InferenceFailure {
@@ -145,7 +145,7 @@ function ShadowEscalatedRow(
 }
 
 
-function CaptureShadowSnapshots(champion: SelectiveModel, challenger: SelectiveModel) -> void {
+function CaptureShadowSnapshots(champion: ExecutableModel, challenger: ExecutableModel) -> void {
     CaptureLazySnapshot(
         champion,
         $trace = SelectiveContext(champion, trace.context(), "champion"),
@@ -159,8 +159,8 @@ function CaptureShadowSnapshots(champion: SelectiveModel, challenger: SelectiveM
 
 // @contract(btel-v1)
 function ShadowBatch(
-    champion: SelectiveModel,
-    challenger: SelectiveModel,
+    champion: ExecutableModel,
+    challenger: ExecutableModel,
     rows: Cell[][],
     operation: Operation,
     policy: AdaptivePolicy,

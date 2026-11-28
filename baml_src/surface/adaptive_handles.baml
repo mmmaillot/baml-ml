@@ -1,5 +1,5 @@
-// Adaptive-mode handle wrappers around SelectiveModel.
-function AdaptiveLinear(model: SelectiveModel, policy: AdaptivePolicy) -> LoadedLinearModel {
+// Adaptive-mode handle wrappers around ExecutableModel.
+function AdaptiveLinear(model: ExecutableModel, policy: AdaptivePolicy) -> LoadedLinearModel {
     let opts = SelectiveContext(model, trace.empty_span(), "");
     LoadedLinearModel {
         predict_fn: (x: float[][], features: string[]) -> NumArrayResult {
@@ -22,11 +22,11 @@ function AdaptiveLinear(model: SelectiveModel, policy: AdaptivePolicy) -> Loaded
 }
 
 
-function AdaptivePipeline(model: SelectiveModel, policy: AdaptivePolicy) -> LoadedPipelineModel {
+function AdaptivePipeline(model: ExecutableModel, policy: AdaptivePolicy) -> LoadedPipelineModel {
     let opts = SelectiveContext(model, trace.empty_span(), "");
     LoadedPipelineModel {
         estimator_kind: model.estimator_kind,
-        classes: model.classes,
+        classes: CopyClassLabels(model.classes),
         predict_fn: (cells: Cell[][], features: string[]) -> PipelineResult {
             let r = RunAdaptiveCells(model, cells, features, Operation.Predict, policy, $trace = opts) catch (e) {
                 let f: InferenceFailure => {
@@ -78,7 +78,7 @@ function AdaptivePipeline(model: SelectiveModel, policy: AdaptivePolicy) -> Load
 }
 
 
-function AdaptiveClassifier(model: SelectiveModel, policy: AdaptivePolicy) -> LoadedLogisticModel {
+function AdaptiveClassifier(model: ExecutableModel, policy: AdaptivePolicy) -> LoadedLogisticModel {
     let opts = SelectiveContext(model, trace.empty_span(), "");
     LoadedLogisticModel {
         labels_fn: (x: float[][], features: string[]) -> IntArrayResult {

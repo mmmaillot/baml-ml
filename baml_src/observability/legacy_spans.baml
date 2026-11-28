@@ -20,16 +20,6 @@ function ObservedTreeTraversal(x: float[][], state: TracePrivate<TreeClassifierS
 }
 
 // @contract(btel-v1)
-function PredictLoadedTree(x: float[][], features: string[], model_id: string, expected: string[], state: TracePrivate<PreparedTreePipeline>, observation: ObservationMode) -> TreeBatchResult throws InferenceFailure {
-  let err = LoadedFeatureError(features,expected);
-  if (err != "") { throw InferenceFailure { stage: "input_validation", message: err }; }
-  let p = state.value;
-  let opts = ObservationOptions(observation);
-  let t = PreparedPreprocess(x,p.imputer,p.scaler,opts);
-  ObservedTreeTraversal(t,TracePrivate<TreeClassifierState> { value: p.tree },observation == ObservationMode.Full, $trace = opts)
-}
-
-// @contract(btel-v1)
 function ModelLoaded(artifact: FittedArtifact) -> void {}
 
 
@@ -125,39 +115,3 @@ function PreparedPreprocess(x: float[][], imputer: MeanImputer, scaler: Standard
   let t2 = ObservedScale(t1.x, TracePrivate<StandardScaler> { value: scaler }, $trace = opts);
   t2.x
 }
-
-
-// @contract(btel-v1)
-function PredictLoadedLinear(x: float[][], features: string[], model_id: string, expected: string[], state: TracePrivate<RegressionPipeline>, observation: ObservationMode) -> NumArrayResult throws InferenceFailure {
-  let err = LoadedFeatureError(features, expected);
-  if (err != "") { throw InferenceFailure { stage: "input_validation", message: err }; }
-  let p = state.value;
-  let opts = ObservationOptions(observation);
-  let t = PreparedPreprocess(x, p.imputer, p.scaler, opts);
-  ObservedLinear(t, TracePrivate<LinearRegressionModel> { value: p.model }, $trace = opts)
-}
-
-
-// @contract(btel-v1)
-function PredictLoadedProba(x: float[][], features: string[], model_id: string, expected: string[], state: TracePrivate<ClassificationPipeline>, observation: ObservationMode) -> ProbaResult throws InferenceFailure {
-  let err = LoadedFeatureError(features, expected);
-  if (err != "") { throw InferenceFailure { stage: "input_validation", message: err }; }
-  let p = state.value;
-  let opts = ObservationOptions(observation);
-  let t = PreparedPreprocess(x, p.imputer, p.scaler, opts);
-  let scores = ObservedDecisionScores(t, TracePrivate<LogisticRegressionModel> { value: p.model }, $trace = opts);
-  ObservedSoftmax(scores, $trace = opts)
-}
-
-
-// @contract(btel-v1)
-function PredictLoadedLabels(x: float[][], features: string[], model_id: string, expected: string[], state: TracePrivate<ClassificationPipeline>, observation: ObservationMode) -> IntArrayResult throws InferenceFailure {
-  let err = LoadedFeatureError(features, expected);
-  if (err != "") { throw InferenceFailure { stage: "input_validation", message: err }; }
-  let p = state.value;
-  let opts = ObservationOptions(observation);
-  let t = PreparedPreprocess(x, p.imputer, p.scaler, opts);
-  let scores = ObservedDecisionScores(t, TracePrivate<LogisticRegressionModel> { value: p.model }, $trace = opts);
-  ObservedLabels(scores,p.model.classes, $trace = opts)
-}
-
