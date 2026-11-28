@@ -222,7 +222,7 @@ function PipelineModelLoaded(artifact: FittedPipelineArtifact) -> void {}
 
 
 // @contract(btel-v1)
-function PredictLoadedPipeline(cells: Cell[][], features: string[], model_id: string, expected: string[], state: TracePrivate<FittedPipelineArtifact>, observation: ObservationMode, operation: Operation) -> PipelineResult throws InferenceFailure {
+function PredictLoadedPipeline(cells: Cell[][], features: string[], model_id: string, expected: string[], state: TracePrivate<FittedPipelineArtifact>, observation: ObservationMode, operation: string) -> PipelineResult throws InferenceFailure {
   let err = LoadedFeatureError(features, expected);
   if (err != "") { throw InferenceFailure { stage: "input_validation", message: err }; }
   let a = state.value;
@@ -232,7 +232,10 @@ function PredictLoadedPipeline(cells: Cell[][], features: string[], model_id: st
   let exec = PipelineExecution { z_abs_max: null };
   let out = RunPipelineSteps(cells, a, opts, exec);
   let x = PipelineEstimatorMatrix(out);
-  let run = RunPipelineEstimator(x, a, operation, observation == ObservationMode.Full, false, opts);
+  // The span records the wire string; the enum lives behind the boundary.
+  // Non-throwing parse: the public entry already validated the operation.
+  let op = if (operation == "predict-proba") { Operation.PredictProba } else { Operation.Predict };
+  let run = RunPipelineEstimator(x, a, op, observation == ObservationMode.Full, false, opts);
   PipelineResult { ok: true, values: run.values, labels: run.labels, probs: run.probs, error: "" }
 }
 

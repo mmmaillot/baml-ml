@@ -94,6 +94,16 @@ function InputKindAt(a: FittedPipelineArtifact, j: int) -> ColumnKind {
 }
 
 
+// Parsed once per request; the per-cell validation loop reuses this array.
+
+function ColumnKindsOf(a: FittedPipelineArtifact) -> ColumnKind[] {
+  let n = a.features.length();
+  let kinds: ColumnKind[] = [];
+  for (let j = 0; j < n; j += 1) { kinds.push(InputKindAt(a, j)); }
+  kinds
+}
+
+
 
 function ValidatePipelineInput(cells: Cell[][], a: FittedPipelineArtifact) -> string {
   let n = a.features.length();
@@ -104,10 +114,11 @@ function ValidatePipelineInput(cells: Cell[][], a: FittedPipelineArtifact) -> st
     if (cells[i].length() != cols) { return "matrix is ragged: rows have different lengths"; }
   }
   if (cols != n) { return "feature count differs from artifact"; }
+  let kinds = ColumnKindsOf(a);
   for (let i = 0; i < cells.length(); i += 1) {
     for (let j = 0; j < cols; j += 1) {
       let c = cells[i][j];
-      if (InputKindAt(a, j) == ColumnKind.Categorical) {
+      if (kinds[j] == ColumnKind.Categorical) {
         // Integer-coded categorical columns receive numbers; the consuming
         // step (string imputer or one-hot encoder) enforces the exact type.
         if (c.kind == "number" && !IsFinite(c.num)) { return "non-finite value in categorical column " + j.to_string(); }

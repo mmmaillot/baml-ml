@@ -75,6 +75,9 @@ jq -e -L "$ROOT/scripts" '
   def rows($n): [btel::named_rows[]|select(.span_name==("user."+$n))];
   .outcome.status=="complete" and
   (rows("PipelineModelLoaded")|length==1) and
+  # The frozen contract span records the wire string, not a tagged enum.
+  (rows("PredictLoadedPipeline") as $pl |
+    ($pl|length==1) and ($pl[0].input_args.operation|type)=="string" and $pl[0].input_args.operation=="predict-proba") and
   (rows("ObservedColumnTransformer") as $ct |
     ($ct|length==1) and ($ct[0].step_index==0) and ($ct[0].step_kind=="column_transformer") and ($ct[0].model_id!=null) and
     (rows("ObservedColumnTransformerBranch") as $br |

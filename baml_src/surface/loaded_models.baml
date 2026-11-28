@@ -185,12 +185,12 @@ function BuildLoadedPipeline(a: FittedPipelineArtifact, observation: Observation
     estimator_kind: a.estimator.kind,
     classes: a.estimator.classes,
     predict_fn: (cells: Cell[][], features: string[]) -> PipelineResult {
-      PredictLoadedPipeline(cells, features, id, names, state, observation, Operation.Predict, $trace = model_opts) catch (e) {
+      PredictLoadedPipeline(cells, features, id, names, state, observation, "predict", $trace = model_opts) catch (e) {
         let f: InferenceFailure => PipelineResult { ok: false, values: [], labels: [], probs: [], error: f.message }
       }
     },
     proba_fn: (cells: Cell[][], features: string[]) -> PipelineResult {
-      PredictLoadedPipeline(cells, features, id, names, state, observation, Operation.PredictProba, $trace = model_opts) catch (e) {
+      PredictLoadedPipeline(cells, features, id, names, state, observation, "predict-proba", $trace = model_opts) catch (e) {
         let f: InferenceFailure => PipelineResult { ok: false, values: [], labels: [], probs: [], error: f.message }
       }
     }
