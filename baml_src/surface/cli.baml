@@ -45,37 +45,61 @@ function ParseObservationMode(value: string) -> ObservationMode {
 }
 
 
+// Shared batch plumbing: handle-error translation, wire BatchOutput assembly
+// and numeric batch decoding, reused by every schema's batch runner.
+
+function FailOnHandleError(ok: bool, error: string) -> void {
+  if (!ok) { throw baml.errors.InvalidArgument { message: error }; }
+}
+
+function BatchOutputOf(model_id: string, estimator_kind: string, operation: Operation, classes: int[], predictions: float[] | int[] | float[][]) -> BatchOutput {
+  BatchOutput { schema_version: 1, model_id: model_id, estimator_kind: estimator_kind, operation: OperationName(operation), classes: classes, predictions: predictions }
+}
+
+class NumericBatch {
+  features string[]
+  rows float[][]
+}
+
+function ReadNumericBatch(raw_input: string) -> NumericBatch {
+  let input = DecodeBatchInput(raw_input);
+  NumericBatch { features: input.features, rows: BatchRows(input) }
+}
+
 // @public-api
 function RunBatch(raw_model: string, raw_input: string, operation: string, mode: ObservationMode, policy: AdaptivePolicy? = null) -> BatchOutput {
   let op = ParseOperation(operation);
   let adaptive = ResolveAdaptivePolicy(mode, policy);
-  let opts = ObservationOptions(mode);
   // Read only the schema tag for dispatch; fitted state is decoded and validated once.
   let version = ReadArtifactVersion(raw_model, $trace = trace.timing());
   if (version == 2) { return RunTreeBatch(raw_model,raw_input,op,mode,adaptive, $trace = trace.timing()); }
   if (version == 3) { return RunPipelineBatch(raw_model,raw_input,op,mode,adaptive, $trace = trace.timing()); }
+  RunLegacyBatch(raw_model, raw_input, op, mode, adaptive)
+}
+
+
+function RunLegacyBatch(raw_model: string, raw_input: string, op: Operation, mode: ObservationMode, adaptive: AdaptivePolicy?) -> BatchOutput {
+  let opts = ObservationOptions(mode);
   // Existing v1 decoding and validation are unchanged.
   let a = PrepareArtifact(raw_model, null, $trace = if (mode == ObservationMode.Full) { trace.span(inputs = false, output = false) } else { opts });
-  let input = DecodeBatchInput(raw_input);
-  let rows = BatchRows(input);
+  let batch = ReadNumericBatch(raw_input);
   if (a.estimator_kind == "linear") {
     if (op != Operation.Predict) {
       throw baml.errors.InvalidArgument { message: "predict-proba requires logistic regression" };
     }
-    let m = BuildLoadedLinear(a,mode,adaptive);
-    let r = m.predict(rows,input.features);
-    if (!r.ok) { throw baml.errors.InvalidArgument { message: r.error }; }
-    return BatchOutput { schema_version: 1, model_id: a.model_id, estimator_kind: a.estimator_kind, operation: OperationName(op), classes: [], predictions: r.value };
+    let r = BuildLoadedLinear(a,mode,adaptive).predict(batch.rows,batch.features);
+    FailOnHandleError(r.ok, r.error);
+    return BatchOutputOf(a.model_id, a.estimator_kind, op, [], r.value);
   }
   let m = BuildLoadedLogistic(a,mode,adaptive);
   if (op == Operation.PredictProba) {
-    let r = m.predict_proba(rows,input.features);
-    if (!r.ok) { throw baml.errors.InvalidArgument { message: r.error }; }
-    return BatchOutput { schema_version: 1, model_id: a.model_id, estimator_kind: a.estimator_kind, operation: OperationName(op), classes: a.classes, predictions: r.probs };
+    let r = m.predict_proba(batch.rows,batch.features);
+    FailOnHandleError(r.ok, r.error);
+    return BatchOutputOf(a.model_id, a.estimator_kind, op, a.classes, r.probs);
   }
-  let r = m.predict(rows,input.features);
-  if (!r.ok) { throw baml.errors.InvalidArgument { message: r.error }; }
-  BatchOutput { schema_version: 1, model_id: a.model_id, estimator_kind: a.estimator_kind, operation: OperationName(op), classes: a.classes, predictions: r.value }
+  let r = m.predict(batch.rows,batch.features);
+  FailOnHandleError(r.ok, r.error);
+  BatchOutputOf(a.model_id, a.estimator_kind, op, a.classes, r.value)
 }
 
 /// Run a fitted sklearn pipeline on a JSON batch. Use --output-format json.
@@ -133,17 +157,16 @@ function RunShadow(
 function RunTreeBatch(raw_model: string, raw_input: string, operation: Operation, mode: ObservationMode, adaptive: AdaptivePolicy?) -> BatchOutput {
   let opts = ObservationOptions(mode);
   let a = PrepareTreeArtifact(raw_model, $trace = if (mode == ObservationMode.Full) { trace.span(inputs = false, output = false) } else { opts });
-  let input = DecodeBatchInput(raw_input);
-  let rows = BatchRows(input);
+  let batch = ReadNumericBatch(raw_input);
   let m = BuildLoadedTree(a,mode,adaptive);
   if (operation == Operation.PredictProba) {
-    let r = m.predict_proba(rows,input.features);
-    if (!r.ok) { throw baml.errors.InvalidArgument { message: r.error }; }
-    return BatchOutput { schema_version: 1, model_id: a.model_id, estimator_kind: a.estimator_kind, operation: OperationName(operation), classes: a.classes, predictions: r.probs };
+    let r = m.predict_proba(batch.rows,batch.features);
+    FailOnHandleError(r.ok, r.error);
+    return BatchOutputOf(a.model_id, a.estimator_kind, operation, a.classes, r.probs);
   }
-  let r = m.predict(rows,input.features);
-  if (!r.ok) { throw baml.errors.InvalidArgument { message: r.error }; }
-  BatchOutput { schema_version: 1, model_id: a.model_id, estimator_kind: a.estimator_kind, operation: OperationName(operation), classes: a.classes, predictions: r.value }
+  let r = m.predict(batch.rows,batch.features);
+  FailOnHandleError(r.ok, r.error);
+  BatchOutputOf(a.model_id, a.estimator_kind, operation, a.classes, r.value)
 }
 
 
@@ -155,14 +178,14 @@ function RunPipelineBatch(raw_model: string, raw_input: string, operation: Opera
   let m = BuildLoadedPipeline(a, mode, adaptive);
   if (operation == Operation.PredictProba) {
     let r = m.predict_proba(cells, input.features);
-    if (!r.ok) { throw baml.errors.InvalidArgument { message: r.error }; }
-    return BatchOutput { schema_version: 1, model_id: a.model_id, estimator_kind: a.estimator.kind, operation: OperationName(operation), classes: a.estimator.classes, predictions: r.probs };
+    FailOnHandleError(r.ok, r.error);
+    return BatchOutputOf(a.model_id, a.estimator.kind, operation, a.estimator.classes, r.probs);
   }
   let r = m.predict(cells, input.features);
-  if (!r.ok) { throw baml.errors.InvalidArgument { message: r.error }; }
+  FailOnHandleError(r.ok, r.error);
   if (a.estimator.kind == "linear") {
-    return BatchOutput { schema_version: 1, model_id: a.model_id, estimator_kind: a.estimator.kind, operation: OperationName(operation), classes: [], predictions: r.values };
+    return BatchOutputOf(a.model_id, a.estimator.kind, operation, [], r.values);
   }
-  BatchOutput { schema_version: 1, model_id: a.model_id, estimator_kind: a.estimator.kind, operation: OperationName(operation), classes: a.estimator.classes, predictions: r.labels }
+  BatchOutputOf(a.model_id, a.estimator.kind, operation, a.estimator.classes, r.labels)
 }
 

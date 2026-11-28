@@ -1,43 +1,11 @@
 // Selective execution: semantic pass, trigger-driven Full replays, summaries.
-// Internal execution shared by Adaptive and shadow. The loaded-model closures
-// and shadow orchestrator own the validated artifact and all fitted state.
-
-class SelectiveModel {
-    model_id: string,
-    schema_version: int,
-    source_version: string,
-    estimator_kind: string,
-    features: string[],
-    classes: int[],
-    guard: SnapshotGuard,
-    snapshot_fn: (trace.Options) -> void throws never,
-    run_fn: (Cell[][], Operation, ObservationMode, AdaptiveRowSignals[]?) -> SelectivePrediction
-        throws InferenceFailure,
-}
-
-
-class SelectivePrediction {
-    values: float[],
-    labels: int[],
-    probabilities: float[][],
-    function for_operation(
-        self,
-        operation: Operation,
-        is_classifier: bool,
-    ) -> float[] | int[] | float[][] {
-        if (operation == Operation.PredictProba) {
-            return self.probabilities;
-        }
-        if (is_classifier) {
-            return self.labels;
-        }
-        self.values
-    }
-}
+// Internal orchestration shared by Adaptive and shadow; the ExecutableModel
+// engine (executable_model.baml) owns the validated artifact and all fitted
+// state and performs the actual execution.
 
 
 function SelectiveContext(
-    model: SelectiveModel,
+    model: ExecutableModel,
     opts: trace.Options,
     role: string,
 ) -> trace.Options {
@@ -54,13 +22,13 @@ function SelectiveContext(
 }
 
 
-function RecordSelectiveModelLoad(model: SelectiveModel, opts: trace.Options) -> void {
+function RecordSelectiveModelLoad(model: ExecutableModel, opts: trace.Options) -> void {
     let record = model.snapshot_fn;
     record(opts);
 }
 
 
-function CaptureLazySnapshot(model: SelectiveModel) -> void {
+function CaptureLazySnapshot(model: ExecutableModel) -> void {
     if (model.guard.claim()) {
         RecordSelectiveModelLoad(
             model,
@@ -74,19 +42,18 @@ function CaptureLazySnapshot(model: SelectiveModel) -> void {
 
 // @contract(btel-v1)
 function RunSelectiveModel(
-    model: SelectiveModel,
+    model: ExecutableModel,
     cells: Cell[][],
     operation: Operation,
     mode: ObservationMode,
     signals: AdaptiveRowSignals[]? = null,
-) -> SelectivePrediction throws InferenceFailure {
-    let run = model.run_fn;
-    run(cells, operation, mode, signals)
+) -> ExecutionResult throws InferenceFailure {
+    model.run(cells, operation, mode, signals = signals)
 }
 
 
 // @contract(btel-v1)
-function EscalatedRow(model: SelectiveModel, row: Cell[], operation: Operation) -> void
+function EscalatedRow(model: ExecutableModel, row: Cell[], operation: Operation) -> void
     throws InferenceFailure
 {
     RunSelectiveModel(model, [row], operation, ObservationMode.Full);
@@ -110,12 +77,12 @@ function AdaptiveSummary() -> void {}
 
 // @contract(btel-v1)
 function RunAdaptiveCells(
-    model: SelectiveModel,
+    model: ExecutableModel,
     cells: Cell[][],
     features: string[],
     operation: Operation,
     policy: AdaptivePolicy,
-) -> SelectivePrediction throws InferenceFailure {
+) -> ExecutionResult throws InferenceFailure {
     let error = LoadedFeatureError(features, model.features);
     if (error != "") {
         throw InferenceFailure {
@@ -164,50 +131,11 @@ function RunAdaptiveCells(
 
 // @contract(btel-v1)
 function RunAdaptive(
-    model: SelectiveModel,
+    model: ExecutableModel,
     x: float[][],
     features: string[],
     operation: Operation,
     policy: AdaptivePolicy,
-) -> SelectivePrediction throws InferenceFailure {
+) -> ExecutionResult throws InferenceFailure {
     RunAdaptiveCells(model, NumericCells(x), features, operation, policy)
 }
-
-
-function CollectRegressionSignals(
-    signals: AdaptiveRowSignals[],
-    x: float[][],
-    scaled: float[][],
-    values: float[],
-) -> void {
-    for (let i = 0; i < x.length(); i += 1) {
-        signals.push(AdaptiveRowSignals {
-            has_nan: HasMissingInput(x[i]),
-            max_abs_z: MaxAbsoluteValue(scaled[i]),
-            probabilities: [],
-            label: null,
-            prediction: values[i],
-        });
-    }
-}
-
-
-function CollectClassificationSignals(
-    signals: AdaptiveRowSignals[],
-    x: float[][],
-    scaled: float[][],
-    probabilities: float[][],
-    labels: int[],
-) -> void {
-    for (let i = 0; i < x.length(); i += 1) {
-        signals.push(AdaptiveRowSignals {
-            has_nan: HasMissingInput(x[i]),
-            max_abs_z: MaxAbsoluteValue(scaled[i]),
-            probabilities: probabilities[i],
-            label: labels[i],
-            prediction: 0.0,
-        });
-    }
-}
-
-

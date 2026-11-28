@@ -24,12 +24,12 @@ function BuildLoadedTree(a: FittedTreeArtifact, observation: ObservationMode, ad
   let id = a.model_id;
   let model_opts = ModelObservation(observation,id,a.schema_version,a.source_version);
   TreeModelLoaded(a, $trace = model_opts);
-  let p = PreparedTree(a);
+  let model = ExecutableTree(a, PreparedTree(a));
   if (adaptive != null) {
-    let classifier = AdaptiveClassifier(SelectiveTree(a, p), adaptive);
+    let classifier = AdaptiveClassifier(model, adaptive);
     return LoadedTreeModel { proba_fn: classifier.proba_fn, labels_fn: classifier.labels_fn };
   }
-  let state = TracePrivate<PreparedTreePipeline> { value: p };
+  let state = TracePrivate<ExecutableModel> { value: model };
   LoadedTreeModel {
     proba_fn: (x: float[][], features: string[]) -> ProbaResult {
       TreeResultProba(PredictLoadedTree(x,features,id,names,state,observation, $trace = model_opts)) catch (e) {
@@ -102,8 +102,9 @@ function BuildLoadedLinear(a: FittedArtifact, observation: ObservationMode, adap
   let id = a.model_id;
   let model_opts = ModelObservation(observation,id,a.schema_version,a.source_version);
   ModelLoaded(a, $trace = model_opts);
-  if (adaptive != null) { return AdaptiveLinear(SelectiveLinear(a, p), adaptive); }
-  let state = TracePrivate<RegressionPipeline> { value: p };
+  let model = ExecutableLinear(a, p);
+  if (adaptive != null) { return AdaptiveLinear(model, adaptive); }
+  let state = TracePrivate<ExecutableModel> { value: model };
   LoadedLinearModel {
     predict_fn: (x: float[][], features: string[]) -> NumArrayResult {
       PredictLoadedLinear(x, features, id, names, state, observation, $trace = model_opts) catch (e) {
@@ -129,8 +130,9 @@ function BuildLoadedLogistic(a: FittedArtifact, observation: ObservationMode, ad
   let id = a.model_id;
   let model_opts = ModelObservation(observation,id,a.schema_version,a.source_version);
   ModelLoaded(a, $trace = model_opts);
-  if (adaptive != null) { return AdaptiveClassifier(SelectiveLogistic(a, p), adaptive); }
-  let state = TracePrivate<ClassificationPipeline> { value: p };
+  let model = ExecutableLogistic(a, p);
+  if (adaptive != null) { return AdaptiveClassifier(model, adaptive); }
+  let state = TracePrivate<ExecutableModel> { value: model };
   LoadedLogisticModel {
     proba_fn: (x: float[][], features: string[]) -> ProbaResult {
       PredictLoadedProba(x, features, id, names, state, observation, $trace = model_opts) catch (e) {
@@ -179,8 +181,9 @@ function BuildLoadedPipeline(a: FittedPipelineArtifact, observation: Observation
   let id = a.model_id;
   let model_opts = ModelObservation(observation, id, a.schema_version, a.source_version);
   PipelineModelLoaded(a, $trace = model_opts);
-  if (adaptive != null) { return AdaptivePipeline(SelectivePipeline(a), adaptive); }
-  let state = TracePrivate<FittedPipelineArtifact> { value: a };
+  let model = ExecutablePipeline(a);
+  if (adaptive != null) { return AdaptivePipeline(model, adaptive); }
+  let state = TracePrivate<ExecutableModel> { value: model };
   LoadedPipelineModel {
     estimator_kind: a.estimator.kind,
     classes: a.estimator.classes,

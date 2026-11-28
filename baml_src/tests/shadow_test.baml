@@ -267,7 +267,7 @@ test "shadow_isolates_challenger_overflow_and_champion_failures_are_fatal" {
 
 test "adaptive_snapshot_guard_stays_lazy_until_a_row_is_replayed" {
     let a = ObservationFixture("linear");
-    let model = SelectiveLinear(a, ArtifactRegression(a));
+    let model = ExecutableLinear(a, ArtifactRegression(a));
     let policy = DefaultAdaptivePolicy();
     assert.equal(
         RunAdaptive(model, [[1.0]], ["x"], Operation.Predict, policy).values,

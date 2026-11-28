@@ -20,13 +20,13 @@ function ObservedTreeTraversal(x: float[][], state: TracePrivate<TreeClassifierS
 }
 
 // @contract(btel-v1)
-function PredictLoadedTree(x: float[][], features: string[], model_id: string, expected: string[], state: TracePrivate<PreparedTreePipeline>, observation: ObservationMode) -> TreeBatchResult throws InferenceFailure {
+function PredictLoadedTree(x: float[][], features: string[], model_id: string, expected: string[], state: TracePrivate<ExecutableModel>, observation: ObservationMode) -> TreeBatchResult throws InferenceFailure {
   let err = LoadedFeatureError(features,expected);
   if (err != "") { throw InferenceFailure { stage: "input_validation", message: err }; }
-  let p = state.value;
-  let opts = ObservationOptions(observation);
-  let t = PreparedPreprocess(x,p.imputer,p.scaler,opts);
-  ObservedTreeTraversal(t,TracePrivate<TreeClassifierState> { value: p.tree },observation == ObservationMode.Full, $trace = opts)
+  // Direct execution: delegate to the engine core with no signal collection,
+  // so no RunSelectiveModel span is inserted in non-adaptive modes.
+  let r = state.value.run(NumericCells(x), Operation.Predict, observation, signals = null);
+  TreeBatchResult { labels: r.labels, probs: r.probabilities, leaves: r.leaves, paths: r.paths }
 }
 
 // @contract(btel-v1)
@@ -128,36 +128,28 @@ function PreparedPreprocess(x: float[][], imputer: MeanImputer, scaler: Standard
 
 
 // @contract(btel-v1)
-function PredictLoadedLinear(x: float[][], features: string[], model_id: string, expected: string[], state: TracePrivate<RegressionPipeline>, observation: ObservationMode) -> NumArrayResult throws InferenceFailure {
+function PredictLoadedLinear(x: float[][], features: string[], model_id: string, expected: string[], state: TracePrivate<ExecutableModel>, observation: ObservationMode) -> NumArrayResult throws InferenceFailure {
   let err = LoadedFeatureError(features, expected);
   if (err != "") { throw InferenceFailure { stage: "input_validation", message: err }; }
-  let p = state.value;
-  let opts = ObservationOptions(observation);
-  let t = PreparedPreprocess(x, p.imputer, p.scaler, opts);
-  ObservedLinear(t, TracePrivate<LinearRegressionModel> { value: p.model }, $trace = opts)
+  let r = state.value.run(NumericCells(x), Operation.Predict, observation, signals = null);
+  NumArrayResult { ok: true, value: r.values, error: "" }
 }
 
 
 // @contract(btel-v1)
-function PredictLoadedProba(x: float[][], features: string[], model_id: string, expected: string[], state: TracePrivate<ClassificationPipeline>, observation: ObservationMode) -> ProbaResult throws InferenceFailure {
+function PredictLoadedProba(x: float[][], features: string[], model_id: string, expected: string[], state: TracePrivate<ExecutableModel>, observation: ObservationMode) -> ProbaResult throws InferenceFailure {
   let err = LoadedFeatureError(features, expected);
   if (err != "") { throw InferenceFailure { stage: "input_validation", message: err }; }
-  let p = state.value;
-  let opts = ObservationOptions(observation);
-  let t = PreparedPreprocess(x, p.imputer, p.scaler, opts);
-  let scores = ObservedDecisionScores(t, TracePrivate<LogisticRegressionModel> { value: p.model }, $trace = opts);
-  ObservedSoftmax(scores, $trace = opts)
+  let r = state.value.run(NumericCells(x), Operation.PredictProba, observation, signals = null);
+  ProbaResult { ok: true, probs: r.probabilities, error: "" }
 }
 
 
 // @contract(btel-v1)
-function PredictLoadedLabels(x: float[][], features: string[], model_id: string, expected: string[], state: TracePrivate<ClassificationPipeline>, observation: ObservationMode) -> IntArrayResult throws InferenceFailure {
+function PredictLoadedLabels(x: float[][], features: string[], model_id: string, expected: string[], state: TracePrivate<ExecutableModel>, observation: ObservationMode) -> IntArrayResult throws InferenceFailure {
   let err = LoadedFeatureError(features, expected);
   if (err != "") { throw InferenceFailure { stage: "input_validation", message: err }; }
-  let p = state.value;
-  let opts = ObservationOptions(observation);
-  let t = PreparedPreprocess(x, p.imputer, p.scaler, opts);
-  let scores = ObservedDecisionScores(t, TracePrivate<LogisticRegressionModel> { value: p.model }, $trace = opts);
-  ObservedLabels(scores,p.model.classes, $trace = opts)
+  let r = state.value.run(NumericCells(x), Operation.Predict, observation, signals = null);
+  IntArrayResult { ok: true, value: r.labels, error: "" }
 }
 

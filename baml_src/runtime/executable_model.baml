@@ -1,4 +1,93 @@
-// SelectiveModel builders per estimator family.
+// Single execution engine shared by direct loaded-model inference (Timing,
+// Semantic, Full), Adaptive and shadow. The factory owns one ExecutableModel
+// per loaded handle; its run core executes preprocessing + terminal estimator
+// and optionally collects row signals. Direct contract spans delegate to this
+// core with signals = null, so no extra span is inserted in non-adaptive
+// modes and the BTEL parent-child hierarchy is unchanged.
+
+class ExecutableModel {
+    model_id: string,
+    schema_version: int,
+    source_version: string,
+    estimator_kind: string,
+    features: string[],
+    classes: int[],
+    guard: SnapshotGuard,
+    snapshot_fn: (trace.Options) -> void throws never,
+    run_fn: (Cell[][], Operation, ObservationMode, AdaptiveRowSignals[]?) -> ExecutionResult
+        throws InferenceFailure,
+    function run(
+        self,
+        cells: Cell[][],
+        operation: Operation,
+        mode: ObservationMode,
+        signals: AdaptiveRowSignals[]? = null,
+    ) -> ExecutionResult throws InferenceFailure {
+        let f = self.run_fn;
+        f(cells, operation, mode, signals)
+    }
+}
+
+
+class ExecutionResult {
+    values: float[],
+    labels: int[],
+    probabilities: float[][],
+    leaves: int[],
+    paths: int[][],
+    function for_operation(
+        self,
+        operation: Operation,
+        is_classifier: bool,
+    ) -> float[] | int[] | float[][] {
+        if (operation == Operation.PredictProba) {
+            return self.probabilities;
+        }
+        if (is_classifier) {
+            return self.labels;
+        }
+        self.values
+    }
+}
+
+
+function CollectRegressionSignals(
+    signals: AdaptiveRowSignals[],
+    x: float[][],
+    scaled: float[][],
+    values: float[],
+) -> void {
+    for (let i = 0; i < x.length(); i += 1) {
+        signals.push(AdaptiveRowSignals {
+            has_nan: HasMissingInput(x[i]),
+            max_abs_z: MaxAbsoluteValue(scaled[i]),
+            probabilities: [],
+            label: null,
+            prediction: values[i],
+        });
+    }
+}
+
+
+function CollectClassificationSignals(
+    signals: AdaptiveRowSignals[],
+    x: float[][],
+    scaled: float[][],
+    probabilities: float[][],
+    labels: int[],
+) -> void {
+    for (let i = 0; i < x.length(); i += 1) {
+        signals.push(AdaptiveRowSignals {
+            has_nan: HasMissingInput(x[i]),
+            max_abs_z: MaxAbsoluteValue(scaled[i]),
+            probabilities: probabilities[i],
+            label: labels[i],
+            prediction: 0.0,
+        });
+    }
+}
+
+
 function CollectPipelineSignals(signals: AdaptiveRowSignals[], cells: Cell[][], exec: PipelineExecution, run: PipelineRun, is_classifier: bool) -> void {
   for (let i = 0; i < cells.length(); i += 1) {
     let has_nan = false;
@@ -17,8 +106,8 @@ function CollectPipelineSignals(signals: AdaptiveRowSignals[], cells: Cell[][], 
 }
 
 
-function SelectivePipeline(a: FittedPipelineArtifact) -> SelectiveModel {
-    SelectiveModel {
+function ExecutablePipeline(a: FittedPipelineArtifact) -> ExecutableModel {
+    ExecutableModel {
         model_id: a.model_id,
         schema_version: a.schema_version,
         source_version: a.source_version,
@@ -34,7 +123,7 @@ function SelectivePipeline(a: FittedPipelineArtifact) -> SelectiveModel {
             operation: Operation,
             mode: ObservationMode,
             signals: AdaptiveRowSignals[]?,
-        ) -> SelectivePrediction {
+        ) -> ExecutionResult {
             let err = ValidatePipelineInput(cells, a);
             if (err != "") {
                 throw InferenceFailure { stage: "input_validation", message: err };
@@ -48,18 +137,20 @@ function SelectivePipeline(a: FittedPipelineArtifact) -> SelectiveModel {
             if (signals != null) {
                 CollectPipelineSignals(signals, cells, exec, run, is_classifier);
             }
-            SelectivePrediction {
+            ExecutionResult {
                 values: run.values,
                 labels: run.labels,
                 probabilities: run.probs,
+                leaves: [],
+                paths: [],
             }
         },
     }
 }
 
 
-function SelectiveLinear(a: FittedArtifact, p: RegressionPipeline) -> SelectiveModel {
-    SelectiveModel {
+function ExecutableLinear(a: FittedArtifact, p: RegressionPipeline) -> ExecutableModel {
+    ExecutableModel {
         model_id: a.model_id,
         schema_version: a.schema_version,
         source_version: a.source_version,
@@ -75,7 +166,7 @@ function SelectiveLinear(a: FittedArtifact, p: RegressionPipeline) -> SelectiveM
             operation: Operation,
             mode: ObservationMode,
             signals: AdaptiveRowSignals[]?,
-        ) -> SelectivePrediction {
+        ) -> ExecutionResult {
             let opts = ObservationOptions(mode);
             let x = CellsToFloatMatrix(cells);
             let scaled = PreparedPreprocess(x, p.imputer, p.scaler, opts);
@@ -87,18 +178,20 @@ function SelectiveLinear(a: FittedArtifact, p: RegressionPipeline) -> SelectiveM
             if (signals != null) {
                 CollectRegressionSignals(signals, x, scaled, r.value);
             }
-            SelectivePrediction {
+            ExecutionResult {
                 values: r.value,
                 labels: [],
                 probabilities: [],
+                leaves: [],
+                paths: [],
             }
         },
     }
 }
 
 
-function SelectiveLogistic(a: FittedArtifact, p: ClassificationPipeline) -> SelectiveModel {
-    SelectiveModel {
+function ExecutableLogistic(a: FittedArtifact, p: ClassificationPipeline) -> ExecutableModel {
+    ExecutableModel {
         model_id: a.model_id,
         schema_version: a.schema_version,
         source_version: a.source_version,
@@ -114,7 +207,7 @@ function SelectiveLogistic(a: FittedArtifact, p: ClassificationPipeline) -> Sele
             operation: Operation,
             mode: ObservationMode,
             signals: AdaptiveRowSignals[]?,
-        ) -> SelectivePrediction {
+        ) -> ExecutionResult {
             let opts = ObservationOptions(mode);
             let x = CellsToFloatMatrix(cells);
             let scaled = PreparedPreprocess(x, p.imputer, p.scaler, opts);
@@ -134,10 +227,12 @@ function SelectiveLogistic(a: FittedArtifact, p: ClassificationPipeline) -> Sele
                         ClassLabels(scores, a.classes),
                     );
                 }
-                return SelectivePrediction {
+                return ExecutionResult {
                     values: [],
                     labels: [],
                     probabilities: result.probs,
+                    leaves: [],
+                    paths: [],
                 };
             }
             let result = ObservedLabels(scores, a.classes, $trace = opts);
@@ -148,18 +243,20 @@ function SelectiveLogistic(a: FittedArtifact, p: ClassificationPipeline) -> Sele
                 }
                 CollectClassificationSignals(signals, x, scaled, probabilities, result.value);
             }
-            SelectivePrediction {
+            ExecutionResult {
                 values: [],
                 labels: result.value,
                 probabilities: [],
+                leaves: [],
+                paths: [],
             }
         },
     }
 }
 
 
-function SelectiveTree(a: FittedTreeArtifact, p: PreparedTreePipeline) -> SelectiveModel {
-    SelectiveModel {
+function ExecutableTree(a: FittedTreeArtifact, p: PreparedTreePipeline) -> ExecutableModel {
+    ExecutableModel {
         model_id: a.model_id,
         schema_version: a.schema_version,
         source_version: a.source_version,
@@ -175,7 +272,7 @@ function SelectiveTree(a: FittedTreeArtifact, p: PreparedTreePipeline) -> Select
             operation: Operation,
             mode: ObservationMode,
             signals: AdaptiveRowSignals[]?,
-        ) -> SelectivePrediction {
+        ) -> ExecutionResult {
             let opts = ObservationOptions(mode);
             let x = CellsToFloatMatrix(cells);
             let scaled = PreparedPreprocess(x, p.imputer, p.scaler, opts);
@@ -188,13 +285,13 @@ function SelectiveTree(a: FittedTreeArtifact, p: PreparedTreePipeline) -> Select
             if (signals != null) {
                 CollectClassificationSignals(signals, x, scaled, r.probs, r.labels);
             }
-            SelectivePrediction {
+            ExecutionResult {
                 values: [],
                 labels: r.labels,
                 probabilities: r.probs,
+                leaves: r.leaves,
+                paths: r.paths,
             }
         },
     }
 }
-
-
