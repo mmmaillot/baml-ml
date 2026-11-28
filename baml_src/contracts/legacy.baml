@@ -34,15 +34,14 @@ function ReadFittedArtifact(path: string) -> FittedArtifact {
 function ArtifactError(a: FittedArtifact) -> string {
   let n = a.features.length();
   if (a.schema_version != 1) { return "artifact: unsupported schema version"; }
-  if (a.source != "scikit-learn" || a.source_version == "" || a.model_id == "") { return "artifact: invalid provenance"; }
+  let err = ProvenanceError(a.source, a.source_version, a.model_id);
+  if (err != "") { return err; }
   if (a.imputer_kind != "mean" || a.scaler_kind != "standard") { return "artifact: unsupported preprocessing"; }
   if (n == 0 || a.imputer_means.length() != n || a.scaler_means.length() != n || a.scaler_scales.length() != n) { return "artifact: invalid preprocessing dimensions"; }
   for (let j = 0; j < n; j += 1) {
-    if (a.features[j] == "") { return "artifact: empty feature name"; }
-    for (let k = 0; k < j; k += 1) {
-      if (a.features[j] == a.features[k]) { return "artifact: duplicate feature name"; }
-    }
-    if (!IsFinite(a.imputer_means[j]) || !IsFinite(a.scaler_means[j]) || !IsFinite(a.scaler_scales[j]) || a.scaler_scales[j] <= 0.0) { return "artifact: invalid preprocessing parameters"; }
+    err = FeatureNameErrorAt(a.features, j);
+    if (err != "") { return err; }
+    if (!IsFinite(a.imputer_means[j]) || !ScalerParamValid(a.scaler_means[j], a.scaler_scales[j])) { return "artifact: invalid preprocessing parameters"; }
   }
   if (a.estimator_kind == "linear") {
     if (a.weights.length() != 1 || a.intercepts.length() != 1 || a.classes.length() != 0) { return "artifact: invalid linear dimensions"; }
@@ -54,26 +53,9 @@ function ArtifactError(a: FittedArtifact) -> string {
         if (a.classes.length() != 2 || a.weights.length() != 1 || a.intercepts.length() != 1) { return "artifact: invalid binary dimensions"; }
       } else { return "artifact: unsupported estimator"; }
     }
-    for (let i = 1; i < a.classes.length(); i += 1) {
-      if (a.classes[i] <= a.classes[i - 1]) { return "artifact: invalid class order"; }
-    }
+    if (!SortedUniqueClasses(a.classes)) { return "artifact: invalid class order"; }
   }
-  for (let i = 0; i < a.weights.length(); i += 1) {
-    if (a.weights[i].length() != n || !IsFinite(a.intercepts[i])) { return "artifact: invalid model dimensions or intercept"; }
-    for (let j = 0; j < n; j += 1) {
-      if (!IsFinite(a.weights[i][j])) { return "artifact: non-finite weight"; }
-    }
-  }
-  ""
-}
-
-
-function ArtifactFeatureError(a: FittedArtifact, features: string[]) -> string {
-  if (features.length() != a.features.length()) { return "artifact: feature order mismatch"; }
-  for (let j = 0; j < features.length(); j += 1) {
-    if (features[j] != a.features[j]) { return "artifact: feature order mismatch"; }
-  }
-  ""
+  FiniteMatrixParams(a.weights, a.intercepts, n)
 }
 
 
@@ -105,7 +87,7 @@ function ArtifactClassification(a: FittedArtifact) -> ClassificationPipeline {
 
 function PredictImportedLinear(x: float[][], features: string[], a: FittedArtifact) -> NumArrayResult {
   let err = ArtifactError(a);
-  if (err == "") { err = ArtifactFeatureError(a,features); }
+  if (err == "") { err = LoadedFeatureError(features,a.features); }
   if (err == "" && a.estimator_kind != "linear") { err = "artifact: expected linear estimator"; }
   if (err != "") { return NumArrayResult { ok: false, value: [], error: err }; }
   RegressionPipelinePredict(x,ArtifactRegression(a))
@@ -113,7 +95,7 @@ function PredictImportedLinear(x: float[][], features: string[], a: FittedArtifa
 
 function PredictImportedProba(x: float[][], features: string[], a: FittedArtifact) -> ProbaResult {
   let err = ArtifactError(a);
-  if (err == "") { err = ArtifactFeatureError(a,features); }
+  if (err == "") { err = LoadedFeatureError(features,a.features); }
   if (err == "" && a.estimator_kind == "linear") { err = "artifact: expected logistic estimator"; }
   if (err != "") { return ProbaResult { ok: false, probs: [], error: err }; }
   ClassificationPipelinePredictProba(x,ArtifactClassification(a))
@@ -121,7 +103,7 @@ function PredictImportedProba(x: float[][], features: string[], a: FittedArtifac
 
 function PredictImportedLabels(x: float[][], features: string[], a: FittedArtifact) -> IntArrayResult {
   let err = ArtifactError(a);
-  if (err == "") { err = ArtifactFeatureError(a,features); }
+  if (err == "") { err = LoadedFeatureError(features,a.features); }
   if (err == "" && a.estimator_kind == "linear") { err = "artifact: expected logistic estimator"; }
   if (err != "") { return IntArrayResult { ok: false, value: [], error: err }; }
   // sklearn predicts from decision scores, not rounded probabilities.
@@ -186,15 +168,14 @@ function DecodeTreeArtifact(raw: string) -> FittedTreeArtifact {
 function TreeArtifactError(a: FittedTreeArtifact) -> string {
   let n = a.features.length();
   if (a.schema_version != 2 || a.estimator_kind != "decision_tree_classifier") { return "artifact: unsupported tree schema or estimator"; }
-  if (a.source != "scikit-learn" || a.source_version == "" || a.model_id == "") { return "artifact: invalid provenance"; }
+  let err = ProvenanceError(a.source, a.source_version, a.model_id);
+  if (err != "") { return err; }
   if (a.imputer_kind != "mean" || a.scaler_kind != "standard") { return "artifact: unsupported preprocessing"; }
   if (n == 0 || a.imputer_means.length() != n || a.scaler_means.length() != n || a.scaler_scales.length() != n) { return "artifact: invalid preprocessing dimensions"; }
   for (let j = 0; j < n; j += 1) {
-    if (a.features[j] == "") { return "artifact: empty feature name"; }
-    for (let k = 0; k < j; k += 1) {
-      if (a.features[j] == a.features[k]) { return "artifact: duplicate feature name"; }
-    }
-    if (!IsFinite(a.imputer_means[j]) || !IsFinite(a.scaler_means[j]) || !IsFinite(a.scaler_scales[j]) || a.scaler_scales[j] <= 0.0) { return "artifact: invalid preprocessing parameters"; }
+    err = FeatureNameErrorAt(a.features, j);
+    if (err != "") { return err; }
+    if (!IsFinite(a.imputer_means[j]) || !ScalerParamValid(a.scaler_means[j], a.scaler_scales[j])) { return "artifact: invalid preprocessing parameters"; }
   }
   TreeStateError(TreeClassifierState { n_features: n, classes: a.classes, nodes: a.nodes })
 }

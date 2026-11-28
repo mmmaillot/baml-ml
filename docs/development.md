@@ -40,13 +40,13 @@ The example probes are defined in the native test file and use committed fitted 
 `baml_src/` is organized into five unidirectional layers plus a test folder. `scripts/check_architecture.py` (run by `verify.sh` and CI) checks source placement, keeps tracing out of the two lowest layers, bans `_vN` file-name suffixes, and limits runtime files to 300 lines. The packaged sources must contain the frozen BTEL span functions and CLI entry points with their `@contract(btel-v1)` and `@public-api` annotations.
 
 - `kernels/`: pure math and tabular transforms, no tracing — `primitives.baml` (shape/finiteness checks, dot product, float predicates, and the shared `InferenceFailure` type), `tabular.baml` (`Cell[][]` container and conversions), `imputer.baml`, `scaler.baml`, `one_hot.baml`, `column_transformer.baml`, `linear.baml`, `logistic.baml` (stable softmax), `tree.baml`, `forest.baml`, `legacy_pipeline.baml` (frozen two-step schema 1 pipeline).
-- `contracts/`: data-only JSON schemas, decoding and static artifact/type-chain validation, no tracing — `legacy.baml` (frozen schema 1 & 2 artifacts) and `pipeline.baml` and `pipeline_validation.baml` (schema 3 arbitrary-length pipelines).
+- `contracts/`: data-only JSON schemas, decoding and static artifact/type-chain validation, no tracing — `invariants.baml` (single-source-of-truth static invariants shared by all schema versions, plus the internal `Operation`/`ColumnKind` enums parsed once at wire boundaries), `legacy.baml` (frozen schema 1 & 2 artifacts) and `pipeline.baml` and `pipeline_validation.baml` (schema 3 arbitrary-length pipelines).
 - `observability/`: `policy.baml` (`ObservationMode`, `TracePrivate<T>`) and the frozen BTEL contract span wrappers `legacy_spans.baml` / `pipeline_spans.baml`.
 - `runtime/`: selective execution and trigger evaluation — `selective.baml`, `selective_models.baml`, `adaptive.baml` (policy), `triggers.baml`, `shadow.baml`.
 - `surface/`: factory-owned public handles (`loaded_models.baml`, `adaptive_handles.baml`) and the standalone CLI entry points (`cli.baml`: `predict`, `shadow`, `RunBatch`, `RunShadow`).
-- `tests/`: all `*_test.baml` suites and test/CI probes (`ImportedIrisProbe`, `TreeOracleProbe`, `PipelineV3OracleProbe`, ...).
+- `tests/`: all `*_test.baml` suites and test/CI probes (`ImportedIrisProbe`, `TreeOracleProbe`, `PipelineOracleProbe`, ...), including `conformance_test.baml`, the native runner of the declarative negative conformance catalog `artifacts/conformance/invalid_mutations.json` (regenerate with `python3 artifacts/conformance/generate.py`).
 
-`schema_version` is wire-level JSON data only; it never appears in module or file names.
+`schema_version` is wire-level JSON data only; it never appears in module, type or file names. Wire JSON keeps plain strings (`operation`, `input_kinds`); the `Operation`/`ColumnKind` enums exist only inside the process, parsed once at CLI/JSON entry and rendered back with `OperationName` at the wire.
 
 Native float comparisons use a total order; check NaN with IsNaN/IsFinite rather than x != x. Internal trusted finite-input paths are only called after preceding successful preprocessing; public transforms remain checked.
 

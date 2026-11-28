@@ -1,12 +1,12 @@
 // Schema 3 arbitrary-length pipeline contract: JSON schema and decoding.
-class BatchInputV3 {
+class TabularBatchInput {
   features string[]
   rows (float | string | null)[][]
 }
 
 
 
-function BatchCells(input: BatchInputV3) -> Cell[][] {
+function BatchCells(input: TabularBatchInput) -> Cell[][] {
   let out: Cell[][] = [];
   for (let i = 0; i < input.rows.length(); i += 1) {
     let row: Cell[] = [];
@@ -79,17 +79,18 @@ function DecodePipelineArtifact(raw: string) -> FittedPipelineArtifact {
 
 
 
-function InputKindAt(a: FittedPipelineArtifact, j: int) -> string {
+// Wire strings stay in artifact JSON; the parsed enum is internal only.
+
+function InputKindRaw(a: FittedPipelineArtifact, j: int) -> string {
   if (a.input_kinds.length() == a.features.length()) { return a.input_kinds[j]; }
   "numeric"
 }
 
 
-
-function NumericKinds(n: int) -> string[] {
-  let kinds: string[] = [];
-  for (let j = 0; j < n; j += 1) { kinds.push("numeric"); }
-  kinds
+function InputKindAt(a: FittedPipelineArtifact, j: int) -> ColumnKind {
+  let kind = ColumnKindOf(InputKindRaw(a, j));
+  if (kind != null) { return kind; }
+  ColumnKind.Numeric
 }
 
 
@@ -106,7 +107,7 @@ function ValidatePipelineInput(cells: Cell[][], a: FittedPipelineArtifact) -> st
   for (let i = 0; i < cells.length(); i += 1) {
     for (let j = 0; j < cols; j += 1) {
       let c = cells[i][j];
-      if (InputKindAt(a, j) == "categorical") {
+      if (InputKindAt(a, j) == ColumnKind.Categorical) {
         // Integer-coded categorical columns receive numbers; the consuming
         // step (string imputer or one-hot encoder) enforces the exact type.
         if (c.kind == "number" && !IsFinite(c.num)) { return "non-finite value in categorical column " + j.to_string(); }

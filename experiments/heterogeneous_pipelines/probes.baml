@@ -1,7 +1,7 @@
 // Probes for the heterogeneous v3 pipeline BTEL experiment. This file is
 // copied into a fresh probe project by run.sh alongside the runtime sources.
 class HeteroProbeEntry {
-  input BatchInputV3
+  input TabularBatchInput
   predict_labels int[]?
   predict_proba float[][]?
 }
@@ -10,7 +10,7 @@ function HeteroOracle() -> map<string, HeteroProbeEntry> {
   baml.json.decode<map<string, HeteroProbeEntry>>(baml.fs.read("artifacts/fixtures/v3/oracle.json"))
 }
 
-function HeteroInput() -> BatchInputV3 {
+function HeteroInput() -> TabularBatchInput {
   HeteroOracle()["v3-ct-hetero-forest"].input
 }
 
@@ -34,8 +34,8 @@ function HeteroShadowProbe() -> ShadowOutput {
 
 // Campaign probe on the large generated batch (batch.json, copied next to the
 // project by campaign.sh).
-function HeteroCampaignInput() -> BatchInputV3 {
-  baml.json.decode<BatchInputV3>(baml.fs.read("batch.json"))
+function HeteroCampaignInput() -> TabularBatchInput {
+  baml.json.decode<TabularBatchInput>(baml.fs.read("batch.json"))
 }
 
 function HeteroCampaignProbe(mode: ObservationMode) -> PipelineResult {

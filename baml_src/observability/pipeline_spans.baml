@@ -182,10 +182,10 @@ function ObservedColumnTransformer(cells: Cell[][], state: TracePrivate<Pipeline
 // The estimator consumes a dense finite float64 matrix; missing or
 // non-numeric values that survived preprocessing are rejected here.
 
-function RunPipelineEstimator(x: float[][], a: FittedPipelineArtifact, operation: string, full: bool, compute_probs: bool, opts: trace.Options) -> PipelineRun throws InferenceFailure {
+function RunPipelineEstimator(x: float[][], a: FittedPipelineArtifact, operation: Operation, full: bool, compute_probs: bool, opts: trace.Options) -> PipelineRun throws InferenceFailure {
   let e = a.estimator;
   if (e.kind == "linear") {
-    if (operation == "predict-proba") {
+    if (operation == Operation.PredictProba) {
       throw InferenceFailure { stage: "input_validation", message: "predict-proba requires a classifier estimator" };
     }
     let r = ObservedLinear(x, TracePrivate<LinearRegressionModel> { value: LinearRegressionModel { coefficients: e.weights[0], intercept: e.intercepts[0], n_features: e.n_features_in } }, $trace = opts);
@@ -194,7 +194,7 @@ function RunPipelineEstimator(x: float[][], a: FittedPipelineArtifact, operation
   if (e.kind == "logistic_binary" || e.kind == "logistic_multinomial") {
     let model = PipelineLogisticModel(e);
     let scores = ObservedDecisionScores(x, TracePrivate<LogisticRegressionModel> { value: model }, $trace = opts);
-    if (operation == "predict-proba") {
+    if (operation == Operation.PredictProba) {
       let p = ObservedSoftmax(scores, $trace = opts);
       return PipelineRun { values: [], labels: ClassLabels(scores, e.classes), probs: p.probs };
     }
@@ -222,7 +222,7 @@ function PipelineModelLoaded(artifact: FittedPipelineArtifact) -> void {}
 
 
 // @contract(btel-v1)
-function PredictLoadedPipeline(cells: Cell[][], features: string[], model_id: string, expected: string[], state: TracePrivate<FittedPipelineArtifact>, observation: ObservationMode, operation: string) -> PipelineResult throws InferenceFailure {
+function PredictLoadedPipeline(cells: Cell[][], features: string[], model_id: string, expected: string[], state: TracePrivate<FittedPipelineArtifact>, observation: ObservationMode, operation: Operation) -> PipelineResult throws InferenceFailure {
   let err = LoadedFeatureError(features, expected);
   if (err != "") { throw InferenceFailure { stage: "input_validation", message: err }; }
   let a = state.value;

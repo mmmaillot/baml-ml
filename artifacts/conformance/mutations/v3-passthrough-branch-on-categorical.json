@@ -1,0 +1,85 @@
+{
+  "schema_version": 3,
+  "source": "scikit-learn",
+  "source_version": "1.8.0",
+  "model_id": "conformance-synthetic",
+  "features": [
+    "a",
+    "b",
+    "c",
+    "d"
+  ],
+  "input_kinds": [
+    "numeric",
+    "numeric",
+    "categorical",
+    "numeric"
+  ],
+  "steps": [
+    {
+      "kind": "column_transformer",
+      "n_features_in": 4,
+      "n_features_out": 5,
+      "column_transformer": {
+        "branches": [
+          {
+            "name": "num",
+            "columns": [
+              0,
+              1
+            ],
+            "mode": "pipeline",
+            "steps": [
+              {
+                "kind": "standard_scaler",
+                "n_features_in": 2,
+                "n_features_out": 2,
+                "scaler": {
+                  "means": [
+                    0.0,
+                    0.0
+                  ],
+                  "scales": [
+                    1.0,
+                    1.0
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "name": "cat",
+            "columns": [
+              2
+            ],
+            "mode": "passthrough",
+            "steps": []
+          }
+        ],
+        "remainder": "passthrough",
+        "remainder_columns": [
+          3
+        ]
+      }
+    }
+  ],
+  "estimator": {
+    "kind": "linear",
+    "n_features_in": 5,
+    "weights": [
+      [
+        1.0,
+        0.0,
+        0.0,
+        1.0,
+        2.0
+      ]
+    ],
+    "intercepts": [
+      0.5
+    ],
+    "classes": [],
+    "nodes": [],
+    "trees": []
+  }
+}

@@ -52,7 +52,7 @@ function CheckShadowCompatibility(
     champion: SelectiveModel,
     challenger: SelectiveModel,
     input: ShadowInput,
-    operation: string,
+    operation: Operation,
 ) -> void {
     if (
         champion.schema_version != challenger.schema_version
@@ -62,7 +62,7 @@ function CheckShadowCompatibility(
             message: "shadow: models must have the same schema version and estimator kind",
         };
     }
-    if (operation == "predict-proba" && champion.estimator_kind == "linear") {
+    if (operation == Operation.PredictProba && champion.estimator_kind == "linear") {
         throw baml.errors.InvalidArgument {
             message: "shadow: predict-proba requires a classifier",
         };
@@ -90,13 +90,13 @@ function CheckShadowCompatibility(
 function ShadowResult(
     champion: SelectiveModel,
     challenger: SelectiveModel,
-    operation: string,
+    operation: Operation,
     result: SelectivePrediction,
     summary: ShadowSummary,
 ) -> ShadowOutput {
     ShadowOutput {
         schema_version: 1,
-        operation: operation,
+        operation: OperationName(operation),
         estimator_kind: champion.estimator_kind,
         champion_model_id: champion.model_id,
         challenger_model_id: challenger.model_id,
@@ -118,7 +118,7 @@ function ShadowEscalatedRow(
     champion: SelectiveModel,
     challenger: SelectiveModel,
     row: Cell[],
-    operation: string,
+    operation: Operation,
 ) -> void throws InferenceFailure {
     RunSelectiveModel(
         champion,
@@ -162,7 +162,7 @@ function ShadowBatch(
     champion: SelectiveModel,
     challenger: SelectiveModel,
     rows: Cell[][],
-    operation: string,
+    operation: Operation,
     policy: AdaptivePolicy,
 ) -> ShadowOutput {
     RecordSelectiveModelLoad(

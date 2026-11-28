@@ -7,7 +7,7 @@ test "v3_ct_input_validation_on_heterogeneous_rows" {
   let m = LoadPipelineModel("artifacts/fixtures/v3/v3-ct-hetero-logreg.json");
   let f = baml.json.stringify(["age", "income", "city"]);
   let err = (raw: string) -> string {
-    let input = baml.json.decode<BatchInputV3>(raw);
+    let input = baml.json.decode<TabularBatchInput>(raw);
     m.predict(BatchCells(input), input.features).error
   };
   // String in a numeric column.
@@ -18,7 +18,7 @@ test "v3_ct_input_validation_on_heterogeneous_rows" {
   // Feature order mismatch.
   assert.equal(err(`{"features":["city","age","income"],"rows":[["paris",30.0,50000.0]]}`), "artifact: feature order mismatch")
   // Missing numeric and categorical cells are both accepted and imputed.
-  let r = m.predict_proba(BatchCells(baml.json.decode<BatchInputV3>(`{"features":${f},"rows":[[null,null,null]]}`)), ["age", "income", "city"]);
+  let r = m.predict_proba(BatchCells(baml.json.decode<TabularBatchInput>(`{"features":${f},"rows":[[null,null,null]]}`)), ["age", "income", "city"]);
   assert.is_true(r.ok)
 }
 

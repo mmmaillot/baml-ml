@@ -1,10 +1,10 @@
 // #74: extended SimpleImputer strategies and native dense OneHotEncoder.
-function V3CatFixture(name: string) -> string {
+function CategoricalFixture(name: string) -> string {
   baml.fs.read("artifacts/fixtures/v3/" + name + ".json")
 }
 
 function CatHandleError(m: LoadedPipelineModel, raw: string) -> string {
-  let input = baml.json.decode<BatchInputV3>(raw);
+  let input = baml.json.decode<TabularBatchInput>(raw);
   m.predict(BatchCells(input), input.features).error
 }
 
@@ -31,18 +31,18 @@ test "v3_string_imputer_replaces_null_cells" {
   let m = LoadPipelineModel("artifacts/fixtures/v3/v3-strimpute-ohe-logreg.json");
   let f = baml.json.stringify(["color", "size"]);
   // Null categorical cells are imputed with the fitted fill value and encoded.
-  let r = m.predict_proba(BatchCells(baml.json.decode<BatchInputV3>(`{"features":${f},"rows":[[null,null]]}`)), ["color", "size"]);
+  let r = m.predict_proba(BatchCells(baml.json.decode<TabularBatchInput>(`{"features":${f},"rows":[[null,null]]}`)), ["color", "size"]);
   assert.is_true(r.ok)
   // A numeric cell in a string imputer fails in the imputation stage.
   assert.equal(CatHandleError(m, `{"features":${f},"rows":[[1,"S"]]}`), "imputer_transform: numeric value in string imputer")
-  let a = DecodePipelineArtifact(V3CatFixture("v3-strimpute-ohe-logreg"));
+  let a = DecodePipelineArtifact(CategoricalFixture("v3-strimpute-ohe-logreg"));
   let imp = a.steps[0].imputer;
   if (imp != null) { imp.value_kind = "numeric"; }
   assert.is_true(PipelineArtifactError(a) != "")
 }
 
 test "v3_rejects_malformed_one_hot_payloads" {
-  let base = V3CatFixture("v3-ohe-drop-first");
+  let base = CategoricalFixture("v3-ohe-drop-first");
   assert.equal(PipelineArtifactError(DecodePipelineArtifact(base)), "");
   let a = DecodePipelineArtifact(base);
   let ohe = a.steps[0].one_hot;
@@ -70,13 +70,13 @@ test "v3_rejects_malformed_one_hot_payloads" {
   let ohe5 = a.steps[0].one_hot;
   if (ohe5 != null) { ohe5.columns[0].kind = "integer"; ohe5.columns[0].ints = [1.5]; ohe5.columns[0].strings = []; }
   assert.is_true(PipelineArtifactError(a) != "");
-  assert.is_true(V3LoadFails("{"))
+  assert.is_true(PipelineLoadFails("{"))
 }
 
 test "v3_ohe_ignore_matches_oracle_and_modes_agree" {
-  let o = V3Oracle()["v3-ohe-ignore-unseen"];
+  let o = PipelineOracle()["v3-ohe-ignore-unseen"];
   let raw_input = baml.json.stringify(o.input);
-  let model = V3CatFixture("v3-ohe-ignore-unseen");
+  let model = CategoricalFixture("v3-ohe-ignore-unseen");
   let full = RunBatch(model, raw_input, "predict-proba", ObservationMode.Full);
   let semantic = RunBatch(model, raw_input, "predict-proba", ObservationMode.Semantic);
   assert.equal(full.predictions, semantic.predictions)

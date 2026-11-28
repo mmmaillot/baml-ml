@@ -96,7 +96,7 @@ and `score_delta` work unchanged on forest averaged probabilities. Failure stage
   ColumnTransformer pipelines, forests, plus chained-transformer named
   selectors, explicit passthrough branches, singleton-category drop blocks
   and multi-scaler z-score aggregation), regenerated in CI through the real
-  exporter (`PipelineV3OracleProbe`).
+  exporter (`PipelineOracleProbe`).
 - BTEL SQL verification: `experiments/heterogeneous_pipelines/run.sh`.
 - Standalone offline smoke (3 platforms): `experiments/standalone/run.sh`.
 - Measured storage/latency campaign: `experiments/heterogeneous_pipelines/evidence/report.json`.

@@ -11,7 +11,7 @@ class SelectiveModel {
     classes: int[],
     guard: SnapshotGuard,
     snapshot_fn: (trace.Options) -> void throws never,
-    run_fn: (Cell[][], string, ObservationMode, AdaptiveRowSignals[]?) -> SelectivePrediction
+    run_fn: (Cell[][], Operation, ObservationMode, AdaptiveRowSignals[]?) -> SelectivePrediction
         throws InferenceFailure,
 }
 
@@ -22,10 +22,10 @@ class SelectivePrediction {
     probabilities: float[][],
     function for_operation(
         self,
-        operation: string,
+        operation: Operation,
         is_classifier: bool,
     ) -> float[] | int[] | float[][] {
-        if (operation == "predict-proba") {
+        if (operation == Operation.PredictProba) {
             return self.probabilities;
         }
         if (is_classifier) {
@@ -76,7 +76,7 @@ function CaptureLazySnapshot(model: SelectiveModel) -> void {
 function RunSelectiveModel(
     model: SelectiveModel,
     cells: Cell[][],
-    operation: string,
+    operation: Operation,
     mode: ObservationMode,
     signals: AdaptiveRowSignals[]? = null,
 ) -> SelectivePrediction throws InferenceFailure {
@@ -86,7 +86,7 @@ function RunSelectiveModel(
 
 
 // @contract(btel-v1)
-function EscalatedRow(model: SelectiveModel, row: Cell[], operation: string) -> void
+function EscalatedRow(model: SelectiveModel, row: Cell[], operation: Operation) -> void
     throws InferenceFailure
 {
     RunSelectiveModel(model, [row], operation, ObservationMode.Full);
@@ -113,7 +113,7 @@ function RunAdaptiveCells(
     model: SelectiveModel,
     cells: Cell[][],
     features: string[],
-    operation: string,
+    operation: Operation,
     policy: AdaptivePolicy,
 ) -> SelectivePrediction throws InferenceFailure {
     let error = LoadedFeatureError(features, model.features);
@@ -167,7 +167,7 @@ function RunAdaptive(
     model: SelectiveModel,
     x: float[][],
     features: string[],
-    operation: string,
+    operation: Operation,
     policy: AdaptivePolicy,
 ) -> SelectivePrediction throws InferenceFailure {
     RunAdaptiveCells(model, NumericCells(x), features, operation, policy)

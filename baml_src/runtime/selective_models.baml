@@ -31,7 +31,7 @@ function SelectivePipeline(a: FittedPipelineArtifact) -> SelectiveModel {
         },
         run_fn: (
             cells: Cell[][],
-            operation: string,
+            operation: Operation,
             mode: ObservationMode,
             signals: AdaptiveRowSignals[]?,
         ) -> SelectivePrediction {
@@ -72,7 +72,7 @@ function SelectiveLinear(a: FittedArtifact, p: RegressionPipeline) -> SelectiveM
         },
         run_fn: (
             cells: Cell[][],
-            operation: string,
+            operation: Operation,
             mode: ObservationMode,
             signals: AdaptiveRowSignals[]?,
         ) -> SelectivePrediction {
@@ -111,7 +111,7 @@ function SelectiveLogistic(a: FittedArtifact, p: ClassificationPipeline) -> Sele
         },
         run_fn: (
             cells: Cell[][],
-            operation: string,
+            operation: Operation,
             mode: ObservationMode,
             signals: AdaptiveRowSignals[]?,
         ) -> SelectivePrediction {
@@ -123,7 +123,7 @@ function SelectiveLogistic(a: FittedArtifact, p: ClassificationPipeline) -> Sele
                 TracePrivate<LogisticRegressionModel> { value: p.model },
                 $trace = opts,
             );
-            if (operation == "predict-proba") {
+            if (operation == Operation.PredictProba) {
                 let result = ObservedSoftmax(scores, $trace = opts);
                 if (signals != null) {
                     CollectClassificationSignals(
@@ -172,7 +172,7 @@ function SelectiveTree(a: FittedTreeArtifact, p: PreparedTreePipeline) -> Select
         },
         run_fn: (
             cells: Cell[][],
-            operation: string,
+            operation: Operation,
             mode: ObservationMode,
             signals: AdaptiveRowSignals[]?,
         ) -> SelectivePrediction {

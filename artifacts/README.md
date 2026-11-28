@@ -78,6 +78,18 @@ fixtures and the sklearn 1.8.0 oracle live in `artifacts/fixtures/v3/`
 (regenerate with
 `python artifacts/generate_v3_fixtures.py artifacts/fixtures`).
 
+## Negative conformance catalog
+
+`artifacts/conformance/invalid_mutations.json` is the declarative catalog of
+invalid artifact mutations: one JSON file per mutation under
+`artifacts/conformance/mutations/` (plus a synthetic valid schema 3 base under
+`artifacts/conformance/bases/`), each with the schema version and the error
+substring the loader must produce. `baml_src/tests/conformance_test.baml`
+asserts that every base validates clean and loads, and that every mutation is
+rejected both by the static validator and at load/prepare time. Regenerate with
+`python3 artifacts/conformance/generate.py`. Non-finite floats have no JSON
+form, so those mutations are exercised in memory in the test file.
+
 ## Export and run
 
 In the sklearn training environment, import export_sklearn.write_artifact,
