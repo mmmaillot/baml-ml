@@ -157,6 +157,13 @@ function LoadLogisticModel(path: string, observation: ObservationMode = Observat
   PrepareLogisticModel(baml.fs.read(path), observation = observation, policy = policy)
 }
 
+function CopyClassLabels(classes: int[]) -> int[] {
+  let labels: int[] = [];
+  for (let label in classes) { labels.push(label); }
+  labels
+}
+
+
 // Internal execution helpers. Model ID is an explicit argument for tracing.
 // These assume the factory has validated and privately captured the state.
 
@@ -186,7 +193,7 @@ function BuildLoadedPipeline(a: FittedPipelineArtifact, observation: Observation
   let state = TracePrivate<ExecutableModel> { value: model };
   LoadedPipelineModel {
     estimator_kind: a.estimator.kind,
-    classes: a.estimator.classes,
+    classes: CopyClassLabels(a.estimator.classes),
     predict_fn: (cells: Cell[][], features: string[]) -> PipelineResult {
       PredictLoadedPipeline(cells, features, id, names, state, observation, "predict", $trace = model_opts) catch (e) {
         let f: InferenceFailure => PipelineResult { ok: false, values: [], labels: [], probs: [], error: f.message }
