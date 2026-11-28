@@ -67,18 +67,6 @@ function HasMissingInput(row: float[]) -> bool {
 }
 
 
-function MaxAbsoluteValue(row: float[]) -> float {
-    let maximum = 0.0;
-    for (let value in row) {
-        let magnitude = Abs(value);
-        if (magnitude > maximum) {
-            maximum = magnitude;
-        }
-    }
-    maximum
-}
-
-
 function HasLowMargin(row: AdaptiveRowSignals, threshold: float) -> bool {
     if (row.probabilities.length() < 2) {
         return false;
