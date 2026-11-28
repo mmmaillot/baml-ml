@@ -18,7 +18,7 @@ for sample in iris diabetes binary; do
     mkdir -p "$HOME"
     cp "$ROOT"/artifacts/fixtures/*.json "$PROJECT/artifacts/fixtures/"
     "$ROOT/scripts/stage_runtime.sh" "$PROJECT/baml_src"
-    cp "$ROOT/baml_src/artifact_test.baml" "$PROJECT/baml_src/"
+    cp "$ROOT/baml_src/tests/artifact_test.baml" "$PROJECT/baml_src/"
     cd "$PROJECT"
     printf '[package]\nname = "imported-inference-probe"\n' > baml.toml
     fn=ImportedIrisProbe

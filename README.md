@@ -103,7 +103,7 @@ ORDER BY row_index, stage, role
 
 ## How native hyperobservability looks in BAML
 
-Fitted model state is redacted declaratively on inference spans (`@trace.redact`) and captured once in `ModelLoaded` / `TreeModelLoaded` (lazily in `Adaptive` and `shadow`). Policies switch cleanly via native `trace.Options` ([`baml_src/observation.baml`](baml_src/observation.baml)):
+Fitted model state is redacted declaratively on inference spans (`@trace.redact`) and captured once in `ModelLoaded` / `TreeModelLoaded` (lazily in `Adaptive` and `shadow`). Policies switch cleanly via native `trace.Options` ([`baml_src/observability/policy.baml`](baml_src/observability/policy.baml)):
 
 ```baml
 class TracePrivate<T> {
