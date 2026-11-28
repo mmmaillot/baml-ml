@@ -29,7 +29,7 @@ This repository uses **trunk-based development** on `main` with mandatory pull r
 - **Strict rejection over silent approximation**: reject unsupported estimator variants, invalid dimensions, non-finite parameters, unknown policy fields, or schema/feature/class mismatches explicitly.
 - **Backward compatibility**: preserve existing `schema_version` artifact contracts, `BatchOutput` v1, and existing `ObservationMode` (`Timing`, `Semantic`, `Full`, `Adaptive`, `BAML_TELEMETRY=off`) semantics unless an ADR explicitly supersedes them.
 - **Native BAML pitfalls**: float comparisons use a total order — always use `IsNaN` / `IsFinite` rather than `x != x`; BAML classes/arrays are mutable by reference — never expose factory-owned fitted state or caller-mutable policies inside loaded handles.
-- **Honest evidence**: never make unmeasured performance or privacy claims; whenever `baml_src/*.baml` changes affect a committed benchmark report, re-run the benchmark or note clearly which commit/hashes the report covers.
+- **Honest evidence**: never make unmeasured performance or privacy claims; whenever `baml_src/**/*.baml` changes affect a committed benchmark report, re-run the benchmark or note clearly which commit/hashes the report covers.
 
 ## Releases
 
