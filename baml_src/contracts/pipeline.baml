@@ -6,6 +6,19 @@ class BatchInputV3 {
 
 
 
+function BatchCells(input: BatchInputV3) -> Cell[][] {
+  let out: Cell[][] = [];
+  for (let i = 0; i < input.rows.length(); i += 1) {
+    let row: Cell[] = [];
+    for (let j = 0; j < input.rows[i].length(); j += 1) {
+      row.push(CellOf(input.rows[i][j]));
+    }
+    out.push(row);
+  }
+  out
+}
+
+
 class ColumnTransformerBranch {
   name string
   columns int[]
