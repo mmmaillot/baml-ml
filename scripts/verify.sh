@@ -32,14 +32,12 @@ for arg in "$@"; do
 done
 
 find_tool() {
-  # $1: environment variable name, $2: executable name under .toolchain/
-  local path=""
+  # $1: environment variable name, $2: executable name under .toolchain/bin/
+  local path="$ROOT/.toolchain/bin/$2"
   if [ -n "${!1:-}" ]; then
     path="$(realpath "${!1}")"
-  elif [ -d "$ROOT/.toolchain" ]; then
-    path="$(find "$ROOT/.toolchain" -type f -name "$2" -print -quit)"
   fi
-  if [ -z "$path" ] || [ ! -x "$path" ]; then
+  if [ ! -x "$path" ]; then
     echo "error: $2 not found (set $1 or run ./scripts/install_baml.sh)" >&2
     exit 1
   fi
@@ -50,11 +48,13 @@ CLI="$(find_tool BAML_CLI baml-cli)"
 export BAML_CLI="$CLI"
 echo "Using BAML_CLI=$BAML_CLI ($("$CLI" --version 2>/dev/null))"
 
-cd "$ROOT"
-echo "==> baml check (in $ROOT)"
-BAML_TELEMETRY=off "$CLI" check
-echo "==> baml test (in $ROOT)"
-BAML_TELEMETRY=off "$CLI" test --max-concurrency 1 --test-timeout 5m
+(
+  cd "$ROOT"
+  echo "==> baml check (in $ROOT)"
+  BAML_TELEMETRY=off "$CLI" check
+  echo "==> baml test (in $ROOT)"
+  BAML_TELEMETRY=off "$CLI" test --max-concurrency 1 --test-timeout 5m
+)
 
 if [ "$FULL" -eq 1 ]; then
   RESULTS="$(mktemp -d)"
@@ -65,11 +65,8 @@ if [ "$FULL" -eq 1 ]; then
   bash "$ROOT/experiments/native_ml_observability/run.sh" "$RESULTS/native-ml-observability"
   echo "==> experiments/heterogeneous_pipelines/run.sh (results in $RESULTS/heterogeneous-pipelines)"
   bash "$ROOT/experiments/heterogeneous_pipelines/run.sh" "$RESULTS/heterogeneous-pipelines"
-  HOST="${BAML_PACK_HOST:-}"
-  if [ -z "$HOST" ] && [ -d "$ROOT/.toolchain" ]; then
-    HOST="$(find "$ROOT/.toolchain" -type f -name baml-pack-host -print -quit)"
-  fi
-  if [ -n "$HOST" ] && [ -x "$HOST" ]; then
+  HOST="${BAML_PACK_HOST:-$ROOT/.toolchain/bin/baml-pack-host}"
+  if [ -x "$HOST" ]; then
     export BAML_PACK_HOST="$(realpath "$HOST")"
     echo "==> experiments/standalone/run.sh (results in $RESULTS/standalone)"
     bash "$ROOT/experiments/standalone/run.sh" "$RESULTS/standalone"
