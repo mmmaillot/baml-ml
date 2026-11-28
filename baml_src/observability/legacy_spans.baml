@@ -20,16 +20,6 @@ function ObservedTreeTraversal(x: float[][], state: TracePrivate<TreeClassifierS
 }
 
 // @contract(btel-v1)
-function PredictLoadedTree(x: float[][], features: string[], model_id: string, expected: string[], state: TracePrivate<ExecutableModel>, observation: ObservationMode) -> TreeBatchResult throws InferenceFailure {
-  let err = LoadedFeatureError(features,expected);
-  if (err != "") { throw InferenceFailure { stage: "input_validation", message: err }; }
-  // Direct execution: delegate to the engine core with no signal collection,
-  // so no RunSelectiveModel span is inserted in non-adaptive modes.
-  let r = state.value.run(NumericCells(x), Operation.Predict, observation, signals = null);
-  TreeBatchResult { labels: r.labels, probs: r.probabilities, leaves: r.leaves, paths: r.paths }
-}
-
-// @contract(btel-v1)
 function ModelLoaded(artifact: FittedArtifact) -> void {}
 
 
@@ -125,31 +115,3 @@ function PreparedPreprocess(x: float[][], imputer: MeanImputer, scaler: Standard
   let t2 = ObservedScale(t1.x, TracePrivate<StandardScaler> { value: scaler }, $trace = opts);
   t2.x
 }
-
-
-// @contract(btel-v1)
-function PredictLoadedLinear(x: float[][], features: string[], model_id: string, expected: string[], state: TracePrivate<ExecutableModel>, observation: ObservationMode) -> NumArrayResult throws InferenceFailure {
-  let err = LoadedFeatureError(features, expected);
-  if (err != "") { throw InferenceFailure { stage: "input_validation", message: err }; }
-  let r = state.value.run(NumericCells(x), Operation.Predict, observation, signals = null);
-  NumArrayResult { ok: true, value: r.values, error: "" }
-}
-
-
-// @contract(btel-v1)
-function PredictLoadedProba(x: float[][], features: string[], model_id: string, expected: string[], state: TracePrivate<ExecutableModel>, observation: ObservationMode) -> ProbaResult throws InferenceFailure {
-  let err = LoadedFeatureError(features, expected);
-  if (err != "") { throw InferenceFailure { stage: "input_validation", message: err }; }
-  let r = state.value.run(NumericCells(x), Operation.PredictProba, observation, signals = null);
-  ProbaResult { ok: true, probs: r.probabilities, error: "" }
-}
-
-
-// @contract(btel-v1)
-function PredictLoadedLabels(x: float[][], features: string[], model_id: string, expected: string[], state: TracePrivate<ExecutableModel>, observation: ObservationMode) -> IntArrayResult throws InferenceFailure {
-  let err = LoadedFeatureError(features, expected);
-  if (err != "") { throw InferenceFailure { stage: "input_validation", message: err }; }
-  let r = state.value.run(NumericCells(x), Operation.Predict, observation, signals = null);
-  IntArrayResult { ok: true, value: r.labels, error: "" }
-}
-
