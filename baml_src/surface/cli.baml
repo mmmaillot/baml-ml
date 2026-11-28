@@ -100,6 +100,42 @@ function shadow(champion: string, challenger: string, input: string, operation: 
   RunShadow(baml.fs.read(champion), baml.fs.read(challenger), baml.fs.read(input), operation, ReadAdaptivePolicy(policy))
 }
 
+// @public-api
+function RunShadow(
+    raw_champion: string,
+    raw_challenger: string,
+    raw_input: string,
+    operation: string,
+    policy: AdaptivePolicy,
+) -> ShadowOutput {
+    if (operation != "predict" && operation != "predict-proba") {
+        throw baml.errors.InvalidArgument {
+            message: "operation must be predict or predict-proba",
+        };
+    }
+    ValidateAdaptivePolicy(policy);
+    let champion = PrepareShadowModel(raw_champion);
+    let challenger = PrepareShadowModel(raw_challenger);
+    let input = baml.json.decode<ShadowInput>(raw_input);
+    CheckShadowCompatibility(champion, challenger, input, operation);
+    let rows = ShadowCells(input.rows);
+    ShadowBatch(
+        champion,
+        challenger,
+        rows,
+        operation,
+        policy,
+        $trace = trace.empty_span().context(metadata = {
+            "baml_ml.champion_model_id": champion.model_id,
+            "baml_ml.challenger_model_id": challenger.model_id,
+            "baml_ml.estimator_kind": champion.estimator_kind,
+            "baml_ml.operation": operation,
+            "baml_ml.contract_version": 1,
+        }),
+    )
+}
+
+
 function RunTreeBatch(raw_model: string, raw_input: string, operation: string, mode: ObservationMode, adaptive: AdaptivePolicy?) -> BatchOutput {
   let opts = ObservationOptions(mode);
   let a = PrepareTreeArtifact(raw_model, $trace = if (mode == ObservationMode.Full) { trace.span(inputs = false, output = false) } else { opts });
