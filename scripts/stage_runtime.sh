@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Stage every non-test runtime .baml source from baml_src/ into <dest_baml_src>,
 # preserving the directory layout so future baml_src/ subdirectories work.
-# Excludes *_test.baml files and everything under baml_src/tests/.
+# Excludes *_test.baml files and everything under any tests/ directory; this is
+# the exact test/runtime classification enforced by scripts/check_architecture.py.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -14,7 +15,7 @@ fi
 DEST="$1"
 mkdir -p "$DEST"
 
-find "$SRC" -type f -name '*.baml' ! -name '*_test.baml' ! -path "$SRC/tests/*" -print0 |
+find "$SRC" -type f -name '*.baml' ! -name '*_test.baml' ! -path '*/tests/*' -print0 |
 while IFS= read -r -d '' file; do
   rel="${file#"$SRC"/}"
   mkdir -p "$DEST/$(dirname "$rel")"

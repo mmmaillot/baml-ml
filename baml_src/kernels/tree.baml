@@ -139,10 +139,10 @@ function TreePredictCore(x: float[][], t: TreeClassifierState, capture_path: boo
       if (!IsFinite(v)) { throw InferenceFailure { stage: "tree_traversal", message: "tree: float32 input overflow" }; }
       row.push(v);
     }
-    let walk = TreeTraverse(row, t, capture_path);
-    let id = walk.leaf;
+    let trace = TreeTraverse(row, t, capture_path);
+    let id = trace.leaf;
     let path: int[] = [];
-    if (capture_path) { path = walk.path; }
+    if (capture_path) { path = trace.path; }
     let p: float[] = [];
     let best = 0;
     for (let k = 0; k < t.classes.length(); k += 1) {
