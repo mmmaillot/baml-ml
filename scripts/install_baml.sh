@@ -62,11 +62,10 @@ fi
 if [ -z "$DEST" ]; then
   if [ -n "${RUNNER_TEMP:-}" ]; then DEST="$RUNNER_TEMP/baml-toolchain"; else DEST="$ROOT/.toolchain"; fi
 fi
-mkdir -p "$DEST"
-
-find_tool() {
-  find "$DEST" -type f -name "$1" -print -quit
-}
+mkdir -p "$DEST/bin"
+DEST="$(cd "$DEST" && pwd -P)"
+CLI_PATH="$DEST/bin/baml-cli"
+HOST_PATH="$DEST/bin/baml-pack-host"
 
 digest_of() {
   if [ "$(uname -s)" = Darwin ]; then shasum -a 256 "$1" | cut -d' ' -f1; else sha256sum "$1" | cut -d' ' -f1; fi
@@ -80,8 +79,7 @@ verified_tool() {
   # Print the path of binary $1 only if it still matches the digest recorded
   # by the verified release extraction, so a foreign executable dropped into
   # $DEST is never reused.
-  local path
-  path="$(find_tool "$1")"
+  local path="$1"
   if [ -n "$path" ] && [ -x "$path" ] && [ -f "$STAMP" ] \
     && [ "$(digest_of "$path")" = "$(sed -n "$2p" "$STAMP")" ]; then
     printf '%s\n' "$path"
@@ -91,12 +89,12 @@ verified_tool() {
 CLI=""
 HOST=""
 if [ "$FORCE" -eq 0 ]; then
-  CLI="$(verified_tool baml-cli 1)"
+  CLI="$(verified_tool "$CLI_PATH" 1)"
   if [ -n "$CLI" ] && [ "$("$CLI" --version 2>/dev/null)" != "baml-cli ${BAML_VERSION}" ]; then
     CLI=""
   fi
   if [ -n "$CLI" ]; then
-    HOST="$(verified_tool baml-pack-host 2)"
+    HOST="$(verified_tool "$HOST_PATH" 2)"
   fi
 fi
 
@@ -111,12 +109,15 @@ else
       "$BASE_URL/$asset" --output "$WORK/$asset"
   done
   (cd "$WORK"; if [ "$(uname -s)" = Darwin ]; then shasum -a 256 -c "$ARCHIVE.sha256"; else sha256sum --check --strict "$ARCHIVE.sha256"; fi)
-  tar -C "$DEST" -xzf "$WORK/$ARCHIVE"
+  mkdir "$WORK/extracted"
+  tar -C "$WORK/extracted" -xzf "$WORK/$ARCHIVE"
+  test -f "$WORK/extracted/bin/baml-cli"
+  test -f "$WORK/extracted/bin/baml-pack-host"
   rm -f "$STAMP"
-  CLI="$(find_tool baml-cli)"
-  HOST="$(find_tool baml-pack-host)"
-  test -n "$CLI" && test -n "$HOST"
-  chmod +x "$CLI" "$HOST"
+  install -m 0755 "$WORK/extracted/bin/baml-cli" "$CLI_PATH"
+  install -m 0755 "$WORK/extracted/bin/baml-pack-host" "$HOST_PATH"
+  CLI="$CLI_PATH"
+  HOST="$HOST_PATH"
   printf '%s\n%s\n' "$(digest_of "$CLI")" "$(digest_of "$HOST")" > "$STAMP"
   echo "verified and installed: $CLI"
 fi
