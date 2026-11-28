@@ -10,11 +10,6 @@ enum ObservationMode {
 }
 
 
-class InferenceFailure {
-  stage string
-  message string
-}
-
 // Redaction protects the captured state in the semantic call payloads, not
 // arbitrary copies made by a caller or by additional tracing instrumentation.
 
