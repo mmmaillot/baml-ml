@@ -11,7 +11,7 @@ This repository uses **trunk-based development** on `main` with mandatory pull r
 - **Run local verification before opening a PR** (and re-run before merging if `main` moved):
   - Always: `BAML_TELEMETRY=off "$BAML_CLI" check` and `BAML_TELEMETRY=off "$BAML_CLI" test --max-concurrency 1 --test-timeout 5m`.
   - When touching traces, loaders, or observation policies: run `experiments/imported_inference/run.sh` and `experiments/native_ml_observability/run.sh` (or `experiments/adaptive_shadow/run.py` when relevant).
-  - When touching standalone CLI entry points (`baml_src/batch.baml`, `shadow.baml`, `baml.toml`): verify `experiments/standalone/run.sh` or confirm the `standalone-package` CI job passes on `main`.
+  - When touching standalone CLI entry points (`baml_src/surface/cli.baml`, `baml_src/runtime/shadow.baml`, `baml.toml`): verify `experiments/standalone/run.sh` or confirm the `standalone-package` CI job passes on `main`.
 - **No force-pushes to `main`.**
 
 ## Stories and Kanban (`status/*` labels)

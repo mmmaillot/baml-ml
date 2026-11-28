@@ -11,7 +11,8 @@ usage() {
   cat >&2 <<'EOF'
 usage: scripts/verify.sh [--full]
 
-  (default)   BAML_TELEMETRY=off baml-cli check + test --max-concurrency 1 --test-timeout 5m
+  (default)   scripts/check_architecture.py (baml_src layer linter), then
+              BAML_TELEMETRY=off baml-cli check + test --max-concurrency 1 --test-timeout 5m
   --full      also runs experiments/imported_inference/run.sh,
               experiments/native_ml_observability/run.sh and
               experiments/heterogeneous_pipelines/run.sh; additionally
@@ -50,6 +51,8 @@ echo "Using BAML_CLI=$BAML_CLI ($("$CLI" --version 2>/dev/null))"
 
 (
   cd "$ROOT"
+  echo "==> check_architecture.py (in $ROOT)"
+  python3 "$ROOT/scripts/check_architecture.py"
   echo "==> baml check (in $ROOT)"
   BAML_TELEMETRY=off "$CLI" check
   echo "==> baml test (in $ROOT)"
