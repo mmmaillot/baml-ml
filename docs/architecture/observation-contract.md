@@ -67,8 +67,9 @@ Prediction stages are children of the prediction span; intermediate helper
 functions are timing-only by default. Label-only inference in Timing, Semantic and Full skips softmax. Adaptive and shadow compute probabilities in memory for trigger evaluation and keep the label replay stages faithful to the requested operation. Binary decision scores are [0,z] (the second score is sklearn's
 decision function); multiclass scores follow artifact class order. In v3
 pipelines, `missing_input` fires on null numeric or categorical cells and
-`extreme_zscore` uses the output of the most recent standard_scaler step or
-branch (no-op without a scaler).
+`extreme_zscore` uses the per-row maximum absolute z-score aggregated across
+every standard_scaler step and branch execution, independent of execution
+order (no-op without a scaler).
 
 Prepared pipeline/parameter arguments are wrapped in a native @trace.redact
 field for semantic inference spans. The full model artifact is captured in

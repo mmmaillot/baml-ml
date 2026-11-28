@@ -93,7 +93,25 @@ class CellMatrixResult {
 }
 
 class PipelineExecution {
-  scaled float[][]? // output of the most recent standard_scaler step (Adaptive extreme_zscore)
+  // Per-row maximum absolute z-score aggregated across every standard_scaler
+  // step/branch execution (Adaptive extreme_zscore); null when no scaler ran.
+  z_abs_max float[]?
+}
+
+// Internal: fold one scaler output into the per-row max-abs-z aggregate so
+// trigger evaluation never depends on branch execution order.
+function MergeScalerAbsMax(exec: PipelineExecution, x: float[][]) -> void {
+  let cur = exec.z_abs_max;
+  if (cur == null) {
+    let m: float[] = [];
+    for (let i = 0; i < x.length(); i += 1) { m.push(MaxAbsoluteValue(x[i])); }
+    exec.z_abs_max = m;
+  } else {
+    for (let i = 0; i < x.length() && i < cur.length(); i += 1) {
+      let v = MaxAbsoluteValue(x[i]);
+      if (v > cur[i]) { cur[i] = v; }
+    }
+  }
 }
 
 class PipelineRun {
@@ -270,9 +288,11 @@ function PipelineStepError(s: PipelineStep, n_in: int, kinds: string[]) -> strin
       if (err != "") { return err; }
       if (kinds[j] != "categorical") { return "artifact: one-hot encoder on numeric input"; }
       let b = OneHotBlockSize(ohe.columns[j], ohe.drop);
-      if (b < 1) { return "artifact: one-hot block has zero width"; }
       out = out + b;
     }
+    // Individual blocks may be zero-width (dropped singleton category), but
+    // the total encoder output must keep at least one column.
+    if (out < 1) { return "artifact: one-hot output has zero width"; }
     if (s.n_features_out != out) { return "artifact: one-hot output dimension mismatch"; }
     return "";
   }
@@ -313,11 +333,16 @@ function PipelineStepError(s: PipelineStep, n_in: int, kinds: string[]) -> strin
         out = out + branch.steps[branch.steps.length() - 1].n_features_out;
       }
     }
-    for (let c = 0; c < ct.remainder_columns.length(); c += 1) {
-      let col = ct.remainder_columns[c];
-      if (col < 0 || col >= n_in || used[col]) { return "artifact: invalid or overlapping remainder column"; }
-      used[col] = true;
-      if (ct.remainder == "passthrough" && kinds[col] != "numeric") { return "artifact: passthrough remainder on categorical input"; }
+    // The remainder must be exactly the ordered (ascending) complement of the
+    // branch columns: no missing, extra, duplicated or out-of-range column.
+    let complement: int[] = [];
+    for (let j = 0; j < n_in; j += 1) {
+      if (!used[j]) { complement.push(j); }
+    }
+    if (ct.remainder_columns.length() != complement.length()) { return "artifact: remainder columns are not the branch complement"; }
+    for (let c = 0; c < complement.length(); c += 1) {
+      if (ct.remainder_columns[c] != complement[c]) { return "artifact: remainder columns are not the ordered branch complement"; }
+      if (ct.remainder == "passthrough" && kinds[complement[c]] != "numeric") { return "artifact: passthrough remainder on categorical input"; }
     }
     if (ct.remainder == "passthrough") { out = out + ct.remainder_columns.length(); }
     if (s.n_features_out != out) { return "artifact: column transformer output dimension mismatch"; }
@@ -367,6 +392,10 @@ function PipelineArtifactError(a: FittedPipelineArtifact) -> string {
       return "artifact: unsupported pipeline step kind";
     }
     // simple_imputer and standard_scaler preserve the column kinds.
+  }
+  // The terminal estimator consumes a dense numeric matrix.
+  for (let j = 0; j < kinds.length(); j += 1) {
+    if (kinds[j] != "numeric") { return "artifact: terminal estimator input is not numeric"; }
   }
   PipelineEstimatorError(a.estimator, expected)
 }
@@ -667,7 +696,7 @@ function RunOneStep(cur: Cell[][], s: PipelineStep, index: int, opts: trace.Opti
     let sc = s.scaler;
     if (sc == null) { throw InferenceFailure { stage: "standardization", message: "artifact: malformed standard_scaler step" }; }
     let out = ObservedScaleStep(cur, TracePrivate<ScalerStep> { value: sc }, $trace = StepOptions(opts, index, s.kind));
-    exec.scaled = CellsToFloatMatrix(out);
+    MergeScalerAbsMax(exec, CellsToFloatMatrix(out));
     return out;
   }
   if (s.kind == "one_hot_encoder") {
@@ -857,7 +886,7 @@ function PredictLoadedPipeline(cells: Cell[][], features: string[], model_id: st
   err = ValidatePipelineInput(cells, a);
   if (err != "") { throw InferenceFailure { stage: "input_validation", message: err }; }
   let opts = ObservationOptions(observation);
-  let exec = PipelineExecution { scaled: null };
+  let exec = PipelineExecution { z_abs_max: null };
   let out = RunPipelineSteps(cells, a, opts, exec);
   let x = PipelineEstimatorMatrix(out);
   let run = RunPipelineEstimator(x, a, operation, observation == ObservationMode.Full, false, opts);
@@ -906,8 +935,8 @@ function CollectPipelineSignals(signals: AdaptiveRowSignals[], cells: Cell[][], 
       if (cells[i][j].kind == "null") { has_nan = true; }
     }
     let max_abs_z = 0.0;
-    let scaled = exec.scaled;
-    if (scaled != null && i < scaled.length()) { max_abs_z = MaxAbsoluteValue(scaled[i]); }
+    let z = exec.z_abs_max;
+    if (z != null && i < z.length()) { max_abs_z = z[i]; }
     if (is_classifier) {
       signals.push(AdaptiveRowSignals { has_nan: has_nan, max_abs_z: max_abs_z, probabilities: run.probs[i], label: run.labels[i], prediction: 0.0 });
     } else {
@@ -939,7 +968,7 @@ function SelectivePipeline(a: FittedPipelineArtifact) -> SelectiveModel {
                 throw InferenceFailure { stage: "input_validation", message: err };
             }
             let opts = ObservationOptions(mode);
-            let exec = PipelineExecution { scaled: null };
+            let exec = PipelineExecution { z_abs_max: null };
             let out = RunPipelineSteps(cells, a, opts, exec);
             let x = PipelineEstimatorMatrix(out);
             let is_classifier = a.estimator.kind != "linear";

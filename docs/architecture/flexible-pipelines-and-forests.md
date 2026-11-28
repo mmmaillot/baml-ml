@@ -34,12 +34,15 @@ estimator: { kind, n_features_in, weights, intercepts, classes, nodes, trees }
   compatible with v1/v2 and all-numeric v3 pipelines.
 - The per-step `n_features_in -> n_features_out` chain (including the terminal
   estimator) is validated once at prepare/load time; column kinds are tracked
-  statically through the chain so a string can never reach an estimator.
+  statically through the chain and the terminal estimator input must be all
+  numeric, so a string can never reach an estimator.
 - RandomForestClassifier reuses the validated binary32 tree core:
   features are rounded to float32 once per row, `predict_proba` is the
   arithmetic mean of per-tree leaf probabilities accumulated in estimator
-  order (bit-exact sklearn 1.8.0 parity), `predict` is the argmax with
-  first-class tie breaking.
+  order (bit-exact against sklearn 1.8.0 sequential accumulation in estimator
+  order for the default `n_jobs=1`; parallel accumulation can reorder the
+  floating-point sum, so this is not a cross-backend bitwise guarantee),
+  `predict` is the argmax with first-class tie breaking.
 
 ## Strict rejection over approximation
 
@@ -48,9 +51,19 @@ extended imputer configurations outside `NaN`/`add_indicator=false`, sparse
 one-hot/column-transformer outputs, `min_frequency`/`max_categories`/
 `infrequent_if_exist` grouping, non-`error`/`ignore` `handle_unknown`, drop
 other than `null`/`first`/`if_binary`, `transformer_weights`, nested column
-transformers, callable/regex column selectors, multi-output forests,
-non-integer classes, OvR/liblinear logistic, and any dimension-chain
-mismatch.
+transformers, callable/regex column selectors, arbitrary
+`FunctionTransformer` branches, multi-output forests, non-integer classes,
+OvR/liblinear logistic, and any dimension-chain mismatch. Column-transformer
+rules enforced identically at export and load: `remainder_columns` must be
+exactly the ordered ascending complement of the branch columns, branch modes
+are read from the original `transformers` configuration (a fitted explicit
+`'passthrough'` appears as an identity `FunctionTransformer` and must still
+export as passthrough), and named column selectors resolve against the actual
+output feature names propagated through the chain (`get_feature_names_out`),
+never against the original input names. A one-hot column whose dropped
+category leaves a zero-width block is valid (e.g. `drop="first"` on a
+singleton category) as long as the total encoder output keeps at least one
+column; an all-zero-width encoder is rejected.
 
 ## Observation contract for v3
 
@@ -66,20 +79,23 @@ batch span `ObservedForestTraversal`. All modes (`Timing`, `Semantic`, `Full`,
 `Adaptive`, `BAML_TELEMETRY=off`) and same-family `shadow` (matching
 `estimator_kind`, ordered `features`, ordered `classes`, equal
 `schema_version`) are supported. `Adaptive` fires `missing_input` on null
-numeric or categorical cells and evaluates `extreme_zscore` on the output of
-the most recent `standard_scaler` step or branch (cleanly no-op when no
-scaler is present); `low_margin`, `label_disagreement` and `score_delta` work
-unchanged on forest averaged probabilities. Failure stages:
+numeric or categorical cells and evaluates `extreme_zscore` on the per-row
+maximum absolute z-score aggregated across every `standard_scaler` step and
+branch execution, so the trigger never depends on branch execution order
+(cleanly no-op when no scaler is present); `low_margin`, `label_disagreement`
+and `score_delta` work unchanged on forest averaged probabilities. Failure stages:
 `input_validation`, `imputation`, `standardization`, `one_hot_encoding`,
 `column_transform`, `linear_prediction`, `decision_scores`, `softmax`,
 `tree_traversal`, `forest_traversal`.
 
 ## Evidence
 
-- sklearn 1.8.0 parity fixtures + oracle: `artifacts/fixtures/v3/` (21
+- sklearn 1.8.0 parity fixtures + oracle: `artifacts/fixtures/v3/` (25
   artifacts covering 0/1/multi-step pipelines, all imputer strategies, OHE
   drop/handle_unknown variants, integer categories, heterogeneous
-  ColumnTransformer pipelines, forests), regenerated in CI through the real
+  ColumnTransformer pipelines, forests, plus chained-transformer named
+  selectors, explicit passthrough branches, singleton-category drop blocks
+  and multi-scaler z-score aggregation), regenerated in CI through the real
   exporter (`PipelineV3OracleProbe`).
 - BTEL SQL verification: `experiments/heterogeneous_pipelines/run.sh`.
 - Standalone offline smoke (3 platforms): `experiments/standalone/run.sh`.

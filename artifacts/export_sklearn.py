@@ -7,6 +7,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import FunctionTransformer
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.utils.validation import check_is_fitted
 from sklearn.tree import DecisionTreeClassifier
@@ -256,11 +257,13 @@ def _export_one_hot_encoder(step, width, col_kinds):
             raise ValueError("unsupported category dtype")
         n = len(cats)
         adj = 1 if (step.drop == "first" or (step.drop == "if_binary" and n == 2)) else 0
-        n_out += n - adj
+        # A dropped singleton category yields a valid zero-width block as long
+        # as the total output width stays positive.
+        n_out += max(n - adj, 0)
     fitted_out = getattr(step, "n_features_out_", None)
     if fitted_out is None:
         fitted_out = sum(int(v) for v in getattr(step, "_n_features_outs", [n_out]))
-    if n_out < width or n_out != fitted_out:
+    if n_out < 1 or n_out != fitted_out:
         raise ValueError("one-hot output dimension mismatch")
     return (
         dict(kind="one_hot_encoder", n_features_in=width, n_features_out=n_out,
@@ -272,12 +275,19 @@ def _export_one_hot_encoder(step, width, col_kinds):
 
 
 def _resolve_columns(cols, width, features):
-    """Resolve explicit integer or string column selectors to indices."""
+    """Resolve explicit integer or string column selectors to indices.
+
+    String selectors resolve against `features`, which must be the actual
+    output names of the preceding step in the chain (propagated by the
+    caller); None means names are unknown and named selectors are rejected.
+    """
     if isinstance(cols, (list, tuple, np.ndarray)) and not callable(cols):
         arr = list(cols)
         if arr and all(isinstance(c, (int, np.integer)) and not isinstance(c, bool) for c in arr):
             out = [int(c) for c in arr]
         elif arr and all(isinstance(c, str) for c in arr):
+            if features is None:
+                raise ValueError("named column selectors require known output feature names")
             if any(c not in features for c in arr):
                 raise ValueError("unknown column name selector")
             out = [features.index(c) for c in arr]
@@ -287,6 +297,19 @@ def _resolve_columns(cols, width, features):
             raise ValueError("column index out of range")
         return out
     raise ValueError("runtime column selectors unsupported")
+
+
+def _output_names(step, names, width):
+    """Actual output feature names of a fitted step, or None if unknown."""
+    if names is None:
+        return None
+    try:
+        out = list(step.get_feature_names_out(names))
+    except Exception:
+        return None
+    if len(out) != width:
+        return None
+    return out
 
 
 def _export_branch_pipeline(trans, cols_r, col_kinds):
@@ -315,36 +338,49 @@ def _export_column_transformer(step, width, col_kinds, features):
         raise ValueError("sparse column transformer output unsupported")
     if step.n_features_in_ != width:
         raise ValueError("unsupported dimensionality change")
-    for _name, _trans, cols in step.transformers:
-        if callable(cols) or callable(_trans):
+    # Branch mode comes from the original configuration: a fitted sklearn
+    # ColumnTransformer replaces explicit 'passthrough' with an identity
+    # FunctionTransformer, which must not be mistaken for a sub-pipeline.
+    config = {}
+    for name, trans, cols in step.transformers:
+        if callable(cols) or callable(trans):
             raise ValueError("callable selectors/transformers unsupported")
+        config[name] = (trans, cols)
     branches = []
     used = set()
     fitted_remainder = None
-    for name, trans, cols in step.transformers_:
+    for name, fitted_trans, fitted_cols in step.transformers_:
         if name == "remainder":
-            fitted_remainder = _resolve_columns(cols, width, features)
+            fitted_remainder = _resolve_columns(fitted_cols, width, features)
             continue
-        cols_r = _resolve_columns(cols, width, features)
+        if name not in config:
+            raise ValueError("fitted branch missing from configuration")
+        cfg_trans, cfg_cols = config[name]
+        if not isinstance(name, str) or not name:
+            raise ValueError("invalid branch name")
+        cols_r = _resolve_columns(cfg_cols, width, features)
+        if _resolve_columns(fitted_cols, width, features) != cols_r:
+            raise ValueError("fitted and configured branch columns differ")
         if any(c in used for c in cols_r):
             raise ValueError("overlapping branch columns")
         used.update(cols_r)
-        if not isinstance(name, str) or not name:
-            raise ValueError("invalid branch name")
-        if trans == "drop":
+        if cfg_trans == "drop":
             branches.append(dict(name=name, columns=cols_r, mode="drop", steps=[]))
-        elif trans == "passthrough":
+        elif cfg_trans == "passthrough":
             if any(col_kinds[c] != "numeric" for c in cols_r):
                 raise ValueError("passthrough branch on categorical input")
             branches.append(dict(name=name, columns=cols_r, mode="passthrough", steps=[]))
-        else:
-            step_dicts, branch_out = _export_branch_pipeline(trans, cols_r, col_kinds)
+        elif isinstance(cfg_trans, Pipeline) and not isinstance(fitted_trans, FunctionTransformer):
+            step_dicts, branch_out = _export_branch_pipeline(fitted_trans, cols_r, col_kinds)
             branches.append(dict(name=name, columns=cols_r, mode="pipeline", steps=step_dicts))
+        else:
+            raise ValueError("unsupported branch transformer (only 'drop', 'passthrough' or Pipeline)")
     if len({b["name"] for b in branches}) != len(branches):
         raise ValueError("duplicate branch names")
     remainder = step.remainder
     if remainder not in ("drop", "passthrough"):
         raise ValueError("unsupported remainder")
+    # The remainder must be exactly the ordered complement of branch columns.
     rem_cols = sorted(set(range(width)) - used)
     if fitted_remainder is not None and fitted_remainder != rem_cols:
         raise ValueError("remainder columns differ from the fitted complement")
@@ -430,9 +466,15 @@ def export_pipeline_v3(pipeline, features, input_kinds=None):
     width = n
     col_kinds = list(input_kinds)
     step_dicts = []
+    current_names = features
     for step in pre:
-        d, width, col_kinds = export_preprocessor(step, width, col_kinds, features)
+        d, width, col_kinds = export_preprocessor(step, width, col_kinds, current_names)
         step_dicts.append(d)
+        # Propagate the actual output feature names so later named selectors
+        # resolve against the real post-transformation column order.
+        current_names = _output_names(step, current_names, width)
+    if any(k != "numeric" for k in col_kinds):
+        raise ValueError("terminal estimator input is not numeric")
     estimator = export_estimator(est, width)
     a = dict(schema_version=3, source="scikit-learn", source_version=sklearn.__version__,
              features=features, input_kinds=input_kinds, steps=step_dicts, estimator=estimator)

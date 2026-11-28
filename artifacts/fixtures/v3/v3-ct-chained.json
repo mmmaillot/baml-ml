@@ -1,0 +1,145 @@
+{
+  "schema_version": 3,
+  "source": "scikit-learn",
+  "source_version": "1.8.0",
+  "features": [
+    "age",
+    "income",
+    "city"
+  ],
+  "input_kinds": [
+    "numeric",
+    "numeric",
+    "categorical"
+  ],
+  "steps": [
+    {
+      "kind": "column_transformer",
+      "n_features_in": 3,
+      "n_features_out": 6,
+      "column_transformer": {
+        "branches": [
+          {
+            "name": "cat",
+            "columns": [
+              2
+            ],
+            "mode": "pipeline",
+            "steps": [
+              {
+                "kind": "simple_imputer",
+                "n_features_in": 1,
+                "n_features_out": 1,
+                "imputer": {
+                  "strategy": "most_frequent",
+                  "value_kind": "string",
+                  "statistics": [],
+                  "fill_strings": [
+                    "berlin"
+                  ]
+                }
+              },
+              {
+                "kind": "one_hot_encoder",
+                "n_features_in": 1,
+                "n_features_out": 4,
+                "one_hot": {
+                  "columns": [
+                    {
+                      "kind": "string",
+                      "strings": [
+                        "berlin",
+                        "lyon",
+                        "madrid",
+                        "paris"
+                      ],
+                      "ints": []
+                    }
+                  ],
+                  "handle_unknown": "error",
+                  "drop": null
+                }
+              }
+            ]
+          }
+        ],
+        "remainder": "passthrough",
+        "remainder_columns": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "kind": "column_transformer",
+      "n_features_in": 6,
+      "n_features_out": 1,
+      "column_transformer": {
+        "branches": [
+          {
+            "name": "scaled_age",
+            "columns": [
+              4
+            ],
+            "mode": "pipeline",
+            "steps": [
+              {
+                "kind": "simple_imputer",
+                "n_features_in": 1,
+                "n_features_out": 1,
+                "imputer": {
+                  "strategy": "mean",
+                  "value_kind": "numeric",
+                  "statistics": [
+                    40.49302219131267
+                  ],
+                  "fill_strings": []
+                }
+              },
+              {
+                "kind": "standard_scaler",
+                "n_features_in": 1,
+                "n_features_out": 1,
+                "scaler": {
+                  "means": [
+                    40.49302219131267
+                  ],
+                  "scales": [
+                    11.59991044584084
+                  ]
+                }
+              }
+            ]
+          }
+        ],
+        "remainder": "drop",
+        "remainder_columns": [
+          0,
+          1,
+          2,
+          3,
+          5
+        ]
+      }
+    }
+  ],
+  "estimator": {
+    "kind": "logistic_binary",
+    "n_features_in": 1,
+    "weights": [
+      [
+        0.07039679029309805
+      ]
+    ],
+    "intercepts": [
+      1.6110646741651244
+    ],
+    "classes": [
+      0,
+      1
+    ],
+    "nodes": [],
+    "trees": []
+  },
+  "model_id": "ea47e96ead9e5382b8ad3164912d435e0c22803b57ad0152fb7645f6e04cb7ff"
+}

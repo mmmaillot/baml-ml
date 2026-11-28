@@ -83,3 +83,40 @@ test "v3_ct_adaptive_missing_input_fires_on_numeric_and_categorical_nulls" {
   let big_shadow = RunShadow(model, model, big, "predict", DefaultAdaptivePolicy());
   assert.equal(big_shadow.summary.triggers.extreme_zscore, 1)
 }
+
+test "v3_ct_remainder_must_be_the_ordered_branch_complement" {
+  let base = CTFixture("v3-ct-chained");
+  assert.equal(PipelineArtifactError(DecodePipelineArtifact(base)), "");
+  // ct1 has a single branch on column 2, so the remainder must be exactly [0, 1].
+  let a = DecodePipelineArtifact(base);
+  let ct = a.steps[0].column_transformer;
+  if (ct != null) { ct.remainder_columns = [1, 0]; }
+  assert.equal(PipelineArtifactError(a), "artifact: remainder columns are not the ordered branch complement");
+  a = DecodePipelineArtifact(base);
+  ct = a.steps[0].column_transformer;
+  if (ct != null) { ct.remainder_columns = [0]; }
+  assert.equal(PipelineArtifactError(a), "artifact: remainder columns are not the branch complement");
+  a = DecodePipelineArtifact(base);
+  ct = a.steps[0].column_transformer;
+  if (ct != null) { ct.remainder_columns = [0, 1, 2]; }
+  assert.equal(PipelineArtifactError(a), "artifact: remainder columns are not the branch complement");
+  // Same rule on the passthrough-remainder fixture (single remainder column 0).
+  let pt = DecodePipelineArtifact(CTFixture("v3-ct-passthrough-remainder"));
+  let ct_pt = pt.steps[0].column_transformer;
+  if (ct_pt != null) { ct_pt.remainder_columns = []; }
+  assert.equal(PipelineArtifactError(pt), "artifact: remainder columns are not the branch complement");
+}
+
+test "v3_ct_extreme_zscore_aggregates_across_scaler_branches" {
+  let model = CTFixture("v3-ct-two-scalers");
+  let f = baml.json.stringify(["age", "income", "city"]);
+  // age is extreme in branch "a" while income sits near its training mean in
+  // branch "b", which runs after "a": only a per-row max-abs-z aggregated
+  // across all scaler executions fires the trigger.
+  let big = `{"features":${f},"rows":[[1e9,55000.0,\"paris\"]]}`;
+  let out = RunShadow(model, model, big, "predict", DefaultAdaptivePolicy());
+  assert.equal(out.summary.triggers.extreme_zscore, 1)
+  let calm = `{"features":${f},"rows":[[30.0,40000.0,\"lyon\"]]}`;
+  let calm_out = RunShadow(model, model, calm, "predict", DefaultAdaptivePolicy());
+  assert.equal(calm_out.summary.triggers.extreme_zscore, 0)
+}

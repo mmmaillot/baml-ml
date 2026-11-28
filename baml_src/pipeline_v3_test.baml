@@ -22,7 +22,8 @@ function V3Names() -> string[] {
    "v3-strimpute-ohe-logreg", "v3-ohe-drop-first", "v3-ohe-if-binary", "v3-ohe-ignore-unseen",
    "v3-ohe-error", "v3-ohe-int-categories",
    "v3-ct-hetero-logreg", "v3-ct-hetero-tree", "v3-ct-passthrough-remainder", "v3-ct-then-scaler-logreg",
-   "v3-ct-hetero-forest", "v3-forest-impute-scale", "v3-forest-impute-scale-b"]
+   "v3-ct-hetero-forest", "v3-forest-impute-scale", "v3-forest-impute-scale-b",
+   "v3-ct-two-scalers", "v3-ct-explicit-passthrough", "v3-ohe-drop-singleton", "v3-ct-chained"]
 }
 
 function Near(a: float, b: float) -> bool { Abs(a - b) < 1e-9 }
@@ -148,6 +149,33 @@ test "v3_rejects_malformed_artifacts_at_load" {
   a.input_kinds[0] = "categorical";
   assert.is_true(V3LoadFails(baml.json.stringify(a)));
   assert.is_true(V3LoadFails("{"))
+}
+
+test "v3_terminal_estimator_input_must_be_numeric" {
+  // Dropping the one-hot step would leave categorical columns feeding the
+  // terminal estimator; the loader must reject that.
+  let base = V3Fixture("v3-strimpute-ohe-logreg");
+  let a = DecodePipelineArtifact(base);
+  let first = a.steps[0];
+  a.steps = [first];
+  a.estimator.n_features_in = 2;
+  assert.equal(PipelineArtifactError(a), "artifact: terminal estimator input is not numeric");
+  assert.is_true(V3LoadFails(baml.json.stringify(a)));
+}
+
+test "v3_one_hot_zero_width_blocks" {
+  // drop="first" on a singleton category is a valid zero-width block while
+  // the total encoder output keeps at least one column.
+  let ok = V3Fixture("v3-ohe-drop-singleton");
+  assert.equal(PipelineArtifactError(DecodePipelineArtifact(ok)), "");
+  let m: LoadedPipelineModel? = PreparePipelineModel(ok) catch_all (e) { _ => null };
+  assert.is_true(m != null);
+  // Every block zero-width (all singleton categories) is rejected.
+  let a = DecodePipelineArtifact(ok);
+  let ohe = a.steps[0].one_hot;
+  if (ohe != null) { ohe.columns[0].strings = ["a"]; }
+  assert.equal(PipelineArtifactError(a), "artifact: one-hot output has zero width");
+  assert.is_true(V3LoadFails(baml.json.stringify(a)));
 }
 
 function V3HandleError(m: LoadedPipelineModel, raw: string) -> string {

@@ -249,6 +249,71 @@ def build_fixtures():
         forest_b, IRIS_FEATURES, None,
         {"features": IRIS_FEATURES, "rows": [[None, 3.0, 1.3, 0.2], [6.1, 3.0, 4.9, 1.8]]},
     )
+
+    # Review regressions: two independent scaler branches (Adaptive z-score
+    # aggregation must not depend on branch order).
+    ct_two = Pipeline([("ct", ColumnTransformer(
+        [("a", make_pipeline(SimpleImputer(), StandardScaler()), [0]),
+         ("b", make_pipeline(SimpleImputer(), StandardScaler()), [1]),
+         ("cat", make_pipeline(SimpleImputer(strategy="most_frequent"),
+                               OneHotEncoder(sparse_output=False)), [2])],
+        remainder="drop")),
+        ("est", LogisticRegression(max_iter=1000))]).fit(xh, yh)
+    fixtures["v3-ct-two-scalers"] = (
+        ct_two, hetero_features, hetero_kinds,
+        {"features": hetero_features, "rows": [[1e9, 55000.0, "paris"], [30.0, 40000.0, "lyon"]]},
+    )
+
+    # Review regression: explicit "passthrough" branch (fitted as an identity
+    # FunctionTransformer by sklearn) must export as passthrough.
+    xh_ept = xh.copy()
+    xh_ept[2, 0] = 35.0  # explicit passthrough column must be complete
+    ct_explicit_pt = Pipeline([("ct", ColumnTransformer(
+        [("keep", "passthrough", [0]),
+         ("cat", make_pipeline(SimpleImputer(strategy="most_frequent"),
+                               OneHotEncoder(sparse_output=False)), [2])],
+        remainder="drop")),
+        ("est", LogisticRegression(max_iter=1000))]).fit(xh_ept, yh)
+    # The passthrough column (age) must be complete in the batch.
+    ept_rows = [[25.0, None, "lyon"], [40.0, 70000.0, None], [52.0, 30000.0, "madrid"]]
+    fixtures["v3-ct-explicit-passthrough"] = (
+        ct_explicit_pt, hetero_features, hetero_kinds,
+        {"features": hetero_features, "rows": ept_rows},
+    )
+
+    # Review regression: drop="first" on a singleton category is a valid
+    # zero-width block when the total output width stays positive.
+    xs = np.array([["a", "x"], ["b", "x"], ["a", "x"], ["b", "x"], ["a", "x"], ["b", "x"]], dtype=object)
+    ys = np.array([0, 1, 0, 1, 0, 1])
+    ohe_singleton = make_pipeline(OneHotEncoder(drop="first", sparse_output=False),
+                                  LogisticRegression(max_iter=500)).fit(xs, ys)
+    fixtures["v3-ohe-drop-singleton"] = (
+        ohe_singleton, ["c0", "c1"], ["categorical", "categorical"],
+        {"features": ["c0", "c1"], "rows": [["a", "x"], ["b", "x"]]},
+    )
+
+    # Review regression: chained ColumnTransformers with named selectors after
+    # a reordering first CT; names must resolve against the actual output
+    # feature names of the preceding step (age lands at output index 4).
+    import pandas as pd
+    df = pd.DataFrame({"age": age, "income": income, "city": cities})
+    df.loc[2, "age"] = np.nan
+    df.loc[5, "city"] = np.nan
+    ct1 = ColumnTransformer(
+        [("cat", make_pipeline(SimpleImputer(strategy="most_frequent"),
+                               OneHotEncoder(sparse_output=False)), ["city"])],
+        remainder="passthrough", verbose_feature_names_out=False)
+    ct2 = ColumnTransformer(
+        [("scaled_age", make_pipeline(SimpleImputer(), StandardScaler()), ["age"])],
+        remainder="drop")
+    chained = Pipeline([("ct1", ct1), ("ct2", ct2),
+                        ("est", LogisticRegression(max_iter=1000))])
+    chained.set_output(transform="pandas")
+    chained.fit(df, yh)
+    fixtures["v3-ct-chained"] = (
+        chained, hetero_features, hetero_kinds,
+        {"features": hetero_features, "rows": [[None, None, "paris"], [30.0, 55000.0, None]]},
+    )
     return fixtures
 
 
@@ -270,7 +335,12 @@ def main():
         with open(v3 / f"{name}.json", "w", encoding="utf-8") as f:
             json.dump(artifact, f, indent=2, allow_nan=False)
             f.write("\n")
-        x = _batch_matrix(batch)
+        if hasattr(pipeline, "feature_names_in_"):
+            import pandas as pd
+            x = pd.DataFrame([[np.nan if v is None else v for v in row] for row in batch["rows"]],
+                             columns=features)
+        else:
+            x = _batch_matrix(batch)
         pred = pipeline.predict(x)
         entry = {"input": batch, "is_classifier": hasattr(pipeline, "predict_proba")}
         if entry["is_classifier"]:

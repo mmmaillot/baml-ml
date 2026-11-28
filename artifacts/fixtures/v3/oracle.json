@@ -863,5 +863,156 @@
         0.9816820276497696
       ]
     ]
+  },
+  "v3-ct-two-scalers": {
+    "input": {
+      "features": [
+        "age",
+        "income",
+        "city"
+      ],
+      "rows": [
+        [
+          1000000000.0,
+          55000.0,
+          "paris"
+        ],
+        [
+          30.0,
+          40000.0,
+          "lyon"
+        ]
+      ]
+    },
+    "is_classifier": true,
+    "predict_labels": [
+      1,
+      0
+    ],
+    "predict_proba": [
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.5833923793162346,
+        0.4166076206837655
+      ]
+    ]
+  },
+  "v3-ct-explicit-passthrough": {
+    "input": {
+      "features": [
+        "age",
+        "income",
+        "city"
+      ],
+      "rows": [
+        [
+          25.0,
+          null,
+          "lyon"
+        ],
+        [
+          40.0,
+          70000.0,
+          null
+        ],
+        [
+          52.0,
+          30000.0,
+          "madrid"
+        ]
+      ]
+    },
+    "is_classifier": true,
+    "predict_labels": [
+      1,
+      1,
+      1
+    ],
+    "predict_proba": [
+      [
+        0.440528091491991,
+        0.559471908508009
+      ],
+      [
+        0.11079087590583758,
+        0.8892091240941624
+      ],
+      [
+        0.08193806877313903,
+        0.918061931226861
+      ]
+    ]
+  },
+  "v3-ohe-drop-singleton": {
+    "input": {
+      "features": [
+        "c0",
+        "c1"
+      ],
+      "rows": [
+        [
+          "a",
+          "x"
+        ],
+        [
+          "b",
+          "x"
+        ]
+      ]
+    },
+    "is_classifier": true,
+    "predict_labels": [
+      0,
+      1
+    ],
+    "predict_proba": [
+      [
+        0.633903071016483,
+        0.36609692898351703
+      ],
+      [
+        0.3660381475891473,
+        0.6339618524108527
+      ]
+    ]
+  },
+  "v3-ct-chained": {
+    "input": {
+      "features": [
+        "age",
+        "income",
+        "city"
+      ],
+      "rows": [
+        [
+          null,
+          null,
+          "paris"
+        ],
+        [
+          30.0,
+          55000.0,
+          null
+        ]
+      ]
+    },
+    "is_classifier": true,
+    "predict_labels": [
+      1,
+      1
+    ],
+    "predict_proba": [
+      [
+        0.1664408500371074,
+        0.8335591499628926
+      ],
+      [
+        0.1754642335234542,
+        0.8245357664765458
+      ]
+    ]
   }
 }

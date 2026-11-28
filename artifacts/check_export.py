@@ -207,4 +207,73 @@ for model in (multi, regressor):
         pass
     else:
         raise AssertionError("unsupported forest exported")
+
+# Review regressions: output-name propagation across chained ColumnTransformers,
+# explicit passthrough branches, remainder complement and zero-width one-hot blocks.
+import pandas as pd
+from sklearn.preprocessing import FunctionTransformer
+from export_sklearn import _resolve_columns
+
+# Named selectors require known output names and resolve against them.
+for cols, names in ((["age"], None), (["nope"], ["age", "income", "city"])):
+    try:
+        _resolve_columns(cols, 6, names)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("unresolvable named selector accepted")
+
+df = pd.DataFrame({"age": xh[:, 0].astype(float), "income": xh[:, 1].astype(float), "city": xh[:, 2]})
+ct1 = ColumnTransformer(
+    [("cat", make_pipeline(SimpleImputer(strategy="most_frequent"), OneHotEncoder(sparse_output=False)), ["city"])],
+    remainder="passthrough", verbose_feature_names_out=False)
+ct2 = ColumnTransformer(
+    [("scaled_age", make_pipeline(SimpleImputer(), StandardScaler()), ["age"])], remainder="drop")
+chained = Pipeline([("ct1", ct1), ("ct2", ct2), ("est", LogisticRegression(max_iter=1000))])
+chained.set_output(transform="pandas")
+chained.fit(df, yh)
+a = export_pipeline_v3(chained, ["age", "income", "city"])
+ct1_out = a["steps"][0]["column_transformer"]
+assert ct1_out["remainder"] == "passthrough" and ct1_out["remainder_columns"] == [0, 1]
+ct2_out = a["steps"][1]["column_transformer"]
+# "age" resolves against ct1's actual output names, landing at index 4.
+assert ct2_out["branches"][0]["columns"] == [4], ct2_out["branches"][0]["columns"]
+assert ct2_out["remainder_columns"] == [0, 1, 2, 3, 5]
+assert a["steps"][1]["n_features_out"] == a["estimator"]["n_features_in"] == 1
+
+# Explicit "passthrough" exports as passthrough even though sklearn fits it as
+# an identity FunctionTransformer; arbitrary FunctionTransformer branches are rejected.
+ct_ept = make_pipeline(ColumnTransformer(
+    [("keep", "passthrough", [0]),
+     ("cat", make_pipeline(SimpleImputer(strategy="most_frequent"), OneHotEncoder(sparse_output=False)), [2])],
+    remainder="drop"), LogisticRegression(max_iter=1000)).fit(xh, yh)
+a = export_pipeline_v3(ct_ept, ["age", "income", "c"])
+branches = a["steps"][0]["column_transformer"]["branches"]
+assert branches[0]["name"] == "keep" and branches[0]["mode"] == "passthrough" and branches[0]["columns"] == [0]
+fn_ct = make_pipeline(ColumnTransformer(
+    [("f", FunctionTransformer(), [0, 1]),
+     ("cat", make_pipeline(SimpleImputer(strategy="most_frequent"), OneHotEncoder(sparse_output=False)), [2])],
+    remainder="drop"), LogisticRegression(max_iter=1000)).fit(xh, yh)
+try:
+    export_pipeline_v3(fn_ct, ["age", "income", "c"])
+except ValueError:
+    pass
+else:
+    raise AssertionError("FunctionTransformer branch exported")
+
+# drop="first" on a singleton category is a valid zero-width block; an
+# all-singleton encoder has zero total width and is rejected at export.
+xs2 = np.array([["a", "x"], ["b", "x"], ["a", "x"], ["b", "x"], ["a", "x"], ["b", "x"]], dtype=object)
+ys2 = np.array([0, 1, 0, 1, 0, 1])
+a = export_pipeline_v3(make_pipeline(OneHotEncoder(drop="first", sparse_output=False),
+                                      LogisticRegression(max_iter=300)).fit(xs2, ys2), ["c0", "c1"])
+assert a["steps"][0]["n_features_out"] == a["estimator"]["n_features_in"] == 1
+xs_all = np.array([["x", "y"], ["x", "y"], ["x", "y"], ["x", "y"], ["x", "y"], ["x", "y"]], dtype=object)
+try:
+    export_pipeline_v3(make_pipeline(OneHotEncoder(drop="first", sparse_output=False),
+                                     LogisticRegression(max_iter=300)).fit(xs_all, ys2), ["c0", "c1"])
+except ValueError:
+    pass
+else:
+    raise AssertionError("zero-width one-hot encoder exported")
 print("Exporter contract and regenerated reference fixtures passed.")
