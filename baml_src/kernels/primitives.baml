@@ -30,6 +30,11 @@ class IntArrayResult {
   error string
 }
 
+class InferenceFailure {
+  stage string
+  message string
+}
+
 // Native float comparisons use a total order; check NaN explicitly.
 
 function IsNaN(x: float) -> bool { x.is_nan() }
@@ -39,6 +44,18 @@ function IsFinite(x: float) -> bool { x.is_finite() }
 
 
 function Abs(x: float) -> float { x.abs() }
+
+
+function MaxAbsoluteValue(row: float[]) -> float {
+    let maximum = 0.0;
+    for (let value in row) {
+        let magnitude = Abs(value);
+        if (magnitude > maximum) {
+            maximum = magnitude;
+        }
+    }
+    maximum
+}
 
 
 function Exp(x: float) -> float { x.exp() }
