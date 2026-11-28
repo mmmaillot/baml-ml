@@ -14,17 +14,17 @@ class ExecutableModel {
     classes: int[],
     guard: SnapshotGuard,
     snapshot_fn: (trace.Options) -> void throws never,
-    run_fn: (Cell[][], Operation, ObservationMode, AdaptiveRowSignals[]?) -> ExecutionResult
+    run_fn: (ExecutionInput, Operation, ObservationMode, AdaptiveRowSignals[]?) -> ExecutionResult
         throws InferenceFailure,
     function run(
         self,
-        cells: Cell[][],
+        input: ExecutionInput,
         operation: Operation,
         mode: ObservationMode,
         signals: AdaptiveRowSignals[]? = null,
     ) -> ExecutionResult throws InferenceFailure {
         let f = self.run_fn;
-        f(cells, operation, mode, signals)
+        f(input, operation, mode, signals)
     }
 }
 
@@ -119,11 +119,12 @@ function ExecutablePipeline(a: FittedPipelineArtifact) -> ExecutableModel {
             PipelineModelLoaded(a, $trace = opts);
         },
         run_fn: (
-            cells: Cell[][],
+            input: ExecutionInput,
             operation: Operation,
             mode: ObservationMode,
             signals: AdaptiveRowSignals[]?,
         ) -> ExecutionResult {
+            let cells = if (input is NumericExecutionInput) { NumericCells(input.rows) } else { input };
             let err = ValidatePipelineInput(cells, a);
             if (err != "") {
                 throw InferenceFailure { stage: "input_validation", message: err };
@@ -162,13 +163,13 @@ function ExecutableLinear(a: FittedArtifact, p: RegressionPipeline) -> Executabl
             ModelLoaded(a, $trace = opts);
         },
         run_fn: (
-            cells: Cell[][],
+            input: ExecutionInput,
             operation: Operation,
             mode: ObservationMode,
             signals: AdaptiveRowSignals[]?,
         ) -> ExecutionResult {
             let opts = ObservationOptions(mode);
-            let x = CellsToFloatMatrix(cells);
+            let x = ExecutionFloatMatrix(input);
             let scaled = PreparedPreprocess(x, p.imputer, p.scaler, opts);
             let r = ObservedLinear(
                 scaled,
@@ -203,13 +204,13 @@ function ExecutableLogistic(a: FittedArtifact, p: ClassificationPipeline) -> Exe
             ModelLoaded(a, $trace = opts);
         },
         run_fn: (
-            cells: Cell[][],
+            input: ExecutionInput,
             operation: Operation,
             mode: ObservationMode,
             signals: AdaptiveRowSignals[]?,
         ) -> ExecutionResult {
             let opts = ObservationOptions(mode);
-            let x = CellsToFloatMatrix(cells);
+            let x = ExecutionFloatMatrix(input);
             let scaled = PreparedPreprocess(x, p.imputer, p.scaler, opts);
             let scores = ObservedDecisionScores(
                 scaled,
@@ -268,13 +269,13 @@ function ExecutableTree(a: FittedTreeArtifact, p: PreparedTreePipeline) -> Execu
             TreeModelLoaded(a, $trace = opts);
         },
         run_fn: (
-            cells: Cell[][],
+            input: ExecutionInput,
             operation: Operation,
             mode: ObservationMode,
             signals: AdaptiveRowSignals[]?,
         ) -> ExecutionResult {
             let opts = ObservationOptions(mode);
-            let x = CellsToFloatMatrix(cells);
+            let x = ExecutionFloatMatrix(input);
             let scaled = PreparedPreprocess(x, p.imputer, p.scaler, opts);
             let r = ObservedTreeTraversal(
                 scaled,
